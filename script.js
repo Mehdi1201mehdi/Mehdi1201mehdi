@@ -171,6 +171,24 @@ function renderFractionRow(container, num, den, theme) {
   }
 }
 
+function renderImproperFraction(container, num, den, theme) {
+  // Affiche une fraction supérieure à 1 sous forme d'entiers complets + un reste,
+  // pour bien montrer visuellement qu'elle dépasse une pizza entière.
+  container.innerHTML = '';
+  let remaining = num;
+  while (remaining > 0) {
+    const count = Math.min(den, remaining);
+    const line = document.createElement('div');
+    line.className = 'visual-line';
+    const row = document.createElement('span');
+    renderFractionRow(row, count, den, theme);
+    row.style.margin = '0';
+    line.appendChild(row);
+    container.appendChild(line);
+    remaining -= count;
+  }
+}
+
 function renderFractionStack(container, fractions, theme) {
   // fractions: [{label, num, den}, ...]
   container.innerHTML = '';
@@ -215,10 +233,14 @@ function genCompare1() {
     explanation = `Le numérateur et le dénominateur sont égaux (${num}), donc ${num}/${den} est égal à 1.`;
   }
 
+  const visual = num > den
+    ? { type: 'improper', num, den, theme }
+    : { type: 'single', num, den, theme };
+
   return {
     text: 'Compare :',
     fractionDisplay: `${num}/${den}  □  1`,
-    visual: { type: 'single', num, den, theme },
+    visual,
     options: ['<', '=', '>'].map(v => ({ label: v, value: v })),
     correct,
     explanation,
@@ -612,6 +634,8 @@ function renderQuestionVisual(visualEl, fractionEl, q) {
   visualEl.innerHTML = '';
   if (q.visual.type === 'single') {
     renderFractionRow(visualEl, q.visual.num, q.visual.den, q.visual.theme);
+  } else if (q.visual.type === 'improper') {
+    renderImproperFraction(visualEl, q.visual.num, q.visual.den, q.visual.theme);
   } else if (q.visual.type === 'stack') {
     renderFractionStack(visualEl, q.visual.fractions, q.visual.theme);
   }
