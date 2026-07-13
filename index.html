@@ -2,143 +2,39 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Super Fractions CE2</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Coach Perso — 12 semaines</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="app">
-
-  <!-- ===== Écran d'accueil ===== -->
-  <section id="screen-home" class="screen active">
-    <h1>🍕 SUPER FRACTIONS CE2 🍕</h1>
-    <h2>👧 Choisis ton avatar</h2>
-    <div id="avatar-list" class="avatar-grid"></div>
-    <p class="level-banner">⭐ Niveau actuel : <span id="current-level-name">Débutant</span></p>
-    <button id="btn-start" class="btn-primary" disabled>COMMENCER</button>
-  </section>
-
-  <!-- ===== Menu principal ===== -->
-  <section id="screen-menu" class="screen">
-    <header class="topbar">
-      <span id="player-avatar" class="player-tag"></span>
-      <span id="player-xp" class="xp-tag"></span>
-      <button id="btn-voice-toggle" class="icon-btn" title="Activer / couper la voix">🔊</button>
-    </header>
-    <h2>📚 Menu principal</h2>
-    <div class="menu-grid">
-      <button class="menu-card" data-target="screen-lessons">📖<br>Leçons</button>
-      <button class="menu-card" data-target="screen-game-select">🎮<br>Jeux</button>
-      <button class="menu-card" data-target="screen-challenge">🏆<br>Défis</button>
-      <button class="menu-card" data-target="screen-progress">📊<br>Mes progrès</button>
-    </div>
-    <button class="btn-link" id="btn-change-avatar">🔄 Changer d'avatar</button>
-  </section>
-
-  <!-- ===== Liste des leçons ===== -->
-  <section id="screen-lessons" class="screen">
-    <button class="btn-back" data-target="screen-menu">⬅ Retour</button>
-    <h2>📖 Leçons animées</h2>
-    <div id="lesson-list" class="list-grid"></div>
-  </section>
-
-  <!-- ===== Détail d'une leçon ===== -->
-  <section id="screen-lesson-detail" class="screen">
-    <button class="btn-back" data-target="screen-lessons">⬅ Retour</button>
-    <h2 id="lesson-title"></h2>
-    <div class="visual-card">
-      <p class="big-fraction" id="lesson-fraction"></p>
-      <div id="lesson-visual" class="visual-row"></div>
-    </div>
-    <p id="lesson-text" class="explanation-text"></p>
-    <div class="lesson-controls">
-      <button id="btn-lesson-speak" class="btn-secondary">🔊 Écouter</button>
-      <button id="btn-lesson-next" class="btn-primary">Suivant ➜</button>
-    </div>
-  </section>
-
-  <!-- ===== Choix de la notion à entraîner ===== -->
-  <section id="screen-game-select" class="screen">
-    <button class="btn-back" data-target="screen-menu">⬅ Retour</button>
-    <h2>🎮 Mode Entraînement</h2>
-    <p>Choisis une notion à travailler :</p>
-    <div id="game-topic-list" class="list-grid"></div>
-  </section>
-
-  <!-- ===== Jeu d'entraînement ===== -->
-  <section id="screen-game" class="screen">
-    <button class="btn-back" data-target="screen-game-select">⬅ Quitter</button>
-    <div class="game-header">
-      <span id="game-topic-name"></span>
-      <span id="game-score">⭐ 0</span>
-    </div>
-    <div class="question-card">
-      <p id="game-question" class="question-text"></p>
-      <div id="game-visual" class="visual-stack"></div>
-      <p id="game-fraction-display" class="big-fraction"></p>
-      <div id="game-answers" class="answer-grid"></div>
-    </div>
-    <div id="game-feedback" class="feedback hidden">
-      <p id="feedback-title" class="feedback-title"></p>
-      <p id="feedback-explanation" class="explanation-text"></p>
-      <button id="btn-next-question" class="btn-primary">Continuer ➜</button>
-    </div>
-  </section>
-
-  <!-- ===== Défi Chrono ===== -->
-  <section id="screen-challenge" class="screen">
-    <button class="btn-back" data-target="screen-menu">⬅ Retour</button>
-    <h2>🎯 Défi Chrono</h2>
-
-    <div id="challenge-intro">
-      <p class="explanation-text">⏱ Tu as <strong>60 secondes</strong> pour répondre au plus de questions possible !</p>
-      <button id="btn-start-challenge" class="btn-primary">Démarrer le défi</button>
-    </div>
-
-    <div id="challenge-active" class="hidden">
-      <div class="game-header">
-        <span id="challenge-timer">⏱ 60 s</span>
-        <span id="challenge-score">✅ 0</span>
-      </div>
-      <div class="question-card">
-        <p id="challenge-question" class="question-text"></p>
-        <div id="challenge-visual" class="visual-stack"></div>
-        <p id="challenge-fraction-display" class="big-fraction"></p>
-        <div id="challenge-answers" class="answer-grid"></div>
-      </div>
-    </div>
-
-    <div id="challenge-result" class="hidden">
-      <h3>⏱ Temps écoulé !</h3>
-      <p class="big-fraction" id="challenge-final-score"></p>
-      <p class="explanation-text" id="challenge-final-comment"></p>
-      <button id="btn-challenge-again" class="btn-primary">Rejouer</button>
-    </div>
-  </section>
-
-  <!-- ===== Progrès ===== -->
-  <section id="screen-progress" class="screen">
-    <button class="btn-back" data-target="screen-menu">⬅ Retour</button>
-    <h2>📊 Mes progrès</h2>
-    <div id="progress-bars" class="progress-list"></div>
-    <h3>🏅 Récompenses</h3>
-    <div id="badge-list" class="badge-grid"></div>
-  </section>
-
-</div>
-
-<!-- ===== Écran de victoire (overlay) ===== -->
-<div id="overlay-victory" class="overlay hidden">
-  <div class="victory-card">
-    <h2>🎊 BRAVO !</h2>
-    <p class="stars" id="victory-stars">⭐⭐⭐⭐⭐</p>
-    <p class="explanation-text">Tu as gagné <strong id="victory-xp"></strong></p>
-    <p id="victory-unlock" class="unlock-text hidden"></p>
-    <p id="victory-level-up" class="unlock-text hidden"></p>
-    <button id="btn-victory-close" class="btn-primary">Continuer ➜</button>
+<header class="top"><div class="wrap">
+  <div>
+    <div class="eyebrow">Programme personnel · 12 semaines</div>
+    <h1 id="hTitle">Coach Perso</h1>
+  </div>
+  <button id="themeBtn" class="chip" title="Basculer clair/sombre">◐</button>
+</div></header>
+<main class="wrap" id="view"></main>
+<nav class="tabs"><div class="wrap">
+  <button data-tab="dash"><span class="ico">▦</span>Accueil</button>
+  <button data-tab="prog"><span class="ico">🗓</span>Programme</button>
+  <button data-tab="train"><span class="ico">🏋</span>Séance</button>
+  <button data-tab="food"><span class="ico">🍽</span>Nutrition</button>
+  <button data-tab="track"><span class="ico">📈</span>Suivi</button>
+  <button data-tab="set"><span class="ico">⚙</span>Réglages</button>
+</div></nav>
+<div id="timerOverlay" role="dialog" aria-label="Minuteur de repos">
+  <div class="eyebrow">Repos</div>
+  <div class="ring">
+    <svg viewBox="0 0 220 220"><circle cx="110" cy="110" r="100" fill="none" stroke="var(--line)" stroke-width="10"/><circle id="ringFg" cx="110" cy="110" r="100" fill="none" stroke="var(--accent)" stroke-width="10" stroke-linecap="round" stroke-dasharray="628" stroke-dashoffset="0"/></svg>
+    <div class="t num" id="timerTxt">2:00</div>
+  </div>
+  <div class="row">
+    <button class="chip" id="timerMinus">−30 s</button>
+    <button class="chip" id="timerPlus">+30 s</button>
+    <button class="primary" id="timerSkip">Reprendre maintenant</button>
   </div>
 </div>
-
 <script src="script.js"></script>
 </body>
 </html>
