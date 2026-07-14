@@ -12,6 +12,7 @@ import { getExercise } from "../data/exercises.js";
 import { genererProgramme } from "../engine/generator.js";
 import { recommander } from "../engine/progression.js";
 import { alternatives } from "../engine/replacement.js";
+import { chercherDemonstration, lienYouTube } from "../integrations/exercisedb.js";
 import { Etat, seanceDuJour } from "../store/state.js";
 
 /* ---------- petits utilitaires DOM ---------- */
@@ -248,10 +249,34 @@ function ouvrirDetail(exo) {
     <div><b class="small">Étapes</b><ol class="small" style="margin:6px 0 0 18px">${exo.instructions.map((x) => `<li>${esc(x)}</li>`).join("")}</ol></div>
     ${exo.erreurs.length ? `<div class="small muted">✖ Erreurs fréquentes : ${exo.erreurs.map(esc).join(" · ")}</div>` : ""}
     ${exo.securite ? `<div class="warn small">🛟 ${esc(exo.securite)}</div>` : ""}
+    <div id="demoBox"></div>
+    <button class="chip" id="btnDemo">🎬 Voir la démonstration (GIF)</button>
     ${alts.length ? `<div><b class="small">Alternatives</b>${alts.map((a) => `<div class="small" style="margin-top:4px">• <b>${esc(a.etiquette)}</b> : ${esc(a.exercice.nom)} — <span class="muted">${esc(a.explication)}</span></div>`).join("")}</div>` : ""}
   </div>`;
   view.innerHTML = ""; const el = h(html); view.append(el);
   el.querySelector("#fermer").addEventListener("click", () => render());
+  el.querySelector("#btnDemo").addEventListener("click", () => chargerDemo(exo.id, el.querySelector("#demoBox"), el.querySelector("#btnDemo")));
+}
+
+/** Charge (et met en cache local) le GIF de démonstration d'un exercice. */
+async function chargerDemo(exId, box, btn) {
+  const yt = lienYouTube(exId);
+  const afficher = (url) => {
+    box.innerHTML = `<img src="${esc(url)}" alt="Démonstration" style="max-width:100%;border-radius:12px;border:1px solid var(--line)">
+      <div class="hint">Source : ExerciseDB (oss.exercisedb.dev) · <a href="${yt}" target="_blank" rel="noopener">vidéos YouTube</a></div>`;
+  };
+  const cache = Etat.data.mediaCache[exId];
+  if (cache) { afficher(cache); return; }
+  btn.disabled = true; box.innerHTML = `<div class="muted small">Chargement de la démonstration…</div>`;
+  const res = await chercherDemonstration(exId, { rapidKey: Etat.data.reglages.rapidKey });
+  btn.disabled = false;
+  if (res && res.gifUrl) {
+    Etat.data.mediaCache[exId] = res.gifUrl; Etat.sauver();
+    afficher(res.gifUrl);
+  } else {
+    box.innerHTML = `<div class="notice small">Démonstration en ligne indisponible (hors ligne ou service saturé).<br>
+      <a href="${yt}" target="_blank" rel="noopener">▶ Voir des vidéos de démonstration sur YouTube</a></div>`;
+  }
 }
 
 /* ======================================================================

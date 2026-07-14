@@ -14,7 +14,8 @@ function etatVide() {
     programme: null,
     logs: /** @type {any[]} */ ([]),      // séances réalisées
     metrics: /** @type {any[]} */ ([]),   // poids / mensurations
-    reglages: { theme: "auto", unites: "metrique", sons: true, vibrations: true },
+    mediaCache: /** @type {Record<string,string>} */ ({}), // exId -> URL de GIF résolue
+    reglages: { theme: "auto", unites: "metrique", sons: true, vibrations: true, rapidKey: "" },
   };
 }
 
