@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Coach Perso IA">
+  <rect width="512" height="512" rx="112" fill="#0E7C66"/>
+  <g fill="none" stroke="#E9FBF3" stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
+    <!-- haltère stylisé -->
+    <path d="M150 256 h212"/>
+    <path d="M150 200 v112 M116 220 v72"/>
+    <path d="M362 200 v112 M396 220 v72"/>
+  </g>
+  <!-- éclair / progression -->
+  <path d="M300 120 l-70 120 h48 l-40 152 110-170 h-52 z" fill="#8FD14F"/>
+</svg>

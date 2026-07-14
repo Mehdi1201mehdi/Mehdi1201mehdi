@@ -2,39 +2,55 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>Coach Perso — 12 semaines</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0E7C66">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CoachPerso">
+<link rel="apple-touch-icon" href="assets/icons/icon.svg">
+<link rel="icon" href="assets/icons/icon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="style.css">
+<title>Coach Perso IA</title>
 </head>
 <body>
 <header class="top"><div class="wrap">
-  <div>
-    <div class="eyebrow">Programme personnel · 12 semaines</div>
-    <h1 id="hTitle">Coach Perso</h1>
+  <div class="brand">
+    <img class="logo" src="assets/icons/icon.svg" alt="">
+    <div><div class="eyebrow">Coaching intelligent</div><b>Coach Perso&nbsp;IA</b></div>
   </div>
-  <button id="themeBtn" class="chip" title="Basculer clair/sombre">◐</button>
+  <button id="themeBtn" class="chip" aria-label="Changer de thème">◐</button>
 </div></header>
-<main class="wrap" id="view"></main>
-<nav class="tabs"><div class="wrap">
-  <button data-tab="dash"><span class="ico">▦</span>Accueil</button>
-  <button data-tab="prog"><span class="ico">🗓</span>Programme</button>
-  <button data-tab="train"><span class="ico">🏋</span>Séance</button>
-  <button data-tab="food"><span class="ico">🍽</span>Nutrition</button>
-  <button data-tab="track"><span class="ico">📈</span>Suivi</button>
-  <button data-tab="set"><span class="ico">⚙</span>Réglages</button>
+
+<main class="wrap" id="view" role="main"></main>
+
+<nav class="tabs" id="tabs" hidden><div class="wrap">
+  <button data-tab="dash" aria-label="Accueil"><span class="ico">🏠</span>Accueil</button>
+  <button data-tab="prog" aria-label="Programme"><span class="ico">🗂️</span>Programme</button>
+  <button data-tab="train" aria-label="Séance"><span class="ico">🏋️</span>Séance</button>
+  <button data-tab="stats" aria-label="Progrès"><span class="ico">📈</span>Progrès</button>
+  <button data-tab="set" aria-label="Réglages"><span class="ico">⚙️</span>Réglages</button>
 </div></nav>
-<div id="timerOverlay" role="dialog" aria-label="Minuteur de repos">
+
+<div id="overlay" role="dialog" aria-label="Minuteur de repos">
   <div class="eyebrow">Repos</div>
   <div class="ring">
-    <svg viewBox="0 0 220 220"><circle cx="110" cy="110" r="100" fill="none" stroke="var(--line)" stroke-width="10"/><circle id="ringFg" cx="110" cy="110" r="100" fill="none" stroke="var(--accent)" stroke-width="10" stroke-linecap="round" stroke-dasharray="628" stroke-dashoffset="0"/></svg>
-    <div class="t num" id="timerTxt">2:00</div>
+    <svg viewBox="0 0 230 230"><circle cx="115" cy="115" r="104" fill="none" stroke="var(--surface-2)" stroke-width="12"/>
+      <circle id="ringFg" cx="115" cy="115" r="104" fill="none" stroke="var(--accent)" stroke-width="12" stroke-linecap="round" stroke-dasharray="653" stroke-dashoffset="0"/></svg>
+    <div class="t num" id="ovTxt">1:30</div>
   </div>
   <div class="row">
-    <button class="chip" id="timerMinus">−30 s</button>
-    <button class="chip" id="timerPlus">+30 s</button>
-    <button class="primary" id="timerSkip">Reprendre maintenant</button>
+    <button class="chip" id="ovMinus">−15 s</button>
+    <button class="chip" id="ovPlus">+15 s</button>
+    <button class="primary" id="ovSkip">Reprendre</button>
   </div>
 </div>
-<script src="script.js"></script>
+
+<script type="module" src="src/ui/app.js"></script>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+  }
+</script>
 </body>
 </html>
