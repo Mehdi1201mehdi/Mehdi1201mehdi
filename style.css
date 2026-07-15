@@ -3,37 +3,38 @@
    Émeraude sportif · sombre par défaut · contraste élevé (WCAG)
    ============================================================ */
 :root{
-  --bg:#F4F7F5; --surface:#FFFFFF; --surface-2:#EAEEEB; --ink:#0D1218; --ink-soft:#586572;
-  --line:#E3E7E4; --accent:#0C8A62; --accent-2:#12A574; --on-accent:#FFFFFF;
-  --accent-ink:#0A6E4E; --accent-soft:#E1F4EB;
-  --lime:#3FA827; --amber:#B5730B; --amber-soft:#FBEFD8; --danger:#C23A3A; --danger-soft:#F7E5E5;
-  --ok:#1C8A57; --ok-soft:#E1F3E9;
-  --radius:18px; --radius-sm:12px;
-  --shadow:0 4px 16px rgba(16,24,32,.06); --shadow-lg:0 14px 36px rgba(16,24,32,.13);
+  --bg:#EEF1F8; --surface:#FFFFFF; --surface-2:#E7ECF6; --ink:#0B0F1E; --ink-soft:#5A6480;
+  --line:#DEE4F0; --accent:#1F7BFF; --accent-2:#FF2E7E; --on-accent:#FFFFFF;
+  --accent-ink:#1257C8; --accent-soft:#E5EDFF; --glow:rgba(31,123,255,.10);
+  --lime:#FF3D8B; --amber:#B5730B; --amber-soft:#FBEFD8; --danger:#D63B4A; --danger-soft:#FBE6E8;
+  --ok:#128A5A; --ok-soft:#E1F3EA;
+  --radius:20px; --radius-sm:13px;
+  --shadow:0 4px 16px rgba(20,28,60,.08); --shadow-lg:0 16px 42px rgba(20,28,60,.16);
   --grad:linear-gradient(135deg,var(--accent),var(--accent-2));
   --tap:48px; font-size:16px;
 }
 :root[data-theme="dark"]{
-  --bg:#0A0C10; --surface:#14181F; --surface-2:#1C222B; --ink:#F1F4F7; --ink-soft:#8A94A3;
-  --line:#242B35; --accent:#1FD69F; --accent-2:#54E58E; --on-accent:#04150E;
-  --accent-ink:#5CE9C2; --accent-soft:#103428;
-  --lime:#A6E06A; --amber:#E3A44A; --amber-soft:#3A2E17; --danger:#F0736F; --danger-soft:#3A1E1E;
-  --ok:#4FC486; --ok-soft:#14301F;
-  --shadow:0 6px 20px rgba(0,0,0,.45); --shadow-lg:0 18px 48px rgba(0,0,0,.6);
+  --bg:#080B16; --surface:#141A2E; --surface-2:#1E2642; --ink:#EFF2FA; --ink-soft:#8B93AE;
+  --line:#27304C; --accent:#2E8BFF; --accent-2:#FF3D8B; --on-accent:#FFFFFF;
+  --accent-ink:#7BB4FF; --accent-soft:#16233F; --glow:rgba(120,70,255,.18);
+  --lime:#FF4D96; --amber:#E3A44A; --amber-soft:#3A2E17; --danger:#F0736F; --danger-soft:#3A1E1E;
+  --ok:#3FD08A; --ok-soft:#123626;
+  --shadow:0 8px 24px rgba(0,0,0,.5); --shadow-lg:0 20px 52px rgba(0,0,0,.62);
 }
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
-  --bg:#0A0C10; --surface:#14181F; --surface-2:#1C222B; --ink:#F1F4F7; --ink-soft:#8A94A3;
-  --line:#242B35; --accent:#1FD69F; --accent-2:#54E58E; --on-accent:#04150E;
-  --accent-ink:#5CE9C2; --accent-soft:#103428;
-  --lime:#A6E06A; --amber:#E3A44A; --amber-soft:#3A2E17; --danger:#F0736F; --danger-soft:#3A1E1E;
-  --ok:#4FC486; --ok-soft:#14301F;
-  --shadow:0 6px 20px rgba(0,0,0,.45); --shadow-lg:0 18px 48px rgba(0,0,0,.6);
+  --bg:#080B16; --surface:#141A2E; --surface-2:#1E2642; --ink:#EFF2FA; --ink-soft:#8B93AE;
+  --line:#27304C; --accent:#2E8BFF; --accent-2:#FF3D8B; --on-accent:#FFFFFF;
+  --accent-ink:#7BB4FF; --accent-soft:#16233F; --glow:rgba(120,70,255,.18);
+  --lime:#FF4D96; --amber:#E3A44A; --amber-soft:#3A2E17; --danger:#F0736F; --danger-soft:#3A1E1E;
+  --ok:#3FD08A; --ok-soft:#123626;
+  --shadow:0 8px 24px rgba(0,0,0,.5); --shadow-lg:0 20px 52px rgba(0,0,0,.62);
 }}
 
 *{box-sizing:border-box;margin:0}
 html,body{height:100%}
 body{
-  background:var(--bg); color:var(--ink); line-height:1.45;
+  background:radial-gradient(130% 62% at 50% -14%,var(--glow),transparent 60%),var(--bg);
+  background-attachment:fixed; color:var(--ink); line-height:1.45;
   font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
   padding-bottom:calc(84px + env(safe-area-inset-bottom));

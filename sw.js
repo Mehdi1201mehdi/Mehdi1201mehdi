@@ -1,7 +1,7 @@
 /* Service worker — stratégie RÉSEAU D'ABORD pour l'app (toujours la dernière
    version en ligne), cache en secours hors ligne. Les médias de démonstration
    (cross-origin) restent en cache d'abord pour l'usage hors ligne. */
-const CACHE = "coachperso-ia-v5";
+const CACHE = "coachperso-ia-v6";
 const MEDIA_CACHE = "coachperso-media-v1";
 const MEDIA_HOSTS = ["exercisedb.dev", "exercisedb.p.rapidapi.com", "workoutxapp.com", "wger.de", "cloudfront.net", "vercel"];
 const ASSETS = [
