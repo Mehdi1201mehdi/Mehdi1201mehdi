@@ -19,6 +19,7 @@ const ASSETS = [
   "./src/engine/generator.js",
   "./src/engine/progression.js",
   "./src/engine/replacement.js",
+  "./src/engine/review.js",
   "./src/integrations/exercisedb.js",
   "./src/store/state.js",
 ];

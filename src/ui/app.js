@@ -14,6 +14,7 @@ import { recommander } from "../engine/progression.js";
 import { alternatives } from "../engine/replacement.js";
 import { chercherDemonstration, lienYouTube } from "../integrations/exercisedb.js";
 import { calculerBesoins } from "../engine/nutrition.js";
+import { bilan } from "../engine/review.js";
 import { chercherFoods, portion } from "../data/foods.js";
 import { rechercher as offRechercher, parCodeBarres } from "../integrations/openfoodfacts.js";
 import { Etat, seanceDuJour } from "../store/state.js";
@@ -600,6 +601,8 @@ function vStats(v) {
   // Graphiques (à partir des données locales)
   const poidsPts = Etat.data.metrics.filter((m) => m.poidsKg).map((m) => ({ v: m.poidsKg }));
   if (poidsPts.length >= 2) v.append(h(`<div class="card">${svgLine(poidsPts.slice(-30), "Poids du corps (kg)")}</div>`));
+  const taillePts = Etat.data.metrics.filter((m) => m.taille).map((m) => ({ v: m.taille }));
+  if (taillePts.length >= 2) v.append(h(`<div class="card">${svgLine(taillePts.slice(-30), "Tour de taille (cm)")}</div>`));
   const sem = volumeParSemaine(logs);
   if (sem.length >= 1) v.append(h(`<div class="card">${svgBars(sem, "Volume par semaine (kg)")}</div>`));
   const prs = recordsParExercice(logs);
@@ -622,6 +625,30 @@ function vStats(v) {
     const kg = parseFloat(($("#wKg", v).value || "").replace(",", ".")); if (!kg) return;
     Etat.data.metrics.push({ id: Etat.uid(), date: new Date().toISOString(), poidsKg: kg }); Etat.sauver(); render();
   });
+
+  // Mensurations
+  const cm = h(`<div class="card stack"><h2 style="margin:0">Mensurations</h2>
+    <div class="row"><input id="mTaille" inputmode="decimal" placeholder="Tour de taille (cm)" style="flex:1"><input id="mPoit" inputmode="decimal" placeholder="Poitrine" style="flex:1"></div>
+    <div class="row"><input id="mBras" inputmode="decimal" placeholder="Bras" style="flex:1"><input id="mCuisse" inputmode="decimal" placeholder="Cuisse" style="flex:1"><button id="mAdd">Enregistrer</button></div>
+    <div class="hint">Mesure 1×/semaine, mêmes conditions. Le tour de taille est le meilleur repère de perte de graisse.</div></div>`);
+  v.append(cm);
+  $("#mAdd", v).addEventListener("click", () => {
+    const num = (id) => parseFloat(($(id, v).value || "").replace(",", ".")) || null;
+    const e = { id: Etat.uid(), date: new Date().toISOString(), taille: num("#mTaille"), poitrine: num("#mPoit"), bras: num("#mBras"), cuisse: num("#mCuisse") };
+    if (!e.taille && !e.poitrine && !e.bras && !e.cuisse) return;
+    Etat.data.metrics.push(e); Etat.sauver(); render();
+  });
+
+  // Bilan & ajustement (2 semaines)
+  const cb = h(`<div class="card stack"><h2 style="margin:0">Bilan & ajustement</h2><div class="muted small">Sur 2 semaines — une seule action à la fois.</div><div id="bilanOut"></div></div>`);
+  const bBilan = h(`<button class="primary">Analyser mes 2 dernières semaines</button>`);
+  bBilan.addEventListener("click", () => {
+    const r = bilan(Etat.data.profil, Etat.data.metrics);
+    $("#bilanOut", v).innerHTML = `<div class="notice small">${esc(r.message)}</div>`;
+    (Etat.data.reviews ||= []).push({ date: new Date().toISOString(), statut: r.statut, message: r.message });
+    Etat.sauver();
+  });
+  cb.append(bBilan); v.append(cb);
 
   // historique
   if (logs.length) {
