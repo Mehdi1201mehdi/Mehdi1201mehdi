@@ -329,7 +329,19 @@ function ouvrirDetail(exo) {
 
 /** Charge le média (GIF/vidéo) avec cache local, repli anatomie. */
 async function chargerMedia(exo, media) {
-  const heroAnatomie = () => { media.style.aspectRatio = "auto"; media.innerHTML = ""; media.append(h(`<div style="padding:14px;width:100%"></div>`)); media.firstChild.append(diagrammeMuscles(exo)); };
+  const heroAnatomie = () => {
+    media.style.aspectRatio = "auto"; media.innerHTML = "";
+    const box = h(`<div style="padding:14px;width:100%"></div>`);
+    box.append(diagrammeMuscles(exo));
+    const btn = h(`<button class="chip" style="margin:10px auto 0;display:block">🔄 Charger la démonstration animée</button>`);
+    btn.addEventListener("click", () => {
+      delete Etat.data.mediaCache[exo.id]; Etat.sauver();
+      media.style.aspectRatio = ""; media.innerHTML = `<div class="spin"></div>`;
+      chargerMedia(exo, media);
+    });
+    box.append(btn);
+    media.append(box);
+  };
   let url = Etat.data.mediaCache[exo.id];
   if (!url) {
     const key = (Etat.data.reglages.workoutxKey || "").trim();
