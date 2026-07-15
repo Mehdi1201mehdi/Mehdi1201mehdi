@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit -p jsconfig.json"
   },
   "devDependencies": {
+    "playwright-core": "^1.61.1",
     "typescript": "^5.5.0"
   }
 }

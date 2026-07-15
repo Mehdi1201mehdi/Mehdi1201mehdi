@@ -542,6 +542,53 @@ function vNutrition(v) {
 /* ======================================================================
    PROGRÈS
    ====================================================================== */
+const epley = (kg, reps) => (kg > 0 && reps > 0 ? kg * (1 + reps / 30) : 0);
+function lundiDe(dateStr) {
+  const d = new Date(dateStr); const iso = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - iso); return d.toISOString().slice(0, 10);
+}
+function volumeParSemaine(logs) {
+  const m = new Map();
+  for (const l of logs) { const k = lundiDe(l.date); m.set(k, (m.get(k) || 0) + volumeLog(l)); }
+  return [...m.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).slice(-8)
+    .map(([k, val]) => ({ x: new Date(k).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" }), v: Math.round(val) }));
+}
+function recordsParExercice(logs) {
+  const best = {};
+  for (const l of logs) for (const e of l.exercices || []) for (const s of e.series || []) {
+    const kg = Number(s.chargeKg) || 0, reps = Number(s.reps) || 0;
+    if (kg <= 0 || reps <= 0) continue;
+    const val = epley(kg, reps);
+    if (!best[e.exerciceId] || val > best[e.exerciceId].v) best[e.exerciceId] = { v: val, charge: kg, reps };
+  }
+  return Object.entries(best)
+    .map(([id, b]) => ({ nom: getExercise(id)?.nom || id, e1rm: Math.round(b.v), charge: b.charge, reps: b.reps }))
+    .sort((a, b) => b.e1rm - a.e1rm).slice(0, 6);
+}
+function svgLine(points, label = "") {
+  if (points.length < 2) return `<div class="muted small">Pas encore assez de données (2 points minimum).</div>`;
+  const W = 600, H = 150, pad = 30;
+  const ys = points.map((p) => p.v), ymin = Math.min(...ys), ymax = Math.max(...ys), yr = (ymax - ymin) || 1;
+  const X = (i) => pad + (W - 2 * pad) * i / (points.length - 1), Y = (val) => H - pad - (H - 2 * pad) * (val - ymin) / yr;
+  const d = points.map((p, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(p.v).toFixed(1)}`).join(" ");
+  const dots = points.map((p, i) => `<circle cx="${X(i).toFixed(1)}" cy="${Y(p.v).toFixed(1)}" r="3" fill="var(--accent)"/>`).join("");
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="${esc(label)}">
+    <text x="${pad}" y="15" font-size="12" fill="var(--ink-soft)">${esc(label)}</text>
+    <text x="2" y="${(Y(ymax) + 4).toFixed(1)}" font-size="11" fill="var(--ink-soft)">${ymax.toFixed(1)}</text>
+    <text x="2" y="${(Y(ymin) + 4).toFixed(1)}" font-size="11" fill="var(--ink-soft)">${ymin.toFixed(1)}</text>
+    <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="2.5"/>${dots}</svg>`;
+}
+function svgBars(bars, label = "") {
+  if (!bars.length) return `<div class="muted small">Aucune donnée.</div>`;
+  const W = 600, H = 155, pad = 30, n = bars.length, gap = (W - 2 * pad) / n, bw = gap * 0.6;
+  const vmax = Math.max(...bars.map((b) => b.v), 1);
+  const rects = bars.map((b, i) => {
+    const x = pad + i * gap + (gap - bw) / 2, bh = (H - 2 * pad) * (b.v / vmax);
+    return `<rect x="${x.toFixed(1)}" y="${(H - pad - bh).toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="3" fill="var(--accent)"/>`
+      + `<text x="${(x + bw / 2).toFixed(1)}" y="${H - pad + 14}" font-size="10" fill="var(--ink-soft)" text-anchor="middle">${esc(b.x)}</text>`;
+  }).join("");
+  return `<svg viewBox="0 0 ${W} ${H + 4}" style="width:100%;height:auto" role="img" aria-label="${esc(label)}"><text x="${pad}" y="15" font-size="12" fill="var(--ink-soft)">${esc(label)}</text>${rects}</svg>`;
+}
 function vStats(v) {
   const logs = Etat.data.logs;
   v.append(h(`<h1>Progrès</h1>`));
@@ -549,6 +596,19 @@ function vStats(v) {
   g.append(kpi("Séances totales", `${logs.length}`));
   g.append(kpi("Volume cumulé", `${Math.round(logs.reduce((a, l) => a + volumeLog(l), 0)).toLocaleString("fr-FR")} kg`));
   v.append(g);
+
+  // Graphiques (à partir des données locales)
+  const poidsPts = Etat.data.metrics.filter((m) => m.poidsKg).map((m) => ({ v: m.poidsKg }));
+  if (poidsPts.length >= 2) v.append(h(`<div class="card">${svgLine(poidsPts.slice(-30), "Poids du corps (kg)")}</div>`));
+  const sem = volumeParSemaine(logs);
+  if (sem.length >= 1) v.append(h(`<div class="card">${svgBars(sem, "Volume par semaine (kg)")}</div>`));
+  const prs = recordsParExercice(logs);
+  if (prs.length) {
+    const cr = h(`<div class="card stack"><h2 style="margin:0">Records estimés (1RM · Epley)</h2></div>`);
+    prs.forEach((r) => cr.append(h(`<div class="spread small" style="padding:5px 0;border-bottom:1px solid var(--line)"><span>${esc(r.nom)}</span><span class="num muted">${r.e1rm} kg <span class="tag">${r.charge}kg×${r.reps}</span></span></div>`)));
+    cr.append(h(`<div class="hint">Estimation indicative (charge × (1 + reps/30)). Ne teste jamais un vrai maximum en reprise.</div>`));
+    v.append(cr);
+  }
 
   // poids
   const c = h(`<div class="card stack"><h2 style="margin:0">Poids du corps</h2></div>`);
