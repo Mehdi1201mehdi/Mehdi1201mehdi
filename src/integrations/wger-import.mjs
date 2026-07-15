@@ -79,14 +79,14 @@ export function infererPatron(nom, categorie) {
   return (CAT_DEFAUT[String(categorie || "").toLowerCase()] || { patron: "poussee_horizontale" }).patron;
 }
 
-/* ---------- mapping d'un exercice wger (exercisebaseinfo) ---------- */
+/* ---------- mapping d'un exercice wger (exerciseinfo) ---------- */
 function slugify(s) {
   return String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 60);
 }
 
 /**
- * Convertit un objet "exercisebaseinfo" wger vers notre schéma.
+ * Convertit un objet "exerciseinfo" wger vers notre schéma.
  * @param {any} base
  * @param {{curatedNames:Set<string>}} ctx
  * @returns {any|null}
@@ -145,7 +145,9 @@ async function main() {
   const curatedNames = new Set(EXERCISES.map((e) => e.nom.toLowerCase()));
   const vus = new Set();
   const resultats = [];
-  let url = `${API}/exercisebaseinfo/?language=${LANG_EN}&limit=50&format=json`;
+  // Endpoint "exerciseinfo" (l'ancien "exercisebaseinfo" a été retiré de l'API wger).
+  // Filtre par langue via "language__code" (et non plus un id numérique).
+  let url = `${API}/exerciseinfo/?language__code=en&limit=50&format=json`;
 
   while (url && resultats.length < limite) {
     process.stdout.write(`… ${url}\n`);
