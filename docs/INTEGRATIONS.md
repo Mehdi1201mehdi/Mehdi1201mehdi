@@ -57,6 +57,20 @@ récupéré dans le cache local. L'app reste utilisable sans connexion.
 - En attendant, le suivi du poids et des mensurations reste **saisi dans l'app**
   et exportable.
 
+## Sources officielles (référence)
+
+- ExerciseDB (gratuit) — https://www.exercisedb.dev/ · docs https://www.exercisedb.dev/docs
+- wger (open source) — https://wger.de/api/v2/ · docs https://wger.readthedocs.io/en/stable/
+- Open Food Facts — https://world.openfoodfacts.org/data · docs https://openfoodfacts.github.io/openfoodfacts-server/api/
+- Health Connect (Android, natif) — https://developer.android.com/health-and-fitness/health-connect
+- Apple HealthKit (iOS, natif) — https://developer.apple.com/documentation/healthkit
+
+### Non retenus pour l'instant (app perso, locale — hors périmètre actuel)
+- Firebase Cloud Messaging (notifications push) : nécessite un projet Firebase + serveur ;
+  pour une app perso, on privilégiera les notifications locales (PWA) ou l'approche Capacitor.
+- Firebase Authentication / Analytics / Crashlytics : utiles seulement en multi-utilisateurs
+  ou app native publiée. Volontairement écartés (pas de compte, pas de collecte).
+
 ## Attributions (à afficher dans l'app)
 
 - Exercices & démonstrations : ExerciseDB, wger (CC-BY-SA)

@@ -13,6 +13,7 @@ import { genererProgramme } from "../engine/generator.js";
 import { recommander } from "../engine/progression.js";
 import { alternatives } from "../engine/replacement.js";
 import { chercherDemonstration, lienYouTube } from "../integrations/exercisedb.js";
+import { bodySVG } from "./anatomy.js";
 import { calculerBesoins } from "../engine/nutrition.js";
 import { bilan } from "../engine/review.js";
 import { chercherFoods, portion } from "../data/foods.js";
@@ -251,43 +252,114 @@ function ligneExo(e, i) {
   row.querySelector("button").addEventListener("click", () => ouvrirDetail(exo));
   return row;
 }
-function ouvrirDetail(exo) {
-  const alts = alternatives(exo.id, Etat.data.profil);
-  const html = `<div class="card stack">
-    <div class="spread"><h2 style="margin:0">${esc(exo.nom)}</h2><button class="chip" id="fermer">✕</button></div>
-    <div class="muted small">${(exo.musclesPrincipaux || []).map((m) => MUSCLE_LABELS[m] || m).join(", ")}${exo.musclesSecondaires.length ? " · secondaires : " + exo.musclesSecondaires.map((m) => MUSCLE_LABELS[m] || m).join(", ") : ""}</div>
-    <p class="small">${esc(exo.description)}</p>
-    <div><b class="small">Étapes</b><ol class="small" style="margin:6px 0 0 18px">${exo.instructions.map((x) => `<li>${esc(x)}</li>`).join("")}</ol></div>
-    ${exo.erreurs.length ? `<div class="small muted">✖ Erreurs fréquentes : ${exo.erreurs.map(esc).join(" · ")}</div>` : ""}
-    ${exo.securite ? `<div class="warn small">🛟 ${esc(exo.securite)}</div>` : ""}
-    <div id="demoBox"></div>
-    <button class="chip" id="btnDemo">🎬 Voir la démonstration (GIF)</button>
-    ${alts.length ? `<div><b class="small">Alternatives</b>${alts.map((a) => `<div class="small" style="margin-top:4px">• <b>${esc(a.etiquette)}</b> : ${esc(a.exercice.nom)} — <span class="muted">${esc(a.explication)}</span></div>`).join("")}</div>` : ""}
-  </div>`;
-  view.innerHTML = ""; const el = h(html); view.append(el);
-  el.querySelector("#fermer").addEventListener("click", () => render());
-  el.querySelector("#btnDemo").addEventListener("click", () => chargerDemo(exo.id, el.querySelector("#demoBox"), el.querySelector("#btnDemo")));
+const DIFF_LABEL = ["", "Grand débutant", "Débutant", "Intermédiaire", "Avancé"];
+function estRealisable(exo) {
+  const eq = new Set(Etat.data.profil.equipements);
+  const okEquip = exo.equipement.every((e) => eq.has(e));
+  const contre = (exo.contreIndications || []).some((c) => Etat.data.profil.limitations.includes(c));
+  return okEquip && !contre;
 }
 
-/** Charge (et met en cache local) le GIF de démonstration d'un exercice. */
-async function chargerDemo(exId, box, btn) {
-  const yt = lienYouTube(exId);
-  const afficher = (url) => {
-    box.innerHTML = `<img src="${esc(url)}" alt="Démonstration" style="max-width:100%;border-radius:12px;border:1px solid var(--line)">
-      <div class="hint">Source : ExerciseDB (oss.exercisedb.dev) · <a href="${yt}" target="_blank" rel="noopener">vidéos YouTube</a></div>`;
-  };
-  const cache = Etat.data.mediaCache[exId];
-  if (cache) { afficher(cache); return; }
-  btn.disabled = true; box.innerHTML = `<div class="muted small">Chargement de la démonstration…</div>`;
-  const res = await chercherDemonstration(exId, { rapidKey: Etat.data.reglages.rapidKey });
-  btn.disabled = false;
-  if (res && res.gifUrl) {
-    Etat.data.mediaCache[exId] = res.gifUrl; Etat.sauver();
-    afficher(res.gifUrl);
-  } else {
-    box.innerHTML = `<div class="notice small">Démonstration en ligne indisponible (hors ligne ou service saturé).<br>
-      <a href="${yt}" target="_blank" rel="noopener">▶ Voir des vidéos de démonstration sur YouTube</a></div>`;
+/** Fiche démonstration PREMIUM (feuille plein écran). */
+function ouvrirDetail(exo) {
+  const P = new Set(exo.musclesPrincipaux || []), Sec = new Set(exo.musclesSecondaires || []);
+  const alts = alternatives(exo.id, Etat.data.profil);
+  const diff = exo.difficulte || 2;
+  const sheet = h(`<div class="sheet"><div class="inner"></div></div>`);
+  const inner = sheet.querySelector(".inner");
+  const fermer = () => { if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {}); sheet.remove(); };
+
+  inner.append(h(`<div class="sheet-top"><h2 style="margin:0">${esc(exo.nom)}</h2><button class="chip" id="x">✕ Fermer</button></div>`));
+
+  const media = h(`<div class="media"><div class="spin"></div></div>`);
+  inner.append(media);
+
+  inner.append(h(`<div class="row" style="margin-top:10px">
+    <span class="difbar" title="Difficulté">${[1, 2, 3, 4].map((i) => `<i class="${i <= diff ? "on" : ""}"></i>`).join("")}</span>
+    <span class="pill">${DIFF_LABEL[diff] || "—"}</span>
+    ${exo.equipement.map((e) => `<span class="pill">${esc(EQUIPMENT_LABELS[e] || e)}</span>`).join("")}</div>`));
+
+  if (!estRealisable(exo)) inner.append(h(`<div class="warn small">⚠️ Pas réalisable avec ton matériel / tes limitations actuels — vois « Remplacement intelligent » ci-dessous.</div>`));
+
+  // Schéma anatomique (toujours affiché)
+  const anat = h(`<div class="sec"><h3>Muscles sollicités</h3></div>`);
+  const svgWrap = h(`<div>${bodySVG(P, Sec)}</div>`);
+  const cap = h(`<div class="mzcap"></div>`);
+  anat.append(svgWrap, cap, h(`<div class="small muted" style="text-align:center"><span style="color:#E5484D">■</span> principaux · <span style="color:#F5A524">■</span> secondaires · survole ou touche un muscle</div>`));
+  inner.append(anat);
+  anat.querySelectorAll("[data-muscle]").forEach((gEl) => {
+    const nom = gEl.querySelector("title")?.textContent || "";
+    gEl.addEventListener("pointerover", () => { cap.textContent = nom; });
+    gEl.addEventListener("pointerout", () => { cap.textContent = ""; });
+    gEl.addEventListener("click", () => { cap.textContent = nom; });
+  });
+
+  if ((exo.instructions || []).length) inner.append(h(`<div class="sec"><h3>Étapes du mouvement</h3><ol class="small">${exo.instructions.map((x) => `<li>${esc(x)}</li>`).join("")}</ol></div>`));
+  if (exo.respiration) inner.append(h(`<div class="sec"><h3>Respiration</h3><div class="breath"><span class="in">↧ Inspirer</span><span class="out">↥ Expirer</span></div><div class="small muted" style="margin-top:6px">${esc(exo.respiration)}</div></div>`));
+  if ((exo.erreurs || []).length) inner.append(h(`<div class="sec"><h3>Erreurs fréquentes</h3><div class="small muted">✖ ${exo.erreurs.map(esc).join(" · ")}</div></div>`));
+  if (exo.securite) inner.append(h(`<div class="sec"><h3>Sécurité</h3><div class="warn small">🛟 ${esc(exo.securite)}</div></div>`));
+
+  if (alts.length) {
+    const s = h(`<div class="sec"><h3>Remplacement intelligent</h3></div>`);
+    alts.forEach((a) => {
+      const card = h(`<div class="altcard"><div class="spread"><b class="small">${esc(a.etiquette)}</b><button class="chip" data-alt="${esc(a.exercice.id)}">Ouvrir</button></div><div class="small">${esc(a.exercice.nom)} — <span class="muted">${esc(a.explication)}</span></div></div>`);
+      card.querySelector("[data-alt]").addEventListener("click", () => { fermer(); ouvrirDetail(getExercise(a.exercice.id)); });
+      s.append(card);
+    });
+    inner.append(s);
   }
+
+  sheet.querySelector("#x").addEventListener("click", fermer);
+  document.body.append(sheet);
+  chargerMedia(exo, media);
+}
+
+/** Charge le média (GIF/vidéo) avec cache local, repli anatomie. */
+async function chargerMedia(exo, media) {
+  const heroAnatomie = () => { media.style.aspectRatio = "auto"; media.innerHTML = `<div style="padding:16px;width:100%">${bodySVG(new Set(exo.musclesPrincipaux || []), new Set(exo.musclesSecondaires || []))}</div>`; };
+  let url = Etat.data.mediaCache[exo.id];
+  if (!url) {
+    const res = await chercherDemonstration(exo.id, { rapidKey: Etat.data.reglages.rapidKey });
+    if (res && res.gifUrl) { url = res.gifUrl; Etat.data.mediaCache[exo.id] = url; Etat.sauver(); }
+  }
+  if (!media.isConnected) return;           // feuille fermée entre-temps
+  if (!url) { heroAnatomie(); return; }
+
+  const estVideo = /\.(mp4|webm|mov)$/i.test(url);
+  const el = estVideo ? h(`<video autoplay loop muted playsinline></video>`) : h(`<img alt="Démonstration : ${esc(exo.nom)}">`);
+  el.addEventListener(estVideo ? "loadeddata" : "load", () => media.querySelector(".spin")?.remove());
+  el.addEventListener("error", heroAnatomie);
+  el.src = url;
+  media.insertBefore(el, media.firstChild);
+  media.append(controlesMedia(media, el, estVideo));
+}
+
+function controlesMedia(media, el, estVideo) {
+  const bar = h(`<div class="ctrls"></div>`);
+  let paused = false, canvas = null;
+  const bPause = h(`<button title="Lecture / pause">⏸</button>`);
+  bPause.addEventListener("click", () => {
+    if (estVideo) { if (el.paused) { el.play(); bPause.textContent = "⏸"; } else { el.pause(); bPause.textContent = "▶"; } return; }
+    if (!paused) { // figer le GIF sur la frame courante
+      canvas = document.createElement("canvas");
+      canvas.width = el.naturalWidth || 320; canvas.height = el.naturalHeight || 320;
+      canvas.style.cssText = "width:100%;height:100%;object-fit:contain";
+      try { canvas.getContext("2d").drawImage(el, 0, 0, canvas.width, canvas.height); } catch (e) {}
+      el.style.display = "none"; media.insertBefore(canvas, media.firstChild); paused = true; bPause.textContent = "▶";
+    } else { canvas?.remove(); el.style.display = ""; paused = false; bPause.textContent = "⏸"; }
+  });
+  const bFs = h(`<button title="Plein écran">⛶</button>`);
+  bFs.addEventListener("click", () => { if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {}); else media.requestFullscreen?.().catch(() => {}); });
+  bar.append(bPause, bFs);
+  const spd = h(`<span class="spd"></span>`);
+  [0.5, 1, 2].forEach((r) => {
+    const b = h(`<button class="${r === 1 ? "on" : ""} ${estVideo ? "" : "dim"}">x${r}</button>`);
+    b.title = estVideo ? `Vitesse ${r}×` : "Réglage de vitesse disponible pour les vidéos";
+    b.addEventListener("click", () => { if (!estVideo) return; el.playbackRate = r; spd.querySelectorAll("button").forEach((x) => x.classList.remove("on")); b.classList.add("on"); });
+    spd.append(b);
+  });
+  bar.append(spd);
+  return bar;
 }
 
 /* ======================================================================

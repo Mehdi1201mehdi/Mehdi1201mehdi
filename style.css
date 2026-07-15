@@ -118,6 +118,33 @@ nav.tabs .ico{width:22px;height:22px;display:block}
 .wiz-dots i{width:8px;height:8px;border-radius:999px;background:var(--line)}
 .wiz-dots i.on{background:var(--accent);width:22px}
 
+/* ---- Fiche démonstration premium ---- */
+.sheet{position:fixed;inset:0;z-index:55;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch}
+.sheet .inner{max-width:720px;margin:0 auto;padding:14px 16px calc(30px + env(safe-area-inset-bottom))}
+.sheet-top{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0 10px;background:var(--bg)}
+.media{position:relative;width:100%;aspect-ratio:1/1;max-height:60vh;background:var(--surface-2);border-radius:16px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.media img,.media video{width:100%;height:100%;object-fit:contain;display:block}
+.media .spin{position:absolute;width:38px;height:38px;border-radius:50%;border:4px solid var(--line);border-top-color:var(--accent);animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.media .ctrls{position:absolute;left:8px;right:8px;bottom:8px;display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:wrap}
+.media .ctrls button{min-height:0;padding:7px 11px;border-radius:999px;font-size:.82rem;font-weight:700;background:rgba(10,14,18,.62);color:#fff;border:1px solid rgba(255,255,255,.18);backdrop-filter:blur(4px)}
+.media .ctrls button.on{background:var(--accent);border-color:var(--accent)}
+.media .ctrls button.dim{opacity:.5}
+.spd{display:flex;gap:4px}
+.difbar{display:flex;gap:4px;align-items:center}
+.difbar i{width:16px;height:6px;border-radius:3px;background:var(--line)}
+.difbar i.on{background:var(--accent)}
+.mzcap{text-align:center;font-weight:700;color:var(--accent-ink);min-height:1.2em;margin-top:4px}
+.mz:hover{fill-opacity:1}
+.sec{margin-top:14px}
+.sec h3{margin-bottom:6px}
+.sec ol{margin:0 0 0 18px}.sec ol li{margin:4px 0}
+.breath{display:flex;gap:8px;flex-wrap:wrap}
+.breath span{font-size:.85rem;font-weight:700;padding:6px 12px;border-radius:999px}
+.breath .in{background:var(--accent-soft);color:var(--accent-ink)}
+.breath .out{background:var(--amber-soft);color:var(--amber)}
+.altcard{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:6px 0}
+
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 @media print{nav.tabs,header.top button,#overlay{display:none!important}body{padding:0}}
 
