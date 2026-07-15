@@ -13,7 +13,12 @@ import { genererProgramme } from "../engine/generator.js";
 import { recommander } from "../engine/progression.js";
 import { alternatives } from "../engine/replacement.js";
 import { chercherDemonstration, lienYouTube } from "../integrations/exercisedb.js";
+import { calculerBesoins } from "../engine/nutrition.js";
+import { chercherFoods, portion } from "../data/foods.js";
+import { rechercher as offRechercher, parCodeBarres } from "../integrations/openfoodfacts.js";
 import { Etat, seanceDuJour } from "../store/state.js";
+
+const todayStr = () => new Date().toISOString().slice(0, 10);
 
 /* ---------- petits utilitaires DOM ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -37,7 +42,7 @@ $("#themeBtn").addEventListener("click", () => {
 
 /* ---------- navigation ---------- */
 let TAB = "dash";
-const TABS = { dash: vDash, prog: vProg, cat: vCatalogue, train: vTrain, stats: vStats, set: vSet };
+const TABS = { dash: vDash, prog: vProg, cat: vCatalogue, train: vTrain, food: vNutrition, stats: vStats, set: vSet };
 function nav(t) {
   TAB = t;
   $("#tabs").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.tab === t));
@@ -219,6 +224,9 @@ function vProg(v) {
   const prog = Etat.data.programme;
   v.append(h(`<div class="spread"><h1>Programme</h1><span class="badge accent">${splitLabel(prog.split)}</span></div>`));
   v.append(h(`<div class="muted small" style="margin-bottom:8px">${esc(prog.justificationGlobale)}</div>`));
+  const bCat = h(`<button class="chip" style="margin-bottom:8px">🔎 Rechercher dans le catalogue d'exercices</button>`);
+  bCat.addEventListener("click", () => nav("cat"));
+  v.append(bCat);
   prog.seances.forEach((s) => {
     const d = h(`<details><summary>${esc(s.nom)}<span class="pill">${s.exercices.length} exos</span></summary></details>`);
     s.exercices.forEach((e, i) => d.append(ligneExo(e, i)));
@@ -446,6 +454,90 @@ function startTimer(sec) {
   $("#ovSkip").onclick = stopTimer;
 }
 function stopTimer() { clearInterval(TMR); $("#overlay").classList.remove("show"); }
+
+/* ======================================================================
+   NUTRITION (Open Food Facts + base locale)
+   ====================================================================== */
+function vNutrition(v) {
+  const p = Etat.data.profil;
+  const b = calculerBesoins(p);
+  const jour = todayStr();
+  const log = Etat.data.foodlog[jour] || [];
+  const tot = log.reduce((a, f) => ({ kcal: a.kcal + f.kcal, p: a.p + f.p, c: a.c + f.c, l: a.l + f.l }), { kcal: 0, p: 0, c: 0, l: 0 });
+
+  v.append(h(`<h1>Nutrition</h1>`));
+  // Objectifs du jour
+  const cible = h(`<div class="card stack">
+    <div class="spread"><h2 style="margin:0">Objectifs du jour</h2><span class="badge ${tot.kcal > b.kcal * 1.07 ? "amber" : "ok"}">${Math.round(tot.kcal)} / ${b.kcal} kcal</span></div>
+    <div class="bar lime"><div style="width:${Math.min(100, Math.round(tot.kcal / b.kcal * 100))}%"></div></div>
+    <table>
+      <tr><td>Protéines</td><td class="num">${Math.round(tot.p)} / ${b.prot} g</td></tr>
+      <tr><td>Glucides</td><td class="num">${Math.round(tot.c)} / ${b.gluc} g</td></tr>
+      <tr><td>Lipides</td><td class="num">${Math.round(tot.l)} / ${b.lip} g</td></tr>
+      <tr><td>Eau</td><td class="num">~${b.eau} L</td></tr>
+    </table>
+    <div class="hint">Estimation Mifflin-St Jeor : BMR ${b.bmr} × activité ${b.facteur} = ~${b.tdee} kcal, ajusté selon ton objectif. On affine selon la tendance de poids sur 1–2 semaines, jamais sur une seule pesée. Ceci n'est pas un avis diététique médical.</div>
+  </div>`);
+  v.append(cible);
+
+  // Journal + recherche
+  const cj = h(`<div class="card stack"><h2 style="margin:0">Journal du jour</h2></div>`);
+  const rowSearch = h(`<div class="row"><input id="foodQ" placeholder="Rechercher un aliment (riz, poulet…)" style="flex:1"><button class="primary" id="foodGo">OK</button></div>`);
+  const rowCode = h(`<div class="row"><input id="foodCode" inputmode="numeric" placeholder="Code-barres" style="flex:1"><button id="codeGo">Scanner</button></div>`);
+  const res = h(`<div id="foodRes"></div>`);
+  const logBox = h(`<div id="foodLog" style="margin-top:6px"></div>`);
+  cj.append(rowSearch, rowCode, res, h(`<hr style="border:none;border-top:1px solid var(--line);margin:6px 0">`), logBox);
+  v.append(cj);
+
+  const ajouter = (f, g) => {
+    const m = portion(f, g);
+    (Etat.data.foodlog[jour] ||= []).push({ name: f.n, g, ...m, src: f.src });
+    Etat.sauver(); render();
+  };
+  const afficherResultats = (list) => {
+    res.innerHTML = "";
+    if (!list.length) { res.append(h(`<div class="muted small" style="margin-top:6px">Aucun résultat.</div>`)); return; }
+    for (const f of list.slice(0, 12)) {
+      const line = h(`<div class="exline"><div class="meta"><div class="nm small">${esc(f.n)} <span class="tag">${esc(f.src)}${f.note ? " · " + esc(f.note) : ""}</span></div>
+        <div class="muted small">${f.kcal} kcal · P${f.p} · G${f.c} · L${f.l} /100 g</div></div>
+        <button class="chip">+ Ajouter</button></div>`);
+      line.querySelector("button").addEventListener("click", () => {
+        const g = prompt(`Quantité en grammes pour « ${f.n} » :`, "100");
+        if (g && +g > 0) ajouter(f, +g);
+      });
+      res.append(line);
+    }
+  };
+  const dessinerLog = () => {
+    const lg = Etat.data.foodlog[jour] || [];
+    logBox.innerHTML = "";
+    if (!lg.length) { logBox.append(h(`<div class="muted small">Rien d'enregistré aujourd'hui.</div>`)); return; }
+    lg.forEach((f, i) => {
+      const line = h(`<div class="exline"><div class="meta"><div class="nm small">${esc(f.name)} <span class="muted">· ${f.g} g</span></div>
+        <div class="muted small">${f.kcal} kcal · P${f.p}</div></div><button class="chip">✕</button></div>`);
+      line.querySelector("button").addEventListener("click", () => { Etat.data.foodlog[jour].splice(i, 1); Etat.sauver(); render(); });
+      logBox.append(line);
+    });
+  };
+  dessinerLog();
+
+  $("#foodGo", v).addEventListener("click", async () => {
+    const q = $("#foodQ", v).value.trim(); if (!q) return;
+    let liste = chercherFoods(q);
+    afficherResultats(liste.length ? liste : [{ n: "Recherche en ligne…", kcal: 0, p: 0, c: 0, l: 0, src: "info" }]);
+    const enligne = await offRechercher(q);
+    afficherResultats([...liste, ...enligne]);
+  });
+  $("#codeGo", v).addEventListener("click", async () => {
+    const code = $("#foodCode", v).value.trim(); if (!code) return;
+    res.innerHTML = `<div class="muted small" style="margin-top:6px">Recherche du produit…</div>`;
+    const prod = await parCodeBarres(code);
+    afficherResultats(prod ? [prod] : []);
+    if (!prod) res.innerHTML = `<div class="notice small">Produit introuvable ou hors ligne : utilise la recherche par nom (base locale).</div>`;
+  });
+
+  v.append(h(`<div class="warn small">⚕️ Repères nutritionnels généraux, pas un régime médical. En cas de pathologie, trouble alimentaire ou doute, consulte un professionnel de santé ou un diététicien.</div>`));
+}
 
 /* ======================================================================
    PROGRÈS

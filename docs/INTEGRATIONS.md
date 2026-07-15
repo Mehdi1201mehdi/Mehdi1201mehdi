@@ -30,13 +30,19 @@ récupéré dans le cache local. L'app reste utilisable sans connexion.
   (écran Exos : recherche + filtres muscle/matériel) et le remplacement manuel.
   Le **générateur automatique** garde son cœur curé de qualité contrôlée.
 
-## 3. Open Food Facts — nutrition ⏳ (Phase 2)
+## 3. Open Food Facts — nutrition ✅ (implémenté)
 
 - API libre **sans clé** : recherche `search.pl` + produit par code-barres
   `api/v2/product/{code}.json`. Licence **ODbL** (attribution).
 - Adaptateur `src/integrations/openfoodfacts.js` : recherche, code-barres,
-  parsing des macros pour 100 g. Repli sur une petite base locale hors ligne.
-- Alimente un futur écran **Nutrition** (journal, objectifs caloriques).
+  parsing des macros /100 g. `fetch` injectable, **testé hors ligne**.
+- Base alimentaire **locale** (`src/data/foods.js`) : recherche instantanée et
+  repli hors ligne.
+- Moteur `src/engine/nutrition.js` : besoins caloriques (Mifflin-St Jeor +
+  facteur d'activité + ajustement objectif), protéines/lipides/glucides, eau.
+  Testé.
+- Écran **Nutrition** : objectifs du jour, journal (recherche locale + OFF,
+  code-barres, ajout par portion), totaux, avertissement santé.
 
 ## 4. Health Connect / HealthKit — données de santé ⚠️ (Phase 3, natif)
 
