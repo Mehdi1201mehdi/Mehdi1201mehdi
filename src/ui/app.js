@@ -267,11 +267,7 @@ function diagrammeMuscles(exo) {
   let repli = false;
   wrap.querySelectorAll("img.base").forEach((img) => img.addEventListener("error", () => {
     if (repli) return; repli = true;
-    const chips = [
-      ...(exo.musclesPrincipaux || []).map((m) => `<span class="pill" style="background:#E5484D;color:#fff">${esc(MUSCLE_LABELS[m] || m)}</span>`),
-      ...(exo.musclesSecondaires || []).map((m) => `<span class="pill" style="background:#F5A524;color:#fff">${esc(MUSCLE_LABELS[m] || m)}</span>`),
-    ].join("");
-    wrap.innerHTML = `<div class="leg">${chips}</div><div class="hint" style="text-align:center">Planche anatomique indisponible hors ligne — elle s'affichera après une première connexion.</div>`;
+    wrap.innerHTML = `<div class="hint" style="text-align:center;padding:8px 0">Planche anatomique en cours de chargement (ou indisponible hors ligne).</div>`;
   }));
   return wrap;
 }
