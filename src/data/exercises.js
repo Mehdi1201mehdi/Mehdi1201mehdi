@@ -497,13 +497,13 @@ function norm(s) {
  * @param {any[]} [list]
  */
 export function chercherCatalogue(filtres = {}, list = CATALOGUE) {
-  const q = norm(filtres.q);
+  const toks = norm(filtres.q).split(/[^a-z0-9]+/).filter(Boolean); // recherche par mots (tous requis)
   return list.filter((e) => {
     if (filtres.muscle && !e.musclesPrincipaux.includes(filtres.muscle) && !(e.musclesSecondaires || []).includes(filtres.muscle)) return false;
     if (filtres.equip && !e.equipement.includes(filtres.equip)) return false;
-    if (q) {
+    if (toks.length) {
       const hay = norm(e.nom) + " " + norm((e.nomsAlternatifs || []).join(" ")) + " " + norm((e.tags || []).join(" "));
-      if (!hay.includes(q)) return false;
+      if (!toks.every((t) => hay.includes(t))) return false;
     }
     return true;
   });

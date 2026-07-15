@@ -1,68 +1,47 @@
 // @ts-check
 /**
- * Schéma anatomique ORIGINAL (SVG dessiné pour ce projet).
- * Vues avant + arrière. Muscles principaux en rouge, secondaires en orange,
- * autres en neutre. Chaque zone porte le nom du muscle (survol natif + tap).
- * Sert d'illustration permanente ET de repli quand aucune image n'existe.
+ * Planche anatomique PROFESSIONNELLE composée à partir des images libres de
+ * wger (licence CC-BY-SA) : corps musculaire (avant + arrière) + calques des
+ * muscles ciblés (rouge = principal, orange = secondaire).
+ * Rendu identique aux applications de fitness pro, mise en cache hors ligne
+ * par le service worker (hôte wger.de déjà autorisé).
+ *
+ * Repli propre (liste de muscles) géré côté app.js si les images ne chargent pas.
  */
-import { MUSCLE_LABELS } from "../models.js";
 
-const ROUGE = "#E5484D";
-const ORANGE = "#F5A524";
-const NEUTRE = "#8B94A3";
+const BASE = "https://wger.de/static/images/muscles";
 
-/** Zones musculaires par vue : [muscle, "<shapes/>"] (symétrie incluse). */
-const FRONT = [
-  ["epaules", `<ellipse cx="57" cy="70" rx="11" ry="10"/><ellipse cx="103" cy="70" rx="11" ry="10"/>`],
-  ["pectoraux", `<path d="M63 74 q17 -8 17 6 q0 12 -17 10 q-4 -9 0 -16z"/><path d="M97 74 q-17 -8 -17 6 q0 12 17 10 q4 -9 0 -16z"/>`],
-  ["biceps", `<ellipse cx="50" cy="100" rx="6" ry="15"/><ellipse cx="110" cy="100" rx="6" ry="15"/>`],
-  ["avant_bras", `<ellipse cx="45" cy="138" rx="5" ry="16"/><ellipse cx="115" cy="138" rx="5" ry="16"/>`],
-  ["abdominaux", `<rect x="71" y="92" width="18" height="34" rx="5"/>`],
-  ["adducteurs", `<ellipse cx="80" cy="150" rx="5" ry="16"/>`],
-  ["quadriceps", `<ellipse cx="71" cy="168" rx="9" ry="28"/><ellipse cx="89" cy="168" rx="9" ry="28"/>`],
-];
-const BACK = [
-  ["trapezes", `<path d="M70 62 q10 -6 20 0 q-2 16 -10 20 q-8 -4 -10 -20z"/>`],
-  ["epaules", `<ellipse cx="57" cy="70" rx="11" ry="10"/><ellipse cx="103" cy="70" rx="11" ry="10"/>`],
-  ["dorsaux", `<path d="M64 82 q10 6 12 24 q-8 8 -14 2 q-4 -16 2 -26z"/><path d="M96 82 q-10 6 -12 24 q8 8 14 2 q4 -16 -2 -26z"/>`],
-  ["triceps", `<ellipse cx="50" cy="100" rx="6" ry="15"/><ellipse cx="110" cy="100" rx="6" ry="15"/>`],
-  ["avant_bras", `<ellipse cx="45" cy="138" rx="5" ry="16"/><ellipse cx="115" cy="138" rx="5" ry="16"/>`],
-  ["lombaires", `<rect x="72" y="110" width="16" height="16" rx="4"/>`],
-  ["fessiers", `<ellipse cx="72" cy="136" rx="10" ry="11"/><ellipse cx="88" cy="136" rx="10" ry="11"/>`],
-  ["ischios", `<ellipse cx="71" cy="170" rx="8" ry="24"/><ellipse cx="89" cy="170" rx="8" ry="24"/>`],
-  ["mollets", `<ellipse cx="71" cy="212" rx="7" ry="18"/><ellipse cx="89" cy="212" rx="7" ry="18"/>`],
-];
-
-/** Silhouette de base (tête, tronc, bras, jambes) en neutre clair. */
-function silhouette() {
-  return `<g fill="${NEUTRE}" opacity="0.16" style="pointer-events:none">
-    <circle cx="80" cy="30" r="14"/><rect x="74" y="42" width="12" height="10"/>
-    <rect x="60" y="52" width="40" height="60" rx="14"/>
-    <rect x="44" y="60" width="12" height="86" rx="6"/><rect x="104" y="60" width="12" height="86" rx="6"/>
-    <rect x="62" y="108" width="36" height="30" rx="8"/>
-    <rect x="63" y="132" width="15" height="96" rx="7"/><rect x="82" y="132" width="15" height="96" rx="7"/>
-  </g>`;
-}
-
-function couche(zones, primary, secondary) {
-  return zones.map(([m, shapes]) => {
-    const c = primary.has(m) ? ROUGE : secondary.has(m) ? ORANGE : NEUTRE;
-    const o = primary.has(m) || secondary.has(m) ? 0.92 : 0.28;
-    return `<g class="mz" data-muscle="${m}" fill="${c}" fill-opacity="${o}" style="cursor:pointer"><title>${MUSCLE_LABELS[m] || m}</title>${shapes}</g>`;
-  }).join("");
-}
+/** Nos muscles → identifiant wger + vue (front=avant, sinon arrière). */
+const WGER = {
+  pectoraux: { id: 4, front: 1 }, epaules: { id: 2, front: 1 }, biceps: { id: 1, front: 1 },
+  avant_bras: { id: 13, front: 1 }, abdominaux: { id: 6, front: 1 }, quadriceps: { id: 10, front: 1 },
+  dorsaux: { id: 12, front: 0 }, trapezes: { id: 9, front: 0 }, triceps: { id: 5, front: 0 },
+  fessiers: { id: 8, front: 0 }, ischios: { id: 11, front: 0 }, mollets: { id: 7, front: 0 },
+};
+const CORPS_ENTIER = ["pectoraux", "dorsaux", "quadriceps", "abdominaux", "fessiers", "epaules"];
 
 /**
- * Construit le schéma (deux vues côte à côte).
+ * Construit le HTML de la planche (deux vues). Les <img> base portent la classe
+ * `base` : app.js écoute leur `error` pour afficher un repli propre hors ligne.
  * @param {Iterable<string>} principaux
  * @param {Iterable<string>} secondaires
  */
-export function bodySVG(principaux, secondaires) {
+export function muscleDiagram(principaux, secondaires) {
   const P = new Set(principaux), S = new Set(secondaires);
-  return `<svg viewBox="0 0 340 250" style="width:100%;height:auto" role="img" aria-label="Muscles sollicités (vue avant et arrière)">
-    <g transform="translate(0,6)">${silhouette()}${couche(FRONT, P, S)}
-      <text x="80" y="248" text-anchor="middle" font-size="11" fill="var(--ink-soft)">Avant</text></g>
-    <g transform="translate(180,6)">${silhouette()}${couche(BACK, P, S)}
-      <text x="80" y="248" text-anchor="middle" font-size="11" fill="var(--ink-soft)">Arrière</text></g>
-  </svg>`;
+  if (P.has("corps_entier")) CORPS_ENTIER.forEach((m) => P.add(m));
+
+  const calques = (front) => {
+    let html = "";
+    for (const [m, w] of Object.entries(WGER)) {
+      if (w.front !== front) continue;
+      if (P.has(m)) html += `<img class="ov" src="${BASE}/main/muscle-${w.id}.svg" alt="">`;
+      else if (S.has(m)) html += `<img class="ov" src="${BASE}/secondary/muscle-${w.id}.svg" alt="">`;
+    }
+    return html;
+  };
+
+  return `<div class="anat2">
+    <div class="anview"><img class="base" src="${BASE}/muscular_system_front.svg" alt="Vue avant">${calques(1)}<span class="lab">Avant</span></div>
+    <div class="anview"><img class="base" src="${BASE}/muscular_system_back.svg" alt="Vue arrière">${calques(0)}<span class="lab">Arrière</span></div>
+  </div>`;
 }

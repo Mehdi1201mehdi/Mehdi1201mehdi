@@ -13,7 +13,7 @@ import { genererProgramme } from "../engine/generator.js";
 import { recommander } from "../engine/progression.js";
 import { alternatives } from "../engine/replacement.js";
 import { chercherDemonstration, lienYouTube } from "../integrations/exercisedb.js";
-import { bodySVG } from "./anatomy.js";
+import { muscleDiagram } from "./anatomy.js";
 import { calculerBesoins } from "../engine/nutrition.js";
 import { bilan } from "../engine/review.js";
 import { chercherFoods, portion } from "../data/foods.js";
@@ -260,6 +260,21 @@ function estRealisable(exo) {
   return okEquip && !contre;
 }
 
+/** Planche anatomique wger avec repli propre (liste de muscles) si hors ligne. */
+function diagrammeMuscles(exo) {
+  const wrap = h(`<div>${muscleDiagram(exo.musclesPrincipaux || [], exo.musclesSecondaires || [])}</div>`);
+  let repli = false;
+  wrap.querySelectorAll("img.base").forEach((img) => img.addEventListener("error", () => {
+    if (repli) return; repli = true;
+    const chips = [
+      ...(exo.musclesPrincipaux || []).map((m) => `<span class="pill" style="background:#E5484D;color:#fff">${esc(MUSCLE_LABELS[m] || m)}</span>`),
+      ...(exo.musclesSecondaires || []).map((m) => `<span class="pill" style="background:#F5A524;color:#fff">${esc(MUSCLE_LABELS[m] || m)}</span>`),
+    ].join("");
+    wrap.innerHTML = `<div class="leg">${chips}</div><div class="hint" style="text-align:center">Planche anatomique indisponible hors ligne — elle s'affichera après une première connexion.</div>`;
+  }));
+  return wrap;
+}
+
 /** Fiche démonstration PREMIUM (feuille plein écran). */
 function ouvrirDetail(exo) {
   const P = new Set(exo.musclesPrincipaux || []), Sec = new Set(exo.musclesSecondaires || []);
@@ -281,18 +296,15 @@ function ouvrirDetail(exo) {
 
   if (!estRealisable(exo)) inner.append(h(`<div class="warn small">⚠️ Pas réalisable avec ton matériel / tes limitations actuels — vois « Remplacement intelligent » ci-dessous.</div>`));
 
-  // Schéma anatomique (toujours affiché)
+  // Planche anatomique professionnelle (wger) + légende nommée
   const anat = h(`<div class="sec"><h3>Muscles sollicités</h3></div>`);
-  const svgWrap = h(`<div>${bodySVG(P, Sec)}</div>`);
-  const cap = h(`<div class="mzcap"></div>`);
-  anat.append(svgWrap, cap, h(`<div class="small muted" style="text-align:center"><span style="color:#E5484D">■</span> principaux · <span style="color:#F5A524">■</span> secondaires · survole ou touche un muscle</div>`));
+  anat.append(diagrammeMuscles(exo));
+  const legende = [
+    ...(exo.musclesPrincipaux || []).map((m) => `<span class="pill" style="background:#E5484D;color:#fff">${esc(MUSCLE_LABELS[m] || m)}</span>`),
+    ...(exo.musclesSecondaires || []).map((m) => `<span class="pill" style="background:#F5A524;color:#fff">${esc(MUSCLE_LABELS[m] || m)}</span>`),
+  ].join("");
+  anat.append(h(`<div class="leg">${legende}</div>`));
   inner.append(anat);
-  anat.querySelectorAll("[data-muscle]").forEach((gEl) => {
-    const nom = gEl.querySelector("title")?.textContent || "";
-    gEl.addEventListener("pointerover", () => { cap.textContent = nom; });
-    gEl.addEventListener("pointerout", () => { cap.textContent = ""; });
-    gEl.addEventListener("click", () => { cap.textContent = nom; });
-  });
 
   if ((exo.instructions || []).length) inner.append(h(`<div class="sec"><h3>Étapes du mouvement</h3><ol class="small">${exo.instructions.map((x) => `<li>${esc(x)}</li>`).join("")}</ol></div>`));
   if (exo.respiration) inner.append(h(`<div class="sec"><h3>Respiration</h3><div class="breath"><span class="in">↧ Inspirer</span><span class="out">↥ Expirer</span></div><div class="small muted" style="margin-top:6px">${esc(exo.respiration)}</div></div>`));
@@ -316,12 +328,13 @@ function ouvrirDetail(exo) {
 
 /** Charge le média (GIF/vidéo) avec cache local, repli anatomie. */
 async function chargerMedia(exo, media) {
-  const heroAnatomie = () => { media.style.aspectRatio = "auto"; media.innerHTML = `<div style="padding:16px;width:100%">${bodySVG(new Set(exo.musclesPrincipaux || []), new Set(exo.musclesSecondaires || []))}</div>`; };
+  const heroAnatomie = () => { media.style.aspectRatio = "auto"; media.innerHTML = ""; media.append(h(`<div style="padding:14px;width:100%"></div>`)); media.firstChild.append(diagrammeMuscles(exo)); };
   let url = Etat.data.mediaCache[exo.id];
   if (!url) {
     const res = await chercherDemonstration(exo.id, { rapidKey: Etat.data.reglages.rapidKey });
     if (res && res.gifUrl) { url = res.gifUrl; Etat.data.mediaCache[exo.id] = url; Etat.sauver(); }
   }
+  if (!url && exo.media && exo.media.miniature) url = exo.media.miniature; // photo wger de l'exercice
   if (!media.isConnected) return;           // feuille fermée entre-temps
   if (!url) { heroAnatomie(); return; }
 
