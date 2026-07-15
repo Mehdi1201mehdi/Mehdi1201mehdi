@@ -118,7 +118,8 @@ nav.tabs{position:fixed;bottom:0;left:0;right:0;z-index:30;background:color-mix(
 nav.tabs .wrap{display:flex;gap:2px;padding:8px 8px calc(8px + env(safe-area-inset-bottom))}
 nav.tabs button{flex:1;border:none;background:none;min-height:0;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:.64rem;font-weight:750;color:var(--ink-soft);padding:8px 2px;border-radius:14px;transition:color .15s,background .15s}
 nav.tabs button.on{color:var(--accent-ink);background:var(--accent-soft)}
-nav.tabs .ico{font-size:1.15rem;line-height:1;display:block}
+nav.tabs .ico{width:24px;height:24px;display:block}
+nav.tabs button.on .ico{filter:drop-shadow(0 0 6px color-mix(in srgb,var(--accent) 55%,transparent))}
 
 #overlay{position:fixed;inset:0;z-index:60;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;gap:24px;padding:24px;text-align:center}
 #overlay.show{display:flex}
