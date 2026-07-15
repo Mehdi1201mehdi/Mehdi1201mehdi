@@ -8,7 +8,7 @@ import {
   GOALS, GOAL_LABELS, LEVELS, LEVEL_LABELS, EQUIPMENTS, EQUIPMENT_LABELS,
   MUSCLES, MUSCLE_LABELS,
 } from "../models.js";
-import { getExercise } from "../data/exercises.js";
+import { getExercise, chercherCatalogue, CATALOGUE } from "../data/exercises.js";
 import { genererProgramme } from "../engine/generator.js";
 import { recommander } from "../engine/progression.js";
 import { alternatives } from "../engine/replacement.js";
@@ -37,7 +37,7 @@ $("#themeBtn").addEventListener("click", () => {
 
 /* ---------- navigation ---------- */
 let TAB = "dash";
-const TABS = { dash: vDash, prog: vProg, train: vTrain, stats: vStats, set: vSet };
+const TABS = { dash: vDash, prog: vProg, cat: vCatalogue, train: vTrain, stats: vStats, set: vSet };
 function nav(t) {
   TAB = t;
   $("#tabs").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.tab === t));
@@ -277,6 +277,54 @@ async function chargerDemo(exId, box, btn) {
     box.innerHTML = `<div class="notice small">Démonstration en ligne indisponible (hors ligne ou service saturé).<br>
       <a href="${yt}" target="_blank" rel="noopener">▶ Voir des vidéos de démonstration sur YouTube</a></div>`;
   }
+}
+
+/* ======================================================================
+   CATALOGUE / RECHERCHE D'EXERCICES
+   ====================================================================== */
+let CAT_FILTRE = { q: "", muscle: "", equip: "" };
+function vCatalogue(v) {
+  v.append(h(`<div class="spread"><h1>Exercices</h1><span class="pill">${CATALOGUE.length} au total</span></div>`));
+  const inp = h(`<input id="catQ" placeholder="Rechercher (ex : rowing, squat, gainage…)" value="${esc(CAT_FILTRE.q)}">`);
+  v.append(inp);
+
+  const muscles = [...new Set(CATALOGUE.flatMap((e) => e.musclesPrincipaux))].sort();
+  const equips = [...new Set(CATALOGUE.flatMap((e) => e.equipement))].sort();
+  const filtreLigne = (items, cle, labels) => {
+    const box = h(`<div class="row" style="overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px"></div>`);
+    const tout = h(`<button class="chip ${!CAT_FILTRE[cle] ? "on" : ""}">Tous</button>`);
+    tout.addEventListener("click", () => { CAT_FILTRE[cle] = ""; render(); });
+    box.append(tout);
+    for (const it of items) {
+      const b = h(`<button class="chip ${CAT_FILTRE[cle] === it ? "on" : ""}">${esc(labels[it] || it)}</button>`);
+      b.addEventListener("click", () => { CAT_FILTRE[cle] = CAT_FILTRE[cle] === it ? "" : it; render(); });
+      box.append(b);
+    }
+    return box;
+  };
+  v.append(h(`<div class="eyebrow" style="margin-top:10px">Muscle</div>`));
+  v.append(filtreLigne(muscles, "muscle", MUSCLE_LABELS));
+  v.append(h(`<div class="eyebrow" style="margin-top:8px">Matériel</div>`));
+  v.append(filtreLigne(equips, "equip", EQUIPMENT_LABELS));
+
+  const res = h(`<div id="catRes" style="margin-top:10px"></div>`);
+  v.append(res);
+  const dessine = () => {
+    const list = chercherCatalogue(CAT_FILTRE).slice(0, 80);
+    res.innerHTML = "";
+    if (!list.length) { res.append(h(`<div class="notice small">Aucun exercice ne correspond. Élargis les filtres.</div>`)); return; }
+    res.append(h(`<div class="muted small" style="margin-bottom:4px">${list.length} résultat(s)</div>`));
+    for (const e of list) {
+      const row = h(`<div class="exline">
+        <div class="meta"><div class="nm">${esc(e.nom)}</div>
+          <div class="muted small">${e.musclesPrincipaux.map((m) => MUSCLE_LABELS[m] || m).join(", ")} · ${e.equipement.map((q) => EQUIPMENT_LABELS[q] || q).join(", ")}${e.source === "wger" ? ` · <span class="tag">wger</span>` : ""}</div></div>
+        <button class="chip">ℹ️</button></div>`);
+      row.querySelector("button").addEventListener("click", () => ouvrirDetail(e));
+      res.append(row);
+    }
+  };
+  dessine();
+  inp.addEventListener("input", () => { CAT_FILTRE.q = inp.value; dessine(); });
 }
 
 /* ======================================================================

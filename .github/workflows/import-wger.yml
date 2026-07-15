@@ -1,0 +1,45 @@
+name: Importer les exercices wger
+
+# Déclenchement MANUEL (onglet Actions → "Run workflow").
+# GitHub Actions a un accès Internet ouvert, contrairement à l'environnement de
+# dev : c'est ici que l'import wger s'exécute réellement.
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Nombre maximum d'exercices à importer"
+        required: false
+        default: "250"
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Lancer l'importeur wger
+        run: node src/integrations/wger-import.mjs --limit=${{ github.event.inputs.limit }}
+
+      - name: Vérifier les tests
+        run: node --test tests/*.test.js
+
+      - name: Committer la base générée
+        run: |
+          git config user.name "wger-importer"
+          git config user.email "actions@users.noreply.github.com"
+          if [ -n "$(git status --porcelain src/data/exercises-extra.js)" ]; then
+            git add src/data/exercises-extra.js
+            git commit -m "Import wger : mise à jour de la base d'exercices"
+            git push
+          else
+            echo "Aucun changement à committer."
+          fi

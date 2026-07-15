@@ -469,10 +469,42 @@ export const EXERCISES = [
   }),
 ];
 
-/** Index par id pour accès O(1). */
-export const EXERCISES_BY_ID = Object.fromEntries(EXERCISES.map((e) => [e.id, e]));
+import { EXTRA_EXERCISES } from "./exercises-extra.js";
+
+/**
+ * CATALOGUE = cœur curé + exercices importés (wger).
+ * Le moteur (generator/replacement) travaille sur `EXERCISES` (cœur curé, de
+ * qualité contrôlée) ; l'interface de recherche/détail travaille sur CATALOGUE.
+ */
+export const CATALOGUE = [...EXERCISES, ...EXTRA_EXERCISES];
+
+/** Index par id pour accès O(1) (sur tout le catalogue). */
+export const EXERCISES_BY_ID = Object.fromEntries(CATALOGUE.map((e) => [e.id, e]));
 
 /** Renvoie un exercice par id (ou undefined). */
 export function getExercise(id) {
   return EXERCISES_BY_ID[id];
+}
+
+/** Normalise une chaîne (minuscule, sans accents) pour la recherche. */
+function norm(s) {
+  return String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+/**
+ * Recherche/filtre dans le catalogue.
+ * @param {{q?:string, muscle?:string, equip?:string}} [filtres]
+ * @param {any[]} [list]
+ */
+export function chercherCatalogue(filtres = {}, list = CATALOGUE) {
+  const q = norm(filtres.q);
+  return list.filter((e) => {
+    if (filtres.muscle && !e.musclesPrincipaux.includes(filtres.muscle) && !(e.musclesSecondaires || []).includes(filtres.muscle)) return false;
+    if (filtres.equip && !e.equipement.includes(filtres.equip)) return false;
+    if (q) {
+      const hay = norm(e.nom) + " " + norm((e.nomsAlternatifs || []).join(" ")) + " " + norm((e.tags || []).join(" "));
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
 }

@@ -14,16 +14,21 @@ récupéré dans le cache local. L'app reste utilisable sans connexion.
 - Hors ligne / service indisponible → message + lien de secours YouTube.
 - Testé hors ligne (fetch injecté) : `tests/exercisedb.test.js`.
 
-## 2. wger — base d'exercices & muscles ⏳ (Phase 2)
+## 2. wger — base d'exercices & muscles ✅ (outillé — reste à lancer en CI)
 
 - API publique `https://wger.de/api/v2/` (lecture sans authentification).
   Contenu sous licence **CC-BY-SA** (attribution).
-- Objectif : un **importeur** (`src/integrations/wger-import.js`) qui convertit
-  les exercices wger vers **notre schéma** (muscles, équipements, patrons) pour
-  passer de ~33 à **150+ exercices**, avec validation et déduplication.
-- Les exercices importés gardent un champ `source: "wger"` + attribution.
-- L'import se fait hors app (script) ou dans l'écran admin (plus tard) : la base
-  reste **statique et embarquée** pour rester rapide et hors ligne.
+- **Importeur** `src/integrations/wger-import.mjs` : convertit les exercices
+  wger vers **notre schéma** (muscles, équipements, patron biomécanique inféré),
+  avec déduplication et validation. Fonctions de mapping **testées hors ligne**
+  (`tests/wger-import.test.js`). Écrit `src/data/exercises-extra.js`.
+- ⚠️ L'environnement de dev **bloque wger.de** (proxy egress → 403). L'import
+  s'exécute donc via **GitHub Actions** (`.github/workflows/import-wger.yml`,
+  déclenchement manuel), où le réseau est ouvert ; le workflow committe la base
+  générée. Résultat : passage de ~37 à **150+ exercices** sans réécrire le code.
+- Les exercices importés portent `source: "wger"`, alimentent le **CATALOGUE**
+  (écran Exos : recherche + filtres muscle/matériel) et le remplacement manuel.
+  Le **générateur automatique** garde son cœur curé de qualité contrôlée.
 
 ## 3. Open Food Facts — nutrition ⏳ (Phase 2)
 

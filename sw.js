@@ -10,6 +10,7 @@ const ASSETS = [
   "./src/ui/app.js",
   "./src/models.js",
   "./src/data/exercises.js",
+  "./src/data/exercises-extra.js",
   "./src/engine/index.js",
   "./src/engine/constraints.js",
   "./src/engine/generator.js",
