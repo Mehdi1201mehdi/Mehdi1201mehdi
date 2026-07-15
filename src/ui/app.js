@@ -858,6 +858,20 @@ function vSet(v) {
    INIT
    ====================================================================== */
 Etat.charger();
+// Activation de la clé WorkoutX par lien : …/?wxkey=wx_…  → enregistrée
+// localement (jamais dans le code) puis retirée de l'URL.
+try {
+  const params = new URLSearchParams(location.search);
+  const k = params.get("wxkey");
+  if (k && k.trim()) {
+    Etat.data.reglages.workoutxKey = k.trim();
+    Etat.data.mediaCache = {};
+    Etat.sauver();
+    params.delete("wxkey");
+    const q = params.toString();
+    history.replaceState(null, "", location.pathname + (q ? "?" + q : "") + location.hash);
+  }
+} catch (e) { /* ignore */ }
 appliquerTheme();
 if (Etat.data.profil) { $("#tabs").hidden = false; nav("dash"); }
 else render();
