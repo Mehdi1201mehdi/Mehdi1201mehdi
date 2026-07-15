@@ -17,7 +17,7 @@ function etatVide() {
     foodlog: /** @type {Record<string, any[]>} */ ({}), // "YYYY-MM-DD" -> [{name,g,kcal,p,c,l,src}]
     reviews: /** @type {any[]} */ ([]),   // bilans d'ajustement enregistrés
     mediaCache: /** @type {Record<string,string>} */ ({}), // exId -> URL de GIF résolue
-    reglages: { theme: "auto", unites: "metrique", sons: true, vibrations: true, rapidKey: "" },
+    reglages: { theme: "auto", unites: "metrique", sons: true, vibrations: true, rapidKey: "", workoutxKey: "" },
   };
 }
 
