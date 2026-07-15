@@ -333,13 +333,21 @@ async function chargerMedia(exo, media) {
     media.style.aspectRatio = "auto"; media.innerHTML = "";
     const box = h(`<div style="padding:14px;width:100%"></div>`);
     box.append(diagrammeMuscles(exo));
-    const btn = h(`<button class="chip" style="margin:10px auto 0;display:block">🔄 Charger la démonstration animée</button>`);
-    btn.addEventListener("click", () => {
-      delete Etat.data.mediaCache[exo.id]; Etat.sauver();
-      media.style.aspectRatio = ""; media.innerHTML = `<div class="spin"></div>`;
-      chargerMedia(exo, media);
-    });
-    box.append(btn);
+    const aKey = !!(Etat.data.reglages.workoutxKey || "").trim();
+    if (!aKey) {
+      const note = h(`<div class="notice small" style="text-align:center;margin-top:10px">🎬 Pour des <b>démonstrations animées</b>, ajoute ta clé WorkoutX dans les Réglages.</div>`);
+      const goSet = h(`<button class="primary" style="margin:8px auto 0;display:block">Aller aux Réglages →</button>`);
+      goSet.addEventListener("click", () => { document.querySelector(".sheet")?.remove(); nav("set"); });
+      box.append(note, goSet);
+    } else {
+      const btn = h(`<button class="chip" style="margin:10px auto 0;display:block">🔄 Charger la démonstration animée</button>`);
+      btn.addEventListener("click", () => {
+        delete Etat.data.mediaCache[exo.id]; Etat.sauver();
+        media.style.aspectRatio = ""; media.innerHTML = `<div class="spin"></div>`;
+        chargerMedia(exo, media);
+      });
+      box.append(btn);
+    }
     media.append(box);
   };
   let url = Etat.data.mediaCache[exo.id];
