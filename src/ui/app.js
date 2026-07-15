@@ -18,6 +18,8 @@ import { bilan } from "../engine/review.js";
 import { chercherFoods, portion } from "../data/foods.js";
 import { rechercher as offRechercher, parCodeBarres } from "../integrations/openfoodfacts.js";
 import { Etat, seanceDuJour } from "../store/state.js";
+import { seancesVersCSV, metriquesVersCSV, nomFichierExport } from "../engine/export.js";
+import { grilleMois, moisAdjacent, NOMS_JOURS_COURTS } from "../engine/calendar.js";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -444,6 +446,7 @@ function terminer() {
 
 /* ---------- minuteur de repos ---------- */
 let TMR = null;
+let CAL_VIEW = null; // {annee, mois} du calendrier d'assiduité affiché (Progrès)
 function startTimer(sec) {
   const ov = $("#overlay"); ov.classList.add("show");
   let total = sec, left = sec;
@@ -590,6 +593,28 @@ function svgBars(bars, label = "") {
   }).join("");
   return `<svg viewBox="0 0 ${W} ${H + 4}" style="width:100%;height:auto" role="img" aria-label="${esc(label)}"><text x="${pad}" y="15" font-size="12" fill="var(--ink-soft)">${esc(label)}</text>${rects}</svg>`;
 }
+/** Carte "Calendrier d'assiduité" : grille du mois avec navigation. */
+function carteCalendrier(v, logs) {
+  const auj = new Date();
+  if (!CAL_VIEW) CAL_VIEW = { annee: auj.getFullYear(), mois: auj.getMonth() + 1 };
+  const p2 = (n) => String(n).padStart(2, "0");
+  const isoAuj = `${auj.getFullYear()}-${p2(auj.getMonth() + 1)}-${p2(auj.getDate())}`;
+  const g = grilleMois(CAL_VIEW.annee, CAL_VIEW.mois, logs);
+  const c = h(`<div class="card stack"></div>`);
+  c.append(h(`<div class="cal-head"><button class="chip" id="calPrev" aria-label="Mois précédent">‹</button><b>${esc(g.nomMois)} ${g.annee}</b><button class="chip" id="calNext" aria-label="Mois suivant">›</button></div>`));
+  const grid = h(`<div class="cal-grid"></div>`);
+  NOMS_JOURS_COURTS.forEach((d) => grid.append(h(`<div class="cal-dow">${d}</div>`)));
+  g.cases.forEach((cell) => {
+    if (!cell) { grid.append(h(`<div class="cal-cell empty"></div>`)); return; }
+    const on = cell.seances > 0, isAuj = cell.iso === isoAuj;
+    grid.append(h(`<div class="cal-cell${on ? " on" : ""}${isAuj ? " today" : ""}">${cell.jour}${on ? `<span class="n">${cell.seances}</span>` : ""}</div>`));
+  });
+  c.append(grid);
+  c.append(h(`<div class="small muted" style="margin-top:6px">${g.joursEntraines} jour${g.joursEntraines > 1 ? "s" : ""} entraîné${g.joursEntraines > 1 ? "s" : ""} · ${g.totalSeances} séance${g.totalSeances > 1 ? "s" : ""} ce mois-ci.</div>`));
+  v.append(c);
+  $("#calPrev", c).addEventListener("click", () => { CAL_VIEW = moisAdjacent(g.annee, g.mois, -1); render(); });
+  $("#calNext", c).addEventListener("click", () => { CAL_VIEW = moisAdjacent(g.annee, g.mois, 1); render(); });
+}
 function vStats(v) {
   const logs = Etat.data.logs;
   v.append(h(`<h1>Progrès</h1>`));
@@ -597,6 +622,8 @@ function vStats(v) {
   g.append(kpi("Séances totales", `${logs.length}`));
   g.append(kpi("Volume cumulé", `${Math.round(logs.reduce((a, l) => a + volumeLog(l), 0)).toLocaleString("fr-FR")} kg`));
   v.append(g);
+
+  carteCalendrier(v, logs);
 
   // Graphiques (à partir des données locales)
   const poidsPts = Etat.data.metrics.filter((m) => m.poidsKg).map((m) => ({ v: m.poidsKg }));
@@ -667,6 +694,13 @@ function vStats(v) {
 /* ======================================================================
    RÉGLAGES
    ====================================================================== */
+/** Déclenche le téléchargement d'un fichier texte (CSV) dans le navigateur. */
+function telechargerCSV(contenu, nomFichier) {
+  const blob = new Blob([contenu], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = nomFichier; a.click();
+  URL.revokeObjectURL(a.href);
+}
 function vSet(v) {
   const p = Etat.data.profil;
   v.append(h(`<h1>Réglages</h1>`));
@@ -691,9 +725,13 @@ function vSet(v) {
   const file = h(`<input type="file" accept=".json" hidden>`);
   bImp.addEventListener("click", () => file.click());
   file.addEventListener("change", (ev) => { const f = ev.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => { try { Etat.data = Object.assign(Etat.data, JSON.parse(String(r.result))); Etat.sauver(); alert("Importé ✔"); render(); } catch (e) { alert("Fichier invalide."); } }; r.readAsText(f); });
+  const bExpCsvSeances = h(`<button>Exporter mes séances (CSV)</button>`);
+  bExpCsvSeances.addEventListener("click", () => telechargerCSV(seancesVersCSV(Etat.data.logs, (id) => getExercise(id)?.nom || id), nomFichierExport("seances")));
+  const bExpCsvPoids = h(`<button>Exporter mon poids/mensurations (CSV)</button>`);
+  bExpCsvPoids.addEventListener("click", () => telechargerCSV(metriquesVersCSV(Etat.data.metrics), nomFichierExport("suivi-corporel")));
   const bDel = h(`<button class="danger">Tout effacer</button>`);
   bDel.addEventListener("click", () => { if (confirm("Effacer TOUTES les données (profil, programme, historique) ?")) { Etat.reset(); DRAFT = null; STEP = 0; $("#tabs").hidden = true; render(); } });
-  don.append(bExp, bImp, file, bDel); v.append(don);
+  don.append(bExp, bImp, file, bExpCsvSeances, bExpCsvPoids, bDel); v.append(don);
 
   v.append(h(`<div class="card flat small muted">Coach Perso IA — v0.1 (Phase 1). Application personnelle, locale et hors ligne. Ne remplace pas un avis médical.</div>`));
 }
