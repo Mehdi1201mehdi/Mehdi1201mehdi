@@ -39,19 +39,68 @@ export function resoudreGif(entry, gifIndex, rawBase) {
   return null;
 }
 
-/** Construit la correspondance exId → URL de GIF pour notre catalogue. */
+/* Mots trop courants pour discriminer un exercice (bruit de correspondance). */
+const STOP = new Set([
+  "the", "a", "an", "and", "or", "with", "to", "of", "on", "for", "up", "down",
+  "v", "your", "in", "out", "one", "two", "arm", "arms", "leg", "legs", "left",
+  "right", "single", "double", "exercise", "variation", "version",
+]);
+
+/** Découpe un nom en jetons significatifs (sans mots vides). */
+export function jetons(s) {
+  return normName(s).split(" ").filter((t) => t.length > 1 && !STOP.has(t));
+}
+
+/** Score de recouvrement (Jaccard) entre deux listes de jetons. */
+export function scoreJetons(a, b) {
+  if (!a.length || !b.length) return 0;
+  const sa = new Set(a), sb = new Set(b);
+  let inter = 0;
+  for (const t of sa) if (sb.has(t)) inter++;
+  const union = new Set([...sa, ...sb]).size;
+  return inter / union;
+}
+
+/**
+ * Construit la correspondance exId → URL d'image pour notre catalogue.
+ * 3 niveaux : (1) correspondance exacte du nom normalisé, (2) inclusion,
+ * (3) meilleur recouvrement de jetons (Jaccard) au-dessus d'un seuil — ce
+ * dernier niveau couvre la grande majorité des exercices importés (wger).
+ */
 export function construireMapping(catalogue, datasetIndex, gifIndex, rawBase, termeFn) {
   const out = {};
+  // Pré-calcul des jetons de chaque entrée du dataset (une seule fois).
+  const idxJetons = [];
+  for (const [n, e] of datasetIndex) idxJetons.push([jetons(n), e]);
+
   for (const exo of catalogue) {
     const termes = [...new Set([termeFn(exo.id), exo.nom].map(normName).filter(Boolean))];
     let entry = null;
+
+    // (1) correspondance exacte
     for (const t of termes) { if (datasetIndex.has(t)) { entry = datasetIndex.get(t); break; } }
-    if (!entry) { // recherche par inclusion
+
+    // (2) inclusion (l'un contient l'autre)
+    if (!entry) {
       for (const t of termes) {
-        for (const [n, e] of datasetIndex) { if (n === t || n.includes(t) || t.includes(n)) { entry = e; break; } }
+        for (const [n, e] of datasetIndex) { if (n.includes(t) || t.includes(n)) { entry = e; break; } }
         if (entry) break;
       }
     }
+
+    // (3) meilleur recouvrement de jetons
+    if (!entry) {
+      const jTermes = termes.map(jetons).filter((j) => j.length);
+      let meilleur = 0, gagnant = null;
+      for (const [jn, e] of idxJetons) {
+        for (const jt of jTermes) {
+          const s = scoreJetons(jt, jn);
+          if (s > meilleur) { meilleur = s; gagnant = e; }
+        }
+      }
+      if (gagnant && meilleur >= 0.34) entry = gagnant;
+    }
+
     const url = resoudreGif(entry, gifIndex, rawBase);
     if (url) out[exo.id] = url;
   }
