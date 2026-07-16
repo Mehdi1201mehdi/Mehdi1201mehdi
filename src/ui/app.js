@@ -347,18 +347,18 @@ async function chargerMedia(exo, media) {
     }
     media.append(box);
   };
-  // 0) GIF direct du dataset (sans clé, sans API, sans CORS) — source prioritaire
-  let url = Etat.data.mediaCache[exo.id] || GIFS[exo.id];
+  let url = Etat.data.mediaCache[exo.id];
   if (!url) {
     const key = (Etat.data.reglages.workoutxKey || "").trim();
     const terme = termePour(exo.id);
-    // 1) WorkoutX (GIF officiel) si une clé est configurée
+    // 1) WorkoutX — GIF ANIMÉ (si une clé est configurée)
     if (key) { const wx = await chercherWorkoutX(terme, key); if (wx && wx.gifUrl) url = wx.gifUrl; }
-    // 2) ExerciseDB gratuit
+    // 2) ExerciseDB gratuit — GIF animé (best-effort)
     if (!url) { const res = await chercherDemonstration(exo.id, { rapidKey: Etat.data.reglages.rapidKey }); if (res && res.gifUrl) url = res.gifUrl; }
     if (url) { Etat.data.mediaCache[exo.id] = url; Etat.sauver(); }
   }
-  if (!url && exo.media && exo.media.miniature) url = exo.media.miniature; // 3) photo wger de l'exercice
+  // 3) Image fixe pro du dataset (fiable, sans clé, sans CORS) ; 4) photo wger
+  if (!url) url = GIFS[exo.id] || (exo.media && exo.media.miniature) || null;
   if (!media.isConnected) return;           // feuille fermée entre-temps
   if (!url) { heroAnatomie(); return; }
 
