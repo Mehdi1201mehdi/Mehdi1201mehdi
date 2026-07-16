@@ -13,10 +13,8 @@ import { GIFS } from "../data/gifs.js";
 import { genererProgramme } from "../engine/generator.js";
 import { recommander } from "../engine/progression.js";
 import { alternatives } from "../engine/replacement.js";
-import { chercherDemonstration, lienYouTube, termePour } from "../integrations/exercisedb.js";
-import { chercherWorkoutX, gifUrlWX } from "../integrations/workoutx.js";
+import { chercherDemonstration, lienYouTube } from "../integrations/exercisedb.js";
 import { muscleDiagram } from "./anatomy.js";
-import { EXDB_IDS } from "../data/exdb-ids.js";
 import { calculerBesoins } from "../engine/nutrition.js";
 import { bilan } from "../engine/review.js";
 import { chercherFoods, portion } from "../data/foods.js";
@@ -331,38 +329,22 @@ async function chargerMedia(exo, media) {
     media.style.aspectRatio = "auto"; media.innerHTML = "";
     const box = h(`<div style="padding:14px;width:100%"></div>`);
     box.append(diagrammeMuscles(exo));
-    const aKey = !!(Etat.data.reglages.workoutxKey || "").trim();
-    if (!aKey) {
-      const note = h(`<div class="notice small" style="text-align:center;margin-top:10px">🎬 Pour des <b>démonstrations animées</b>, ajoute ta clé WorkoutX dans les Réglages.</div>`);
-      const goSet = h(`<button class="primary" style="margin:8px auto 0;display:block">Aller aux Réglages →</button>`);
-      goSet.addEventListener("click", () => { document.querySelector(".sheet")?.remove(); nav("set"); });
-      box.append(note, goSet);
-    } else {
-      const btn = h(`<button class="chip" style="margin:10px auto 0;display:block">🔄 Charger la démonstration animée</button>`);
-      btn.addEventListener("click", () => {
-        delete Etat.data.mediaCache[exo.id]; Etat.sauver();
-        media.style.aspectRatio = ""; media.innerHTML = `<div class="spin"></div>`;
-        chargerMedia(exo, media);
-      });
-      box.append(btn);
-    }
+    const btn = h(`<button class="chip" style="margin:10px auto 0;display:block">🔄 Recharger la démonstration</button>`);
+    btn.addEventListener("click", () => {
+      delete Etat.data.mediaCache[exo.id]; Etat.sauver();
+      media.style.aspectRatio = ""; media.innerHTML = `<div class="spin"></div>`;
+      chargerMedia(exo, media);
+    });
+    box.append(btn);
     media.append(box);
   };
-  const key = (Etat.data.reglages.workoutxKey || "").trim();
-  let url = Etat.data.mediaCache[exo.id];
-  // 1) GIF ANIMÉ WorkoutX chargé DIRECTEMENT par id ExerciseDB (aucun appel API
-  //    → pas de blocage CORS). Nécessite une clé. C'est la voie fiable d'animation.
-  if (!url && key && EXDB_IDS[exo.id]) url = gifUrlWX(EXDB_IDS[exo.id], key);
+  // Source PRINCIPALE : dataset GitHub (hasaneyldrm/exercises-dataset), puis
+  // photo wger. Repli en ligne : ExerciseDB open-source gratuit (best-effort).
+  let url = Etat.data.mediaCache[exo.id] || GIFS[exo.id] || (exo.media && exo.media.miniature) || null;
   if (!url) {
-    const terme = termePour(exo.id);
-    // 2) WorkoutX par nom (si pas d'id connu)
-    if (key) { const wx = await chercherWorkoutX(terme, key); if (wx && wx.gifUrl) url = wx.gifUrl; }
-    // 3) ExerciseDB gratuit — GIF animé (best-effort)
-    if (!url) { const res = await chercherDemonstration(exo.id, { rapidKey: Etat.data.reglages.rapidKey }); if (res && res.gifUrl) url = res.gifUrl; }
-    if (url) { Etat.data.mediaCache[exo.id] = url; Etat.sauver(); }
+    const res = await chercherDemonstration(exo.id, {});
+    if (res && res.gifUrl) { url = res.gifUrl; Etat.data.mediaCache[exo.id] = url; Etat.sauver(); }
   }
-  // 4) Image fixe pro du dataset (fiable, sans clé) ; 5) photo wger
-  if (!url) url = GIFS[exo.id] || (exo.media && exo.media.miniature) || null;
   if (!media.isConnected) return;           // feuille fermée entre-temps
   if (!url) { heroAnatomie(); return; }
 
@@ -830,12 +812,10 @@ function vSet(v) {
   aff.append(chipsInline([["auto", "Auto"], ["light", "Clair"], ["dark", "Sombre"]], (val) => Etat.data.reglages.theme === val, (val) => { Etat.data.reglages.theme = val; Etat.sauver(); appliquerTheme(); }));
   v.append(aff);
 
-  // Démonstrations animées (WorkoutX)
-  const cwx = h(`<div class="card stack"><h2 style="margin:0">Démonstrations animées</h2>
-    <label class="f"><span>Clé API WorkoutX (wx_…)</span><input id="wxKey" value="${esc(Etat.data.reglages.workoutxKey || "")}" placeholder="Collée uniquement sur cet appareil"></label>
-    <div class="hint">Active les GIF animés officiels dans les fiches d'exercice. Clé gratuite sur workoutxapp.com. Stockée <b>uniquement sur ton téléphone</b>, jamais envoyée ailleurs ni enregistrée en ligne. Sans clé, l'app utilise la source gratuite ExerciseDB.</div></div>`);
+  // Démonstrations
+  const cwx = h(`<div class="card stack"><h2 style="margin:0">Démonstrations</h2>
+    <div class="hint">Les visuels des exercices viennent du dataset GitHub <b>hasaneyldrm/exercises-dataset</b> (référencés par URL, avec attribution), avec repli sur ExerciseDB open-source. Aucune clé requise.</div></div>`);
   v.append(cwx);
-  $("#wxKey", v).addEventListener("change", () => { Etat.data.reglages.workoutxKey = $("#wxKey", v).value.trim(); Etat.data.mediaCache = {}; Etat.sauver(); alert("Clé enregistrée. Rouvre un exercice pour voir la démonstration animée."); });
 
   const don = h(`<div class="card stack"><h2 style="margin:0">Mes données</h2>
     <div class="small muted">Tout est stocké localement sur cet appareil. Aucune donnée n'est envoyée à un serveur.</div></div>`);
