@@ -9,6 +9,7 @@ import {
   MUSCLES, MUSCLE_LABELS,
 } from "../models.js";
 import { getExercise, chercherCatalogue, CATALOGUE } from "../data/exercises.js";
+import { GIFS } from "../data/gifs.js";
 import { genererProgramme } from "../engine/generator.js";
 import { recommander } from "../engine/progression.js";
 import { alternatives } from "../engine/replacement.js";
@@ -346,7 +347,8 @@ async function chargerMedia(exo, media) {
     }
     media.append(box);
   };
-  let url = Etat.data.mediaCache[exo.id];
+  // 0) GIF direct du dataset (sans clé, sans API, sans CORS) — source prioritaire
+  let url = Etat.data.mediaCache[exo.id] || GIFS[exo.id];
   if (!url) {
     const key = (Etat.data.reglages.workoutxKey || "").trim();
     const terme = termePour(exo.id);

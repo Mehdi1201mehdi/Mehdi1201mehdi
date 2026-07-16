@@ -1,0 +1,54 @@
+name: Importer les GIFs (dataset)
+
+# Déclenchement manuel. GitHub Actions a Internet — c'est ici qu'on récupère
+# les GIFs animés depuis le dataset externe.
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: "Datason source (owner/name)"
+        required: false
+        default: "hasaneyldrm/exercises-dataset"
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Cloner le dataset externe
+        run: |
+          git clone --depth 1 "https://github.com/${{ github.event.inputs.repo }}" ext
+          echo "BRANCH=$(git -C ext rev-parse --abbrev-ref HEAD)" >> "$GITHUB_ENV"
+
+      - name: Licence du dataset (transparence)
+        run: |
+          echo "=== Licence de ${{ github.event.inputs.repo }} ==="
+          cat ext/LICENSE* ext/license* 2>/dev/null | head -30 || echo "Aucun fichier LICENSE trouvé."
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Générer la correspondance GIFs
+        run: node src/integrations/gifs-import.mjs --dir=ext --repo=${{ github.event.inputs.repo }} --branch=${{ env.BRANCH }}
+
+      - name: Vérifier les tests
+        run: node --test tests/*.test.js
+
+      - name: Committer la correspondance
+        run: |
+          git config user.name "gifs-importer"
+          git config user.email "actions@users.noreply.github.com"
+          if [ -n "$(git status --porcelain src/data/gifs.js)" ]; then
+            git add src/data/gifs.js
+            git commit -m "Import GIFs : correspondance exercices → démonstrations animées (${{ github.event.inputs.repo }})"
+            git push
+          else
+            echo "Aucun changement."
+          fi
