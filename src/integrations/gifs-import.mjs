@@ -109,7 +109,7 @@ export function construireMapping(catalogue, datasetIndex, gifIndex, rawBase, te
           if (s > meilleur) { meilleur = s; gagnant = e; }
         }
       }
-      if (gagnant && meilleur >= 0.34) entry = gagnant;
+      if (gagnant && meilleur >= 0.3) entry = gagnant;
     }
 
     const url = resoudreGif(entry, gifIndex, rawBase);
@@ -162,6 +162,9 @@ async function main() {
     + ` * GIFs référencés depuis ${repo} (branche ${branch}). ${n} exercices associés le ${new Date().toISOString().slice(0, 10)}.\n */\n`;
   await writeFile(out, entete + "export const GIFS = " + JSON.stringify(mapping, null, 1) + ";\n", "utf8");
   console.log(`✅ ${n} GIFs associés (sur ${CATALOGUE.length} exercices) — dataset : ${entrees.length} entrées, ${gifs.length} fichiers .gif`);
+  const manquants = CATALOGUE.filter((e) => !mapping[e.id]);
+  console.log(`ℹ️ ${manquants.length} sans image (souvent des étirements/mobilité/cardio absents du dataset) :`);
+  for (const e of manquants) console.log(`   - ${e.nom}`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
