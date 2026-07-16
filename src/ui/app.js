@@ -14,8 +14,9 @@ import { genererProgramme } from "../engine/generator.js";
 import { recommander } from "../engine/progression.js";
 import { alternatives } from "../engine/replacement.js";
 import { chercherDemonstration, lienYouTube, termePour } from "../integrations/exercisedb.js";
-import { chercherWorkoutX } from "../integrations/workoutx.js";
+import { chercherWorkoutX, gifUrlWX } from "../integrations/workoutx.js";
 import { muscleDiagram } from "./anatomy.js";
+import { EXDB_IDS } from "../data/exdb-ids.js";
 import { calculerBesoins } from "../engine/nutrition.js";
 import { bilan } from "../engine/review.js";
 import { chercherFoods, portion } from "../data/foods.js";
@@ -347,17 +348,20 @@ async function chargerMedia(exo, media) {
     }
     media.append(box);
   };
+  const key = (Etat.data.reglages.workoutxKey || "").trim();
   let url = Etat.data.mediaCache[exo.id];
+  // 1) GIF ANIMÉ WorkoutX chargé DIRECTEMENT par id ExerciseDB (aucun appel API
+  //    → pas de blocage CORS). Nécessite une clé. C'est la voie fiable d'animation.
+  if (!url && key && EXDB_IDS[exo.id]) url = gifUrlWX(EXDB_IDS[exo.id], key);
   if (!url) {
-    const key = (Etat.data.reglages.workoutxKey || "").trim();
     const terme = termePour(exo.id);
-    // 1) WorkoutX — GIF ANIMÉ (si une clé est configurée)
+    // 2) WorkoutX par nom (si pas d'id connu)
     if (key) { const wx = await chercherWorkoutX(terme, key); if (wx && wx.gifUrl) url = wx.gifUrl; }
-    // 2) ExerciseDB gratuit — GIF animé (best-effort)
+    // 3) ExerciseDB gratuit — GIF animé (best-effort)
     if (!url) { const res = await chercherDemonstration(exo.id, { rapidKey: Etat.data.reglages.rapidKey }); if (res && res.gifUrl) url = res.gifUrl; }
     if (url) { Etat.data.mediaCache[exo.id] = url; Etat.sauver(); }
   }
-  // 3) Image fixe pro du dataset (fiable, sans clé, sans CORS) ; 4) photo wger
+  // 4) Image fixe pro du dataset (fiable, sans clé) ; 5) photo wger
   if (!url) url = GIFS[exo.id] || (exo.media && exo.media.miniature) || null;
   if (!media.isConnected) return;           // feuille fermée entre-temps
   if (!url) { heroAnatomie(); return; }

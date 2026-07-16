@@ -97,6 +97,7 @@ async function main() {
   const mapping = construireMapping(CATALOGUE, datasetIndex, gifIndex, rawBase, termePour);
 
   const n = Object.keys(mapping).length;
+  if (n === 0) { console.log("Aucune correspondance trouvée — fichier gifs.js laissé inchangé."); return; }
   const entete = `// @ts-check\n/** Généré par src/integrations/gifs-import.mjs — ne pas éditer.\n`
     + ` * GIFs référencés depuis ${repo} (branche ${branch}). ${n} exercices associés le ${new Date().toISOString().slice(0, 10)}.\n */\n`;
   await writeFile(out, entete + "export const GIFS = " + JSON.stringify(mapping, null, 1) + ";\n", "utf8");
