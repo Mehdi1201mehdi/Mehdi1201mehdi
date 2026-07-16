@@ -1,7 +1,7 @@
 // @ts-check
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normName, indexerDataset, resoudreGif, construireMapping, jetons, scoreJetons } from "../src/integrations/gifs-import.mjs";
+import { normName, indexerDataset, resoudreGif, construireMapping, jetons, scoreJetons, racine } from "../src/integrations/gifs-import.mjs";
 
 const RAW = "https://raw.githubusercontent.com/owner/repo/main/";
 
@@ -34,8 +34,18 @@ test("construireMapping : associe nos exercices au dataset par nom/terme", () =>
   assert.equal(map["developpe-couche-barre"], RAW + "g/0025.gif");
 });
 
-test("jetons : retire les mots vides et les jetons trop courts", () => {
-  assert.deepEqual(jetons("Barbell Bench Press with One Arm"), ["barbell", "bench", "press"]);
+test("racine : normalise les pluriels de la gym", () => {
+  assert.equal(racine("dumbbells"), "dumbbell");
+  assert.equal(racine("curls"), "curl");
+  assert.equal(racine("raises"), "raise");
+  assert.equal(racine("presses"), "press");
+  assert.equal(racine("press"), "press");
+  assert.equal(racine("legs"), "leg");
+});
+
+test("jetons : retire les mots vides, racine les pluriels", () => {
+  // "with" est vide ; les autres jetons sont conservés et racinés
+  assert.deepEqual(jetons("Fly With Dumbbells"), ["fly", "dumbbell"]);
 });
 
 test("scoreJetons : recouvrement de Jaccard", () => {

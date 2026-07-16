@@ -41,14 +41,25 @@ export function resoudreGif(entry, gifIndex, rawBase) {
 
 /* Mots trop courants pour discriminer un exercice (bruit de correspondance). */
 const STOP = new Set([
-  "the", "a", "an", "and", "or", "with", "to", "of", "on", "for", "up", "down",
-  "v", "your", "in", "out", "one", "two", "arm", "arms", "leg", "legs", "left",
-  "right", "single", "double", "exercise", "variation", "version",
+  "the", "a", "an", "and", "or", "with", "to", "of", "on", "for",
+  "your", "in", "out", "exercise", "variation", "version",
 ]);
 
-/** Découpe un nom en jetons significatifs (sans mots vides). */
+/** Racine grossière : gère les pluriels de la gym (dumbbells→dumbbell, curls→curl). */
+export function racine(t) {
+  if (t.endsWith("ss")) return t;                 // press, glass : invariable
+  if (t.length > 3 && t.endsWith("s")) {
+    const r = t.slice(0, -1);
+    return r.endsWith("sse") ? r.slice(0, -1) : r; // presses→presse→press
+  }
+  return t;
+}
+
+/** Découpe un nom en jetons significatifs (sans mots vides, racinés). */
 export function jetons(s) {
-  return normName(s).split(" ").filter((t) => t.length > 1 && !STOP.has(t));
+  return normName(s).split(" ")
+    .filter((t) => t.length > 1 && !STOP.has(t))
+    .map(racine);
 }
 
 /** Score de recouvrement (Jaccard) entre deux listes de jetons. */
