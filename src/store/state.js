@@ -12,7 +12,7 @@
  * `init()` (asynchrone) charge/migre les données au démarrage avant le rendu.
  */
 import { idbGet, idbSet, idbDisponible } from "./db.js";
-import { etatVide, normaliserEtat, choisirSourcePlusRiche } from "./migrate.js";
+import { etatVide, normaliserEtat, choisirEtat } from "./migrate.js";
 
 const KEY = "coachperso.ia.v1"; // miroir localStorage (compat historique)
 const IDB_CLE = "state";        // clé de l'état complet dans IndexedDB
@@ -59,8 +59,9 @@ export const Etat = {
       this.data = normaliserEtat(depuisLS);
       try { await idbSet(IDB_CLE, this.data); } catch (e) { console.error("init migration", e); }
     } else {
-      // Les deux existent : on conserve la plus complète (prudence anti-perte).
-      this.data = normaliserEtat(choisirSourcePlusRiche(depuisIDB, depuisLS));
+      // Les deux existent : « dernière écriture gagne » (via _savedAt), sinon la
+      // plus riche. Évite de perdre une séance en cours écrite juste avant fermeture.
+      this.data = normaliserEtat(choisirEtat(depuisIDB, depuisLS));
       try { await idbSet(IDB_CLE, this.data); } catch (e) { /* miroir best-effort */ }
     }
     // Réaligne le miroir localStorage.
@@ -73,6 +74,8 @@ export const Etat = {
    * différé. Renvoie le succès de l'écriture localStorage (contrat historique).
    */
   sauver() {
+    // Horodatage « dernière écriture gagne » partagé par les deux miroirs.
+    this.data._savedAt = Date.now();
     let okLS = false;
     try { localStorage.setItem(KEY, JSON.stringify(this.data)); okLS = true; }
     catch (e) { console.error("sauver", e); }

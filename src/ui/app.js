@@ -20,6 +20,10 @@ import { bilan } from "../engine/review.js";
 import { chercherFoods, portion } from "../data/foods.js";
 import { rechercher as offRechercher, parCodeBarres } from "../integrations/openfoodfacts.js";
 import { Etat, seanceDuJour } from "../store/state.js";
+import {
+  nouvelleSession, ajouterSerie, retirerDerniereSerie,
+  serialiser, restaurer, estReprenable, dureeSecondes,
+} from "../engine/liveSession.js";
 import { seancesVersCSV, metriquesVersCSV, nomFichierExport } from "../engine/export.js";
 import { grilleMois, moisAdjacent, NOMS_JOURS_COURTS } from "../engine/calendar.js";
 
@@ -436,9 +440,28 @@ function vCatalogue(v) {
 /* ======================================================================
    SÉANCE GUIDÉE (mode entraînement)
    ====================================================================== */
-let LIVE = null; // {seanceId, data:{exId:{series:[{charge,reps,rir,done,dureeSec}],douleur,exId}}}
+let LIVE = null; // état live (voir engine/liveSession.js)
+
+/**
+ * Persiste la séance en cours dans l'état (donc IndexedDB) pour pouvoir la
+ * reprendre après une actualisation ou une fermeture accidentelle. Débattu
+ * pour ne pas écrire à chaque frappe ; `immediat` force l'écriture tout de suite.
+ */
+let _timerLive = null;
+function persistLive(immediat = false) {
+  Etat.data.sessionEnCours = LIVE ? serialiser(LIVE) : null;
+  if (immediat) { if (_timerLive) { clearTimeout(_timerLive); _timerLive = null; } Etat.sauver(); return; }
+  if (_timerLive) clearTimeout(_timerLive);
+  _timerLive = setTimeout(() => { _timerLive = null; Etat.sauver(); }, 300);
+}
+// Sauvegarde immédiate si l'onglet passe en arrière-plan ou se ferme.
+window.addEventListener("pagehide", () => { if (LIVE) persistLive(true); });
+document.addEventListener("visibilitychange", () => { if (LIVE && document.visibilityState === "hidden") persistLive(true); });
+
 function vTrain(v) {
   const prog = Etat.data.programme;
+  // Reprise d'une séance interrompue (après actualisation / fermeture).
+  if (!LIVE && estReprenable(Etat.data.sessionEnCours, prog)) LIVE = restaurer(Etat.data.sessionEnCours);
   if (!LIVE) {
     const sj = seanceDuJour(prog);
     v.append(h(`<h1>Choisir une séance</h1>`));
@@ -452,24 +475,18 @@ function vTrain(v) {
     return;
   }
   const seance = prog.seances.find((s) => s.id === LIVE.seanceId);
+  if (!seance) { LIVE = null; persistLive(true); render(); return; }
   v.append(h(`<div class="spread"><h1 style="margin:0">${esc(seance.nom)}</h1><button class="chip" id="abandon">Abandonner</button></div>`));
+  v.append(h(`<div class="muted small">Séance en cours · sauvegarde automatique 💾 (reprise possible après fermeture)</div>`));
   seance.exercices.forEach((e) => v.append(carteExoLive(e)));
   const fin = h(`<button class="primary big" style="margin-top:12px">Terminer et enregistrer</button>`);
   fin.addEventListener("click", terminer);
   v.append(fin);
-  $("#abandon", v).addEventListener("click", () => { if (confirm("Abandonner la séance sans enregistrer ?")) { LIVE = null; render(); } });
+  $("#abandon", v).addEventListener("click", () => { if (confirm("Abandonner la séance sans enregistrer ?")) { LIVE = null; persistLive(true); render(); } });
 }
 function demarrer(seance) {
-  LIVE = { seanceId: seance.id, data: {} };
-  seance.exercices.forEach((e) => {
-    const nb = e.series.filter((s) => s.type !== "echauffement").length || 3;
-    const enTemps = e.series.some((s) => s.dureeSec);
-    LIVE.data[e.exerciceId] = {
-      exId: e.exerciceId,
-      series: Array.from({ length: nb }, () => ({ charge: "", reps: "", rir: "", dureeSec: enTemps ? (e.series.find((s) => s.dureeSec)?.dureeSec || 40) : null, done: false })),
-      douleur: false,
-    };
-  });
+  LIVE = nouvelleSession(seance);
+  persistLive(true);
   render();
 }
 function carteExoLive(e) {
@@ -494,13 +511,24 @@ function carteExoLive(e) {
       <input inputmode="numeric" placeholder="${enTemps ? s.dureeSec : plage[0]}" value="${enTemps ? s.dureeSec : s.reps}" data-f="${enTemps ? "dureeSec" : "reps"}">
       <input inputmode="numeric" placeholder="2" value="${s.rir}" data-f="rir">
       <button class="done ${s.done ? "on" : ""}" aria-label="Valider la série">✓</button></div>`);
-    on(row, "input", "input", (ev) => { const f = ev.target.dataset.f; s[f] = ev.target.value; });
-    row.querySelector(".done").addEventListener("click", (ev) => { s.done = !s.done; ev.target.classList.toggle("on", s.done); if (s.done) startTimer(t?.reposSec || 60); });
+    on(row, "input", "input", (ev) => { const f = ev.target.dataset.f; s[f] = ev.target.value; persistLive(); });
+    row.querySelector(".done").addEventListener("click", (ev) => { s.done = !s.done; ev.target.classList.toggle("on", s.done); persistLive(); if (s.done) startTimer(t?.reposSec || 60); });
     c.append(row);
   });
+  // Ajouter / retirer une série pendant la séance.
+  const serieActs = h(`<div class="row"></div>`);
+  const bPlus = h(`<button class="chip">+ série</button>`);
+  bPlus.addEventListener("click", () => { ajouterSerie(st); persistLive(true); render(); });
+  serieActs.append(bPlus);
+  if (st.series.length > 1) {
+    const bMoins = h(`<button class="chip">− série</button>`);
+    bMoins.addEventListener("click", () => { retirerDerniereSerie(st); persistLive(true); render(); });
+    serieActs.append(bMoins);
+  }
+  c.append(serieActs);
   const acts = h(`<div class="row"></div>`);
   const bDouleur = h(`<button class="chip ${st.douleur ? "danger" : ""}">${st.douleur ? "⚠️ Douleur signalée" : "Signaler une douleur"}</button>`);
-  bDouleur.addEventListener("click", () => { st.douleur = !st.douleur; if (st.douleur) alert("Douleur vive, articulaire ou inhabituelle : arrête cet exercice aujourd'hui. Si elle persiste, consulte un professionnel de santé."); render(); });
+  bDouleur.addEventListener("click", () => { st.douleur = !st.douleur; persistLive(true); if (st.douleur) alert("Douleur vive, articulaire ou inhabituelle : arrête cet exercice aujourd'hui. Si elle persiste, consulte un professionnel de santé."); render(); });
   const bRempl = h(`<button class="chip">🔄 Remplacer</button>`);
   bRempl.addEventListener("click", () => remplacer(e.exerciceId));
   acts.append(bDouleur, bRempl);
@@ -521,7 +549,7 @@ function remplacer(exId) {
   ex.exerciceId = nouvel.id; ex.justification = `Remplacement choisi : ${alts[idx].explication}`;
   const anc = LIVE.data[exId]; delete LIVE.data[exId];
   LIVE.data[nouvel.id] = { ...anc, exId: nouvel.id };
-  Etat.sauver(); render();
+  persistLive(true); render();
 }
 function terminer() {
   const seance = Etat.data.programme.seances.find((s) => s.id === LIVE.seanceId);
@@ -532,9 +560,16 @@ function terminer() {
       .map((s) => ({ chargeKg: s.charge === "" ? null : +s.charge, reps: s.reps === "" ? null : +s.reps, rir: s.rir === "" ? null : +s.rir, dureeSec: s.dureeSec || null }));
     if (series.length || st.douleur) exercices.push({ exerciceId: exId, series, douleur: st.douleur });
   }
-  Etat.data.logs.push({ id: Etat.uid(), date: new Date().toISOString(), seanceId: seance.id, seanceNom: seance.nom, exercices });
-  Etat.sauver();
+  const fin = new Date().toISOString();
+  const debut = LIVE.debut || fin;
+  Etat.data.logs.push({
+    id: Etat.uid(), date: fin, debut, fin,
+    dureeSec: dureeSecondes(debut, fin),
+    seanceId: seance.id, seanceNom: seance.nom, exercices,
+  });
   LIVE = null;
+  Etat.data.sessionEnCours = null; // séance terminée : plus rien à reprendre
+  Etat.sauver();
   alert("Séance enregistrée 💪 Les suggestions de charge sont mises à jour pour la prochaine fois.");
   nav("dash");
 }

@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  SCHEMA_VERSION, etatVide, normaliserEtat, choisirSourcePlusRiche,
+  SCHEMA_VERSION, etatVide, normaliserEtat, choisirSourcePlusRiche, choisirEtat,
 } from "../src/store/migrate.js";
 
 test("etatVide : schéma courant complet", () => {
@@ -79,4 +79,30 @@ test("choisirSourcePlusRiche : gère null", () => {
   const a = { logs: [{}] };
   assert.equal(choisirSourcePlusRiche(a, null), a);
   assert.equal(choisirSourcePlusRiche(null, a), a);
+});
+
+test("choisirEtat : dernière écriture gagne via _savedAt", () => {
+  const ancien = { _savedAt: 100, logs: [{}, {}, {}] };  // plus riche mais plus vieux
+  const recent = { _savedAt: 200, logs: [] };            // plus récent
+  assert.equal(choisirEtat(ancien, recent), recent);
+  assert.equal(choisirEtat(recent, ancien), recent);
+});
+
+test("choisirEtat : une seule source horodatée l'emporte", () => {
+  const horodate = { _savedAt: 50, logs: [] };
+  const sans = { logs: [{}, {}] };
+  assert.equal(choisirEtat(horodate, sans), horodate);
+  assert.equal(choisirEtat(sans, horodate), horodate);
+});
+
+test("choisirEtat : sans horodatage → repli sur la plus riche", () => {
+  const pauvre = { logs: [] };
+  const riche = { logs: [{}, {}], metrics: [{}] };
+  assert.equal(choisirEtat(pauvre, riche), riche);
+});
+
+test("choisirEtat : horodatages égaux → repli sur la plus riche", () => {
+  const a = { _savedAt: 100, logs: [] };
+  const b = { _savedAt: 100, logs: [{}] };
+  assert.equal(choisirEtat(a, b), b);
 });

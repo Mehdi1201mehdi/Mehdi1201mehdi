@@ -67,10 +67,29 @@ export function normaliserEtat(brut) {
 }
 
 /**
- * Choisit l'état le plus complet entre deux sources (ex. IndexedDB vs
- * localStorage) sans perdre de données. Heuristique simple et prudente :
- * on privilégie la source qui contient le plus d'historique enregistré
- * (séances + mesures), car c'est ce que l'utilisateur risque le plus de perdre.
+ * Choisit l'état à conserver entre deux sources (ex. IndexedDB vs localStorage).
+ * Règle principale : « dernière écriture gagne » via l'horodatage `_savedAt`
+ * (localStorage est écrit de façon synchrone, IndexedDB en différé ; le plus
+ * récent est donc la source de vérité). À défaut d'horodatage exploitable, on
+ * se rabat sur la source la plus riche (anti-perte de données).
+ *
+ * @param {any} a
+ * @param {any} b
+ * @returns {any} la source à conserver (déjà celle passée, non modifiée)
+ */
+export function choisirEtat(a, b) {
+  const ta = a && typeof a._savedAt === "number" ? a._savedAt : null;
+  const tb = b && typeof b._savedAt === "number" ? b._savedAt : null;
+  if (ta !== null && tb !== null && ta !== tb) return ta > tb ? a : b;
+  if (ta !== null && tb === null) return a;
+  if (tb !== null && ta === null) return b;
+  return choisirSourcePlusRiche(a, b);
+}
+
+/**
+ * Choisit l'état le plus complet entre deux sources sans perdre de données :
+ * on privilégie celui qui contient le plus d'historique enregistré (séances +
+ * mesures + routines), car c'est ce que l'utilisateur risque le plus de perdre.
  *
  * @param {any} a
  * @param {any} b
