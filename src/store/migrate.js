@@ -1,0 +1,93 @@
+// @ts-check
+/**
+ * Migration et normalisation de l'état applicatif.
+ *
+ * Objectif : faire évoluer le schéma de données SANS JAMAIS effacer ce que
+ * l'utilisateur a déjà enregistré. Les fonctions ici sont PURES (aucun accès
+ * au DOM, à localStorage ou à IndexedDB) donc entièrement testables sous Node.
+ *
+ * La persistance (localStorage ⇆ IndexedDB) est gérée par store/state.js ;
+ * ce module se contente de transformer un objet d'état d'une version à l'autre.
+ */
+
+/** Version de schéma courante. Incrémenter à chaque évolution structurelle. */
+export const SCHEMA_VERSION = 2;
+
+/** État vierge complet (schéma courant). */
+export function etatVide() {
+  return {
+    version: SCHEMA_VERSION,
+    profil: null,
+    programme: null,          // programme généré (inchangé)
+    programmesPerso: [],      // routines créées à la main (illimitées) — étape 4
+    exercicesPerso: [],       // exercices créés par l'utilisateur — étape 4
+    sessionEnCours: null,     // séance en cours, pour la reprise après refresh — étape 4
+    logs: [],                 // séances réalisées
+    metrics: [],              // poids / mensurations
+    foodlog: {},              // "YYYY-MM-DD" -> [aliments]
+    reviews: [],              // bilans d'ajustement
+    mediaCache: {},           // exId -> URL de média résolue
+    reglages: {
+      theme: "auto", unites: "metrique", sons: true,
+      vibrations: true, rapidKey: "", workoutxKey: "",
+    },
+  };
+}
+
+/**
+ * Normalise un état brut (issu de localStorage ou d'IndexedDB, quelle que soit
+ * sa version) vers le schéma courant. Ne supprime aucune donnée existante :
+ * complète seulement les clés manquantes et migre les anciennes formes.
+ *
+ * @param {any} brut  objet d'état potentiellement partiel / ancien / null
+ * @returns {any}     état conforme au schéma courant
+ */
+export function normaliserEtat(brut) {
+  const base = etatVide();
+  if (!brut || typeof brut !== "object") return base;
+
+  // Fusion superficielle : les valeurs existantes priment, les manquantes
+  // reçoivent le défaut. Les réglages sont fusionnés champ par champ.
+  const out = { ...base, ...brut };
+  out.reglages = { ...base.reglages, ...(brut.reglages || {}) };
+
+  // Garantir le bon type des collections (robustesse face à un stockage abîmé).
+  out.programmesPerso = toArray(brut.programmesPerso);
+  out.exercicesPerso = toArray(brut.exercicesPerso);
+  out.logs = toArray(brut.logs);
+  out.metrics = toArray(brut.metrics);
+  out.reviews = toArray(brut.reviews);
+  out.foodlog = brut.foodlog && typeof brut.foodlog === "object" ? brut.foodlog : {};
+  out.mediaCache = brut.mediaCache && typeof brut.mediaCache === "object" ? brut.mediaCache : {};
+  // sessionEnCours : conservée telle quelle si présente (objet), sinon null.
+  out.sessionEnCours = brut.sessionEnCours && typeof brut.sessionEnCours === "object" ? brut.sessionEnCours : null;
+
+  out.version = SCHEMA_VERSION;
+  return out;
+}
+
+/**
+ * Choisit l'état le plus complet entre deux sources (ex. IndexedDB vs
+ * localStorage) sans perdre de données. Heuristique simple et prudente :
+ * on privilégie la source qui contient le plus d'historique enregistré
+ * (séances + mesures), car c'est ce que l'utilisateur risque le plus de perdre.
+ *
+ * @param {any} a
+ * @param {any} b
+ * @returns {any} la source à conserver (déjà celle passée, non modifiée)
+ */
+export function choisirSourcePlusRiche(a, b) {
+  const poids = (e) => {
+    if (!e || typeof e !== "object") return -1;
+    return (Array.isArray(e.logs) ? e.logs.length : 0)
+      + (Array.isArray(e.metrics) ? e.metrics.length : 0)
+      + (Array.isArray(e.programmesPerso) ? e.programmesPerso.length : 0)
+      + (e.profil ? 1 : 0) + (e.programme ? 1 : 0);
+  };
+  return poids(a) >= poids(b) ? a : b;
+}
+
+/** Force une valeur en tableau (copie défensive). */
+function toArray(v) {
+  return Array.isArray(v) ? v.slice() : [];
+}

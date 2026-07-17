@@ -1,7 +1,7 @@
 /* Service worker — stratégie RÉSEAU D'ABORD pour l'app (toujours la dernière
    version en ligne), cache en secours hors ligne. Les médias de démonstration
    (cross-origin) restent en cache d'abord pour l'usage hors ligne. */
-const CACHE = "coachperso-ia-v11";
+const CACHE = "coachperso-ia-v12";
 const MEDIA_CACHE = "coachperso-media-v1";
 const MEDIA_HOSTS = ["exercisedb.dev", "exercisedb.p.rapidapi.com", "workoutxapp.com", "wger.de", "githubusercontent.com", "cloudfront.net", "vercel"];
 const ASSETS = [
@@ -12,7 +12,7 @@ const ASSETS = [
   "./src/engine/progression.js", "./src/engine/replacement.js", "./src/engine/review.js",
   "./src/engine/nutrition.js", "./src/engine/calendar.js", "./src/engine/export.js",
   "./src/integrations/exercisedb.js", "./src/integrations/openfoodfacts.js", "./src/integrations/workoutx.js",
-  "./src/store/state.js",
+  "./src/store/state.js", "./src/store/db.js", "./src/store/migrate.js",
 ];
 
 self.addEventListener("install", (e) => {

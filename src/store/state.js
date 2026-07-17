@@ -1,40 +1,97 @@
 // @ts-check
 /**
  * État applicatif + persistance LOCALE (mono-utilisateur, hors ligne).
- * Stockage : localStorage (simple et fiable). Chaque enregistrement de séance
- * porte un identifiant unique idempotent, prêt pour une synchro ultérieure.
+ *
+ * Stockage PRINCIPAL : IndexedDB (via store/db.js), plus robuste et durable.
+ * Miroir de SECOURS : localStorage (clé `coachperso.ia.v1`) — garantit un
+ * démarrage instantané et un repli si IndexedDB est indisponible.
+ *
+ * L'état de travail `Etat.data` reste un objet SYNCHRONE en mémoire : toute
+ * l'interface lit/écrit dedans sans await. `sauver()` reste synchrone (écrit
+ * localStorage tout de suite) et planifie en arrière-plan l'écriture IndexedDB.
+ * `init()` (asynchrone) charge/migre les données au démarrage avant le rendu.
  */
-const KEY = "coachperso.ia.v1";
+import { idbGet, idbSet, idbDisponible } from "./db.js";
+import { etatVide, normaliserEtat, choisirSourcePlusRiche } from "./migrate.js";
 
-/** @returns {any} */
-function etatVide() {
-  return {
-    version: 1,
-    profil: null,
-    programme: null,
-    logs: /** @type {any[]} */ ([]),      // séances réalisées
-    metrics: /** @type {any[]} */ ([]),   // poids / mensurations
-    foodlog: /** @type {Record<string, any[]>} */ ({}), // "YYYY-MM-DD" -> [{name,g,kcal,p,c,l,src}]
-    reviews: /** @type {any[]} */ ([]),   // bilans d'ajustement enregistrés
-    mediaCache: /** @type {Record<string,string>} */ ({}), // exId -> URL de GIF résolue
-    reglages: { theme: "auto", unites: "metrique", sons: true, vibrations: true, rapidKey: "", workoutxKey: "" },
-  };
-}
+const KEY = "coachperso.ia.v1"; // miroir localStorage (compat historique)
+const IDB_CLE = "state";        // clé de l'état complet dans IndexedDB
+
+/** Écriture IndexedDB différée (anti-rafale) : id du timer en cours. */
+let _timerIDB = null;
 
 export const Etat = {
   data: etatVide(),
 
+  /**
+   * Charge l'état depuis localStorage (SYNCHRONE, historique). Utilisé comme
+   * repli instantané ; `init()` complète ensuite avec IndexedDB.
+   */
   charger() {
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) this.data = Object.assign(etatVide(), JSON.parse(raw));
+      if (raw) this.data = normaliserEtat(JSON.parse(raw));
     } catch (e) { console.error("charger", e); }
     return this.data;
   },
 
+  /**
+   * Initialise la persistance : localStorage d'abord (repli immédiat), puis
+   * IndexedDB (source principale). Migre sans rien effacer :
+   *  - si IndexedDB est vide → on l'amorce avec les données localStorage ;
+   *  - sinon → on garde la source la plus riche des deux (aucune perte).
+   */
+  async init() {
+    // 1) Repli synchrone immédiat depuis localStorage.
+    this.charger();
+    const depuisLS = this.data;
+
+    // 2) Lecture IndexedDB (si disponible).
+    if (!idbDisponible()) return this.data;
+    let depuisIDB = null;
+    try {
+      const brut = await idbGet(IDB_CLE);
+      if (brut && typeof brut === "object") depuisIDB = normaliserEtat(brut);
+    } catch (e) { console.error("init idbGet", e); }
+
+    if (!depuisIDB) {
+      // Première utilisation d'IndexedDB : migration depuis localStorage.
+      this.data = normaliserEtat(depuisLS);
+      try { await idbSet(IDB_CLE, this.data); } catch (e) { console.error("init migration", e); }
+    } else {
+      // Les deux existent : on conserve la plus complète (prudence anti-perte).
+      this.data = normaliserEtat(choisirSourcePlusRiche(depuisIDB, depuisLS));
+      try { await idbSet(IDB_CLE, this.data); } catch (e) { /* miroir best-effort */ }
+    }
+    // Réaligne le miroir localStorage.
+    try { localStorage.setItem(KEY, JSON.stringify(this.data)); } catch (e) { /* quota : ignoré */ }
+    return this.data;
+  },
+
+  /**
+   * Enregistre l'état : localStorage tout de suite (miroir sûr), IndexedDB en
+   * différé. Renvoie le succès de l'écriture localStorage (contrat historique).
+   */
   sauver() {
-    try { localStorage.setItem(KEY, JSON.stringify(this.data)); return true; }
-    catch (e) { console.error("sauver", e); return false; }
+    let okLS = false;
+    try { localStorage.setItem(KEY, JSON.stringify(this.data)); okLS = true; }
+    catch (e) { console.error("sauver", e); }
+    this._planifierIDB();
+    return okLS;
+  },
+
+  /** Programme une écriture IndexedDB de l'état complet (débattue ~250 ms). */
+  _planifierIDB() {
+    if (!idbDisponible()) return;
+    if (_timerIDB) clearTimeout(_timerIDB);
+    _timerIDB = setTimeout(() => {
+      _timerIDB = null;
+      // Copie figée pour éviter les modifications concurrentes pendant l'écriture.
+      let instantane;
+      try { instantane = JSON.parse(JSON.stringify(this.data)); }
+      catch (e) { instantane = this.data; }
+      idbSet(IDB_CLE, instantane).catch((e) => console.error("sauver IDB", e));
+    }, 250);
   },
 
   reset() { this.data = etatVide(); this.sauver(); },
