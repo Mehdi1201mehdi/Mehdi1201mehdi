@@ -24,6 +24,28 @@ import {
   nouvelleSession, ajouterSerie, retirerDerniereSerie,
   serialiser, restaurer, estReprenable, dureeSecondes,
 } from "../engine/liveSession.js";
+import {
+  creerRoutine, renommer, ajouterSeance, supprimerSeance, ajouterExercice,
+  supprimerExerciceIndex, deplacerExercice, definirSeries, dupliquerRoutine,
+  seanceDepuisLog,
+} from "../engine/routines.js";
+
+/** Toutes les séances jouables : programme généré + routines perso. */
+function toutesSeances() {
+  const out = [];
+  if (Etat.data.programme) for (const s of Etat.data.programme.seances) out.push({ seance: s, source: Etat.data.programme });
+  for (const r of Etat.data.programmesPerso || []) for (const s of r.seances) out.push({ seance: s, source: r });
+  return out;
+}
+/** Résout une séance (et sa routine/programme parent) par id, toutes sources. */
+function trouverSeance(seanceId) {
+  const f = toutesSeances().find((x) => x.seance.id === seanceId);
+  return f ? f.seance : null;
+}
+function trouverParentSeance(seanceId) {
+  const f = toutesSeances().find((x) => x.seance.id === seanceId);
+  return f ? f.source : null;
+}
 import { seancesVersCSV, metriquesVersCSV, nomFichierExport } from "../engine/export.js";
 import { grilleMois, moisAdjacent, NOMS_JOURS_COURTS } from "../engine/calendar.js";
 
@@ -229,7 +251,10 @@ function volumeLog(l) {
 /* ======================================================================
    PROGRAMME
    ====================================================================== */
+let EDIT_ROUTINE = null; // id de la routine en cours d'édition (onglet Programme)
+
 function vProg(v) {
+  if (EDIT_ROUTINE) { vRoutineEditor(v, EDIT_ROUTINE); return; }
   const prog = Etat.data.programme;
   v.append(h(`<div class="spread"><h1>Programme</h1><span class="badge accent">${splitLabel(prog.split)}</span></div>`));
   v.append(h(`<div class="muted small" style="margin-bottom:8px">${esc(prog.justificationGlobale)}</div>`));
@@ -241,6 +266,129 @@ function vProg(v) {
     s.exercices.forEach((e, i) => d.append(ligneExo(e, i)));
     v.append(d);
   });
+
+  // ---- Mes routines (programmes créés à la main, illimités) ----
+  v.append(h(`<h2 style="margin:18px 0 2px">Mes routines</h2>`));
+  v.append(h(`<div class="muted small" style="margin-bottom:8px">Crée tes propres programmes, séances et exercices — sans limite. Ils apparaissent aussi dans l'onglet Séance.</div>`));
+  (Etat.data.programmesPerso || []).forEach((r) => {
+    const nbEx = r.seances.reduce((a, s) => a + s.exercices.length, 0);
+    const card = h(`<div class="card"><div class="spread"><b>${esc(r.nom)}</b><span class="pill">${r.seances.length} séance(s)</span></div><div class="muted small">${nbEx} exercice(s)</div></div>`);
+    const acts = h(`<div class="row" style="margin-top:8px"></div>`);
+    const bOpen = h(`<button class="chip">✏️ Ouvrir</button>`);
+    bOpen.addEventListener("click", () => { EDIT_ROUTINE = r.id; render(); });
+    const bDup = h(`<button class="chip">📄 Dupliquer</button>`);
+    bDup.addEventListener("click", () => { Etat.data.programmesPerso.push(dupliquerRoutine(r)); Etat.sauver(); render(); });
+    const bDel = h(`<button class="chip danger">🗑️</button>`);
+    bDel.addEventListener("click", () => { if (confirm(`Supprimer la routine « ${r.nom} » ?`)) { Etat.data.programmesPerso = Etat.data.programmesPerso.filter((x) => x.id !== r.id); Etat.sauver(); render(); } });
+    acts.append(bOpen, bDup, bDel); card.append(acts);
+    v.append(card);
+  });
+  const barre = h(`<div class="row" style="margin-top:8px"></div>`);
+  const bNew = h(`<button class="primary">➕ Nouvelle routine</button>`);
+  bNew.addEventListener("click", () => {
+    const nom = prompt("Nom de la routine :", "Ma routine");
+    if (nom === null) return;
+    const r = creerRoutine(nom);
+    (Etat.data.programmesPerso ||= []).push(r);
+    Etat.sauver(); EDIT_ROUTINE = r.id; render();
+  });
+  const bFromLog = h(`<button class="chip">📥 Depuis une séance passée</button>`);
+  bFromLog.addEventListener("click", dupliquerSeancePassee);
+  barre.append(bNew, bFromLog);
+  v.append(barre);
+}
+
+/** Éditeur d'une routine perso (séances, exercices, séries). */
+function vRoutineEditor(v, routineId) {
+  const r = (Etat.data.programmesPerso || []).find((x) => x.id === routineId);
+  if (!r) { EDIT_ROUTINE = null; render(); return; }
+  const head = h(`<div class="spread"><button class="chip" id="back">← Retour</button><button class="chip" id="ren">✏️ Renommer</button></div>`);
+  v.append(head);
+  v.append(h(`<h1 style="margin:6px 0">${esc(r.nom)}</h1>`));
+  $("#back", v).addEventListener("click", () => { EDIT_ROUTINE = null; render(); });
+  $("#ren", v).addEventListener("click", () => { const n = prompt("Nom de la routine :", r.nom); if (n !== null) { renommer(r, n); Etat.sauver(); render(); } });
+  if (!r.seances.length) v.append(h(`<div class="muted small">Aucune séance. Ajoute-en une pour commencer.</div>`));
+  r.seances.forEach((s) => v.append(carteSeanceEditor(r, s)));
+  const bAddS = h(`<button class="primary" style="margin-top:10px">➕ Ajouter une séance</button>`);
+  bAddS.addEventListener("click", () => { const n = prompt("Nom de la séance :", `Séance ${r.seances.length + 1}`); if (n === null) return; ajouterSeance(r, n); Etat.sauver(); render(); });
+  v.append(bAddS);
+}
+
+function carteSeanceEditor(r, s) {
+  const c = h(`<details class="card" open></details>`);
+  c.append(h(`<summary class="spread"><b>${esc(s.nom)}</b><span class="pill">${s.exercices.length} exos · ~${s.dureeEstimeeMin || 0} min</span></summary>`));
+  const acts = h(`<div class="row" style="margin:6px 0"></div>`);
+  const bRen = h(`<button class="chip">✏️ Nom</button>`);
+  bRen.addEventListener("click", () => { const n = prompt("Nom de la séance :", s.nom); if (n !== null) { renommer(s, n); Etat.sauver(); render(); } });
+  const bDel = h(`<button class="chip danger">🗑️ Séance</button>`);
+  bDel.addEventListener("click", () => { if (confirm(`Supprimer « ${s.nom} » ?`)) { supprimerSeance(r, s.id); Etat.sauver(); render(); } });
+  acts.append(bRen, bDel); c.append(acts);
+  s.exercices.forEach((e, i) => c.append(ligneExoEditor(s, e, i)));
+  const bAddE = h(`<button class="chip">➕ Exercice</button>`);
+  bAddE.addEventListener("click", () => choisirExercice((exId) => { ajouterExercice(s, exId, { nbSeries: 3 }); Etat.sauver(); render(); }));
+  c.append(bAddE);
+  return c;
+}
+
+function ligneExoEditor(s, e, i) {
+  const exo = getExercise(e.exerciceId);
+  const t = e.series[0] || {};
+  const enTemps = !!t.dureeSec;
+  const row = h(`<div class="card flat" style="margin:6px 0"></div>`);
+  row.append(h(`<div class="spread"><b>${i + 1}. ${esc(exo ? exo.nom : e.exerciceId)}</b></div>`));
+  const ctr = h(`<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px"></div>`);
+  const inNb = h(`<label class="small">Séries <input type="number" min="1" max="10" value="${e.series.length}" style="width:52px" /></label>`);
+  const inRepos = h(`<label class="small">Repos(s) <input type="number" min="0" max="600" step="15" value="${t.reposSec || 90}" style="width:64px" /></label>`);
+  const inCible = enTemps
+    ? h(`<label class="small">Durée(s) <input type="number" min="5" max="600" value="${t.dureeSec || 40}" style="width:64px" /></label>`)
+    : h(`<label class="small">Reps <input type="text" value="${(t.repsCible || [8, 12]).join("-")}" placeholder="8-12" style="width:64px" /></label>`);
+  ctr.append(inNb, inCible, inRepos); row.append(ctr);
+  const apply = () => {
+    const params = { nbSeries: parseInt(inNb.querySelector("input").value, 10) || e.series.length };
+    const repos = parseInt(inRepos.querySelector("input").value, 10);
+    if (Number.isFinite(repos)) params.reposSec = repos;
+    if (enTemps) { params.dureeSec = parseInt(inCible.querySelector("input").value, 10) || 40; }
+    else {
+      const m = (inCible.querySelector("input").value || "").split(/[^0-9]+/).map(Number).filter(Boolean);
+      if (m.length >= 2) params.repsCible = [m[0], m[1]]; else if (m.length === 1) params.repsCible = [m[0], m[0]];
+    }
+    definirSeries(e, params);
+    s.dureeEstimeeMin = estimerDureeSeance(s);
+    Etat.sauver();
+  };
+  ctr.querySelectorAll("input").forEach((inp) => inp.addEventListener("change", apply));
+  const nav2 = h(`<div class="row" style="margin-top:6px"></div>`);
+  const up = h(`<button class="chip">↑</button>`); up.addEventListener("click", () => { deplacerExercice(s, i, -1); Etat.sauver(); render(); });
+  const down = h(`<button class="chip">↓</button>`); down.addEventListener("click", () => { deplacerExercice(s, i, 1); Etat.sauver(); render(); });
+  const del = h(`<button class="chip danger">🗑️</button>`); del.addEventListener("click", () => { supprimerExerciceIndex(s, i); Etat.sauver(); render(); });
+  nav2.append(up, down, del); row.append(nav2);
+  return row;
+}
+
+/** Crée une routine à partir d'une séance déjà réalisée (historique). */
+function dupliquerSeancePassee() {
+  const logs = (Etat.data.logs || []).slice(-20).reverse();
+  if (!logs.length) { alert("Aucune séance enregistrée à dupliquer pour l'instant."); return; }
+  const sheet = h(`<div class="sheet"><div class="inner"></div></div>`);
+  const inner = sheet.querySelector(".inner");
+  inner.append(h(`<div class="spread"><h2 style="margin:0">Dupliquer une séance passée</h2><button class="chip" id="fx">✕</button></div>`));
+  const liste = h(`<div class="stack"></div>`); inner.append(liste);
+  logs.forEach((l) => {
+    const d = new Date(l.date).toLocaleDateString("fr-FR");
+    const b = h(`<button class="big" style="justify-content:space-between;text-align:left;margin:4px 0"><span><b>${esc(l.seanceNom || "Séance")}</b><br><span class="muted small">${d} · ${(l.exercices || []).length} exercice(s)</span></span></button>`);
+    b.addEventListener("click", () => {
+      sheet.remove();
+      const nom = prompt("Nom de la nouvelle routine :", `${l.seanceNom || "Séance"} (copie)`);
+      if (nom === null) return;
+      const r = creerRoutine(nom);
+      r.seances.push(seanceDepuisLog(l, l.seanceNom));
+      (Etat.data.programmesPerso ||= []).push(r);
+      Etat.sauver(); EDIT_ROUTINE = r.id; render();
+    });
+    liste.append(b);
+  });
+  sheet.querySelector("#fx").addEventListener("click", () => sheet.remove());
+  document.body.append(sheet);
 }
 function splitLabel(s) { return ({ full_body: "Corps entier", haut_bas: "Haut / Bas", push_pull_legs: "Push · Pull · Legs", mobilite: "Mobilité" }[s] || s); }
 function ligneExo(e, i) {
@@ -461,7 +609,7 @@ document.addEventListener("visibilitychange", () => { if (LIVE && document.visib
 function vTrain(v) {
   const prog = Etat.data.programme;
   // Reprise d'une séance interrompue (après actualisation / fermeture).
-  if (!LIVE && estReprenable(Etat.data.sessionEnCours, prog)) LIVE = restaurer(Etat.data.sessionEnCours);
+  if (!LIVE && estReprenable(Etat.data.sessionEnCours, trouverSeance)) LIVE = restaurer(Etat.data.sessionEnCours);
   if (!LIVE) {
     const sj = seanceDuJour(prog);
     v.append(h(`<h1>Choisir une séance</h1>`));
@@ -472,13 +620,27 @@ function vTrain(v) {
       b.addEventListener("click", () => demarrer(s));
       v.append(b);
     });
+    // Séances des routines perso.
+    const persos = Etat.data.programmesPerso || [];
+    if (persos.some((r) => r.seances.length)) {
+      v.append(h(`<h3 style="margin-top:16px">Mes routines</h3>`));
+      persos.forEach((r) => r.seances.forEach((s) => {
+        const b = h(`<button class="big" style="justify-content:space-between;text-align:left;margin:8px 0">
+          <span><b>${esc(s.nom)}</b> <span class="muted small">· ${esc(r.nom)}</span><br><span class="muted small">${s.exercices.length} exos · ~${s.dureeEstimeeMin || 0} min</span></span></button>`);
+        b.addEventListener("click", () => demarrer(s));
+        v.append(b);
+      }));
+    }
     return;
   }
-  const seance = prog.seances.find((s) => s.id === LIVE.seanceId);
+  const seance = trouverSeance(LIVE.seanceId);
   if (!seance) { LIVE = null; persistLive(true); render(); return; }
   v.append(h(`<div class="spread"><h1 style="margin:0">${esc(seance.nom)}</h1><button class="chip" id="abandon">Abandonner</button></div>`));
   v.append(h(`<div class="muted small">Séance en cours · sauvegarde automatique 💾 (reprise possible après fermeture)</div>`));
   seance.exercices.forEach((e) => v.append(carteExoLive(e)));
+  const bAdd = h(`<button class="chip" style="margin-top:8px">➕ Ajouter un exercice</button>`);
+  bAdd.addEventListener("click", () => ajouterExerciceLive(seance));
+  v.append(bAdd);
   const fin = h(`<button class="primary big" style="margin-top:12px">Terminer et enregistrer</button>`);
   fin.addEventListener("click", terminer);
   v.append(fin);
@@ -531,12 +693,68 @@ function carteExoLive(e) {
   bDouleur.addEventListener("click", () => { st.douleur = !st.douleur; persistLive(true); if (st.douleur) alert("Douleur vive, articulaire ou inhabituelle : arrête cet exercice aujourd'hui. Si elle persiste, consulte un professionnel de santé."); render(); });
   const bRempl = h(`<button class="chip">🔄 Remplacer</button>`);
   bRempl.addEventListener("click", () => remplacer(e.exerciceId));
-  acts.append(bDouleur, bRempl);
+  const bRetirer = h(`<button class="chip">🗑️ Retirer</button>`);
+  bRetirer.addEventListener("click", () => { if (confirm(`Retirer « ${exo.nom} » de la séance ?`)) retirerExerciceLive(e.exerciceId); });
+  acts.append(bDouleur, bRempl, bRetirer);
   c.append(acts);
   return c;
 }
+/** Ajoute un exercice au vol pendant la séance (choix dans le catalogue). */
+function ajouterExerciceLive(seance) {
+  choisirExercice((exId) => {
+    if (LIVE.data[exId]) { alert("Cet exercice est déjà dans la séance."); return; }
+    const e = ajouterExercice(seance, exId, { nbSeries: 3 });
+    if (!e) return;
+    const enTemps = e.series.some((s) => s.dureeSec);
+    const nb = e.series.filter((s) => s.type !== "echauffement").length || 3;
+    LIVE.data[exId] = {
+      exId,
+      series: Array.from({ length: nb }, () => ({ charge: "", reps: "", rir: "", dureeSec: enTemps ? (e.series.find((s) => s.dureeSec)?.dureeSec || 40) : null, done: false })),
+      douleur: false,
+    };
+    persistLive(true); render();
+  });
+}
+/** Retire un exercice de la séance en cours (et de son gabarit). */
+function retirerExerciceLive(exId) {
+  const seance = trouverSeance(LIVE.seanceId);
+  const idx = seance.exercices.findIndex((x) => x.exerciceId === exId);
+  if (idx >= 0) supprimerExerciceIndex(seance, idx);
+  delete LIVE.data[exId];
+  persistLive(true); render();
+}
+/**
+ * Feuille de sélection d'un exercice du catalogue. Appelle `onPick(exerciceId)`.
+ * Réutilisée par la séance active et par le builder de routines.
+ */
+function choisirExercice(onPick) {
+  const sheet = h(`<div class="sheet"><div class="inner"></div></div>`);
+  const inner = sheet.querySelector(".inner");
+  inner.append(h(`<div class="spread"><h2 style="margin:0">Choisir un exercice</h2><button class="chip" id="fermerPick">✕</button></div>`));
+  const search = h(`<input type="search" placeholder="Rechercher (développé, squat, dos…)" style="width:100%;margin:8px 0" />`);
+  inner.append(search);
+  const liste = h(`<div class="stack"></div>`);
+  inner.append(liste);
+  const fermer = () => sheet.remove();
+  const refresh = () => {
+    liste.innerHTML = "";
+    const res = chercherCatalogue({ q: search.value }).slice(0, 40);
+    if (!res.length) { liste.append(h(`<div class="muted small">Aucun exercice trouvé.</div>`)); return; }
+    res.forEach((exo) => {
+      const b = h(`<button class="big" style="justify-content:space-between;text-align:left;margin:4px 0">
+        <span><b>${esc(exo.nom)}</b><br><span class="muted small">${(exo.musclesPrincipaux || []).map((m) => MUSCLE_LABELS[m] || m).join(", ")}</span></span></button>`);
+      b.addEventListener("click", () => { fermer(); onPick(exo.id); });
+      liste.append(b);
+    });
+  };
+  search.addEventListener("input", refresh);
+  sheet.querySelector("#fermerPick").addEventListener("click", fermer);
+  refresh();
+  document.body.append(sheet);
+  search.focus();
+}
 function remplacer(exId) {
-  const seance = Etat.data.programme.seances.find((s) => s.id === LIVE.seanceId);
+  const seance = trouverSeance(LIVE.seanceId);
   const presents = seance.exercices.map((x) => x.exerciceId);
   const alts = alternatives(exId, Etat.data.profil, presents);
   if (!alts.length) { alert("Aucune alternative compatible trouvée avec ton matériel et tes contraintes."); return; }
@@ -552,7 +770,7 @@ function remplacer(exId) {
   persistLive(true); render();
 }
 function terminer() {
-  const seance = Etat.data.programme.seances.find((s) => s.id === LIVE.seanceId);
+  const seance = trouverSeance(LIVE.seanceId);
   const exercices = [];
   for (const exId in LIVE.data) {
     const st = LIVE.data[exId];

@@ -71,18 +71,19 @@ test("restaurer : objets invalides → null", () => {
 });
 
 test("estReprenable : vrai seulement si séance connue + saisie présente", () => {
-  const prog = { seances: [{ id: "s1", exercices: [] }] };
+  const trouver = (id) => (id === "s1" ? { id: "s1", exercices: [] } : null);
+  const introuvable = () => null;
   const vide = nouvelleSession(seanceExemple);
-  assert.equal(estReprenable(serialiser(vide), prog), false); // rien saisi
+  assert.equal(estReprenable(serialiser(vide), trouver), false); // rien saisi
   const commence = nouvelleSession(seanceExemple);
   commence.data.pompes.series[0].done = true;
-  assert.equal(estReprenable(serialiser(commence), prog), true);
-  // séance inconnue du programme
-  assert.equal(estReprenable(serialiser(commence), { seances: [] }), false);
+  assert.equal(estReprenable(serialiser(commence), trouver), true);
+  // séance inconnue (résolveur renvoie null)
+  assert.equal(estReprenable(serialiser(commence), introuvable), false);
   // séance finie
   const finie = nouvelleSession(seanceExemple); finie.fini = true;
   finie.data.pompes.series[0].done = true;
-  assert.equal(estReprenable(serialiser(finie), prog), false);
+  assert.equal(estReprenable(serialiser(finie), trouver), false);
 });
 
 test("dureeSecondes : différence en secondes, robustesse", () => {

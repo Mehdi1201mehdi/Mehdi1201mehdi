@@ -101,13 +101,17 @@ export function restaurer(brut) {
 
 /**
  * Une séance en cours est-elle reprenable ? Vrai si elle n'est pas finie, que
- * sa séance existe encore dans le programme fourni, et qu'au moins une donnée a
- * été saisie (sinon inutile de proposer une reprise).
+ * sa séance existe encore (résolue par `trouverSeance`, qui cherche aussi bien
+ * dans le programme généré que dans les routines perso), et qu'au moins une
+ * donnée a été saisie (sinon inutile de proposer une reprise).
+ *
+ * @param {any} sessionEnCours
+ * @param {(seanceId:string)=>any} trouverSeance  résolveur id → séance | null
  */
-export function estReprenable(sessionEnCours, programme) {
+export function estReprenable(sessionEnCours, trouverSeance) {
   const live = restaurer(sessionEnCours);
   if (!live || live.fini) return false;
-  const seance = programme && (programme.seances || []).find((s) => s.id === live.seanceId);
+  const seance = typeof trouverSeance === "function" ? trouverSeance(live.seanceId) : null;
   if (!seance) return false;
   for (const exId of Object.keys(live.data)) {
     for (const s of live.data[exId].series) {

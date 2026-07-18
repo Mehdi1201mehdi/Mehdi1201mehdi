@@ -1,7 +1,7 @@
 /* Service worker — stratégie RÉSEAU D'ABORD pour l'app (toujours la dernière
    version en ligne), cache en secours hors ligne. Les médias de démonstration
    (cross-origin) restent en cache d'abord pour l'usage hors ligne. */
-const CACHE = "coachperso-ia-v13";
+const CACHE = "coachperso-ia-v14";
 const MEDIA_CACHE = "coachperso-media-v1";
 const MEDIA_HOSTS = ["exercisedb.dev", "exercisedb.p.rapidapi.com", "workoutxapp.com", "wger.de", "githubusercontent.com", "cloudfront.net", "vercel"];
 const ASSETS = [
@@ -10,7 +10,7 @@ const ASSETS = [
   "./src/data/exercises.js", "./src/data/exercises-extra.js", "./src/data/foods.js", "./src/data/gifs.js", "./src/data/exdb-ids.js",
   "./src/engine/index.js", "./src/engine/constraints.js", "./src/engine/generator.js",
   "./src/engine/progression.js", "./src/engine/replacement.js", "./src/engine/review.js",
-  "./src/engine/nutrition.js", "./src/engine/calendar.js", "./src/engine/export.js", "./src/engine/liveSession.js",
+  "./src/engine/nutrition.js", "./src/engine/calendar.js", "./src/engine/export.js", "./src/engine/liveSession.js", "./src/engine/routines.js",
   "./src/integrations/exercisedb.js", "./src/integrations/openfoodfacts.js", "./src/integrations/workoutx.js",
   "./src/store/state.js", "./src/store/db.js", "./src/store/migrate.js",
 ];
