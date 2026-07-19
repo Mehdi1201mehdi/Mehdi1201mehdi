@@ -30,6 +30,7 @@ import {
   seanceDepuisLog,
 } from "../engine/routines.js";
 import { FORMULE_1RM, classementRecords, detecterRecords } from "../engine/records.js";
+import { construireExport, validerImport, appliquerImport, nomFichierBackup } from "../engine/backup.js";
 import {
   volumeLog, volumeParSemaine, dureeMoyenneMin, volumeParMuscle, statsSemaine,
   METRIQUES_EXO, serieExercice, serieCorps, filtrerDepuis,
@@ -1148,12 +1149,36 @@ function vSet(v) {
 
   const don = h(`<div class="card stack"><h2 style="margin:0">Mes données</h2>
     <div class="small muted">Tout est stocké localement sur cet appareil. Aucune donnée n'est envoyée à un serveur.</div></div>`);
-  const bExp = h(`<button>Exporter mes données (JSON)</button>`);
-  bExp.addEventListener("click", () => { const blob = new Blob([JSON.stringify(Etat.data, null, 1)], { type: "application/json" }); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "coach-perso-sauvegarde.json"; a.click(); });
-  const bImp = h(`<button>Importer une sauvegarde</button>`);
-  const file = h(`<input type="file" accept=".json" hidden>`);
+  const bExp = h(`<button>💾 Sauvegarde complète (JSON)</button>`);
+  bExp.addEventListener("click", () => {
+    const contenu = JSON.stringify(construireExport(Etat.data), null, 1);
+    const blob = new Blob([contenu], { type: "application/json" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = nomFichierBackup(); a.click();
+    URL.revokeObjectURL(a.href);
+  });
+  const bImp = h(`<button>📥 Restaurer une sauvegarde (JSON)</button>`);
+  const file = h(`<input type="file" accept=".json,application/json" hidden>`);
   bImp.addEventListener("click", () => file.click());
-  file.addEventListener("change", (ev) => { const f = ev.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => { try { Etat.data = Object.assign(Etat.data, JSON.parse(String(r.result))); Etat.sauver(); alert("Importé ✔"); render(); } catch (e) { alert("Fichier invalide."); } }; r.readAsText(f); });
+  file.addEventListener("change", (ev) => {
+    const f = ev.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      let obj;
+      try { obj = JSON.parse(String(r.result)); } catch (e) { alert("Fichier illisible : ce n'est pas un JSON valide."); file.value = ""; return; }
+      const v = validerImport(obj);
+      if (!v.ok) { alert("Import impossible :\n" + v.erreurs.join("\n")); file.value = ""; return; }
+      const mode = confirm("Restaurer cette sauvegarde.\n\nOK = Fusionner (recommandé : rien n'est perdu, pas de doublon)\nAnnuler = Remplacer TOUT par la sauvegarde")
+        ? "fusionner" : "remplacer";
+      if (mode === "remplacer" && !confirm("Remplacer définitivement toutes tes données actuelles par cette sauvegarde ?")) { file.value = ""; return; }
+      Etat.data = appliquerImport(Etat.data, v.data, mode);
+      Etat.sauver();
+      alert(mode === "fusionner" ? "Sauvegarde fusionnée ✔" : "Données remplacées ✔");
+      file.value = "";
+      appliquerTheme();
+      if (Etat.data.profil) { $("#tabs").hidden = false; nav("dash"); } else render();
+    };
+    r.readAsText(f);
+  });
   const bExpCsvSeances = h(`<button>Exporter mes séances (CSV)</button>`);
   bExpCsvSeances.addEventListener("click", () => telechargerCSV(seancesVersCSV(Etat.data.logs, (id) => getExercise(id)?.nom || id), nomFichierExport("seances")));
   const bExpCsvPoids = h(`<button>Exporter mon poids/mensurations (CSV)</button>`);
