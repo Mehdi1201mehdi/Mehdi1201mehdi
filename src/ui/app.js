@@ -30,7 +30,10 @@ import {
   seanceDepuisLog,
 } from "../engine/routines.js";
 import { FORMULE_1RM, classementRecords, detecterRecords } from "../engine/records.js";
-import { volumeLog, volumeParSemaine, dureeMoyenneMin, volumeParMuscle, statsSemaine } from "../engine/stats.js";
+import {
+  volumeLog, volumeParSemaine, dureeMoyenneMin, volumeParMuscle, statsSemaine,
+  METRIQUES_EXO, serieExercice, serieCorps, filtrerDepuis,
+} from "../engine/stats.js";
 
 /** Nom lisible d'un exercice (pour records/stats). */
 const nomExo = (id) => (getExercise(id) ? getExercise(id).nom : id);
@@ -908,6 +911,76 @@ function vNutrition(v) {
 /* ======================================================================
    PROGRÈS
    ====================================================================== */
+/* ---------- graphique de progression interactif ---------- */
+const CHAMPS_CORPS = [
+  { cle: "poidsKg", label: "Poids du corps (kg)" },
+  { cle: "taille", label: "Tour de taille (cm)" },
+  { cle: "poitrine", label: "Poitrine (cm)" },
+  { cle: "bras", label: "Bras (cm)" },
+  { cle: "cuisse", label: "Cuisse (cm)" },
+];
+const PERIODES = [{ j: 0, label: "Tout" }, { j: 30, label: "30 j" }, { j: 90, label: "90 j" }, { j: 180, label: "6 mois" }];
+let PROG_CHART = { type: "exercice", exerciceId: null, metrique: "1rm", champCorps: "poidsKg", periode: 0 };
+
+function carteProgression(v) {
+  const logs = Etat.data.logs;
+  const exos = [...new Set(logs.flatMap((l) => (l.exercices || []).map((e) => e.exerciceId)))];
+  const aCorps = (Etat.data.metrics || []).some((m) => CHAMPS_CORPS.some((c) => m[c.cle] != null));
+  if (!exos.length && !aCorps) return; // rien à tracer pour l'instant
+  if (PROG_CHART.type === "exercice" && !exos.length) PROG_CHART.type = "corps";
+  if (!PROG_CHART.exerciceId || !exos.includes(PROG_CHART.exerciceId)) PROG_CHART.exerciceId = exos[0] || null;
+
+  const card = h(`<div class="card stack"><h2 style="margin:0">Progression</h2></div>`);
+  const ctr = h(`<div class="row" style="flex-wrap:wrap;gap:6px;align-items:center"></div>`);
+  const zone = h(`<div></div>`);
+  card.append(ctr, zone);
+  v.append(card);
+
+  const opt = (val, lab, sel) => `<option value="${esc(String(val))}"${sel ? " selected" : ""}>${esc(lab)}</option>`;
+
+  const rebuild = () => {
+    ctr.innerHTML = "";
+    // sélecteur de type (si les deux existent)
+    if (exos.length && aCorps) {
+      const selType = h(`<select aria-label="Type">${opt("exercice", "Exercice", PROG_CHART.type === "exercice")}${opt("corps", "Corps", PROG_CHART.type === "corps")}</select>`);
+      selType.addEventListener("change", () => { PROG_CHART.type = selType.value; rebuild(); });
+      ctr.append(selType);
+    }
+    if (PROG_CHART.type === "exercice") {
+      const selExo = h(`<select aria-label="Exercice">${exos.map((id) => opt(id, nomExo(id), id === PROG_CHART.exerciceId)).join("")}</select>`);
+      selExo.addEventListener("change", () => { PROG_CHART.exerciceId = selExo.value; rebuild(); });
+      const selMet = h(`<select aria-label="Métrique">${METRIQUES_EXO.map((m) => opt(m.cle, m.label, m.cle === PROG_CHART.metrique)).join("")}</select>`);
+      selMet.addEventListener("change", () => { PROG_CHART.metrique = selMet.value; rebuild(); });
+      ctr.append(selExo, selMet);
+    } else {
+      const selC = h(`<select aria-label="Mesure">${CHAMPS_CORPS.map((c) => opt(c.cle, c.label, c.cle === PROG_CHART.champCorps)).join("")}</select>`);
+      selC.addEventListener("change", () => { PROG_CHART.champCorps = selC.value; rebuild(); });
+      ctr.append(selC);
+    }
+    const selP = h(`<select aria-label="Période">${PERIODES.map((p) => opt(p.j, p.label, p.j === PROG_CHART.periode)).join("")}</select>`);
+    selP.addEventListener("change", () => { PROG_CHART.periode = +selP.value; rebuild(); });
+    ctr.append(selP);
+    redraw();
+  };
+
+  const redraw = () => {
+    let points, label;
+    if (PROG_CHART.type === "exercice" && PROG_CHART.exerciceId) {
+      points = serieExercice(logs, PROG_CHART.exerciceId, PROG_CHART.metrique);
+      const met = METRIQUES_EXO.find((m) => m.cle === PROG_CHART.metrique);
+      label = `${nomExo(PROG_CHART.exerciceId)} · ${met ? met.label : ""}`;
+    } else {
+      points = serieCorps(Etat.data.metrics, PROG_CHART.champCorps);
+      const c = CHAMPS_CORPS.find((x) => x.cle === PROG_CHART.champCorps);
+      label = c ? c.label : "";
+    }
+    points = filtrerDepuis(points, PROG_CHART.periode);
+    zone.innerHTML = svgLine(points, label);
+  };
+
+  rebuild();
+}
+
 function svgLine(points, label = "") {
   if (points.length < 2) return `<div class="muted small">Pas encore assez de données (2 points minimum).</div>`;
   const W = 600, H = 150, pad = 30;
@@ -971,11 +1044,9 @@ function vStats(v) {
 
   carteCalendrier(v, logs);
 
-  // Graphiques (à partir des données locales)
-  const poidsPts = Etat.data.metrics.filter((m) => m.poidsKg).map((m) => ({ v: m.poidsKg }));
-  if (poidsPts.length >= 2) v.append(h(`<div class="card">${svgLine(poidsPts.slice(-30), "Poids du corps (kg)")}</div>`));
-  const taillePts = Etat.data.metrics.filter((m) => m.taille).map((m) => ({ v: m.taille }));
-  if (taillePts.length >= 2) v.append(h(`<div class="card">${svgLine(taillePts.slice(-30), "Tour de taille (cm)")}</div>`));
+  // Graphique de progression interactif (exercice/corps × métrique × période)
+  carteProgression(v);
+
   const sem = volumeParSemaine(logs);
   if (sem.length >= 1) v.append(h(`<div class="card">${svgBars(sem, "Volume par semaine (kg)")}</div>`));
 

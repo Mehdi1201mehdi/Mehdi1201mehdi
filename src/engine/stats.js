@@ -3,6 +3,7 @@
  * Statistiques d'entraînement — fonctions PURES (aucun DOM/stockage).
  * Volume = somme de (charge × répétitions) sur toutes les séries.
  */
+import { e1rmEpley } from "./records.js";
 
 /** Lundi (YYYY-MM-DD) de la semaine ISO contenant `dateStr`. */
 export function lundiDe(dateStr) {
@@ -72,6 +73,64 @@ export function volumeParMuscle(logs, getExercise) {
   return [...par.entries()]
     .map(([muscle, v]) => ({ muscle, v: Math.round(v) }))
     .sort((a, b) => b.v - a.v);
+}
+
+/** Métriques disponibles pour un exercice dans les graphiques. */
+export const METRIQUES_EXO = /** @type {const} */ ([
+  { cle: "1rm", label: "1RM estimé (kg)" },
+  { cle: "poids", label: "Poids max (kg)" },
+  { cle: "volume", label: "Volume (kg)" },
+  { cle: "reps", label: "Reps max" },
+]);
+
+/**
+ * Série temporelle d'un exercice pour une métrique donnée : un point par séance
+ * où l'exercice apparaît.
+ * @param {any[]} logs
+ * @param {string} exerciceId
+ * @param {"1rm"|"poids"|"volume"|"reps"} metrique
+ * @returns {{iso:string, v:number}[]}
+ */
+export function serieExercice(logs, exerciceId, metrique) {
+  const pts = [];
+  for (const l of logs || []) {
+    const exs = (l.exercices || []).filter((e) => e.exerciceId === exerciceId);
+    if (!exs.length) continue;
+    let v = 0;
+    for (const e of exs) {
+      for (const s of e.series || []) {
+        const kg = Number(s.chargeKg) || 0, reps = Number(s.reps) || 0;
+        if (metrique === "poids") v = Math.max(v, kg);
+        else if (metrique === "reps") v = Math.max(v, reps);
+        else if (metrique === "1rm") v = Math.max(v, e1rmEpley(kg, reps));
+        else v += kg * reps; // volume
+      }
+    }
+    pts.push({ iso: l.date, v: Math.round(v * 10) / 10 });
+  }
+  return pts.sort((a, b) => (a.iso < b.iso ? -1 : 1));
+}
+
+/**
+ * Série temporelle d'une mesure corporelle (poids, tour de taille, etc.).
+ * @param {any[]} metrics
+ * @param {string} champ  clé dans l'objet mesure (poidsKg, taille, poitrine…)
+ */
+export function serieCorps(metrics, champ) {
+  return (metrics || [])
+    .filter((m) => m[champ] != null)
+    .map((m) => ({ iso: m.date, v: Number(m[champ]) }))
+    .sort((a, b) => (a.iso < b.iso ? -1 : 1));
+}
+
+/**
+ * Ne garde que les points des `jours` derniers jours (0 = tout l'historique).
+ * @param {{iso:string,v:number}[]} points
+ */
+export function filtrerDepuis(points, jours, ref = Date.now()) {
+  if (!jours) return points.slice();
+  const seuil = ref - jours * 864e5;
+  return points.filter((p) => Date.parse(p.iso) >= seuil);
 }
 
 /**

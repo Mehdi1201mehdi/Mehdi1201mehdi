@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   lundiDe, volumeLog, volumeTotal, volumeParSemaine, dureeMoyenneMin,
-  volumeParMuscle, statsSemaine,
+  volumeParMuscle, statsSemaine, serieExercice, serieCorps, filtrerDepuis,
 } from "../src/engine/stats.js";
 
 test("lundiDe : renvoie le lundi de la semaine", () => {
@@ -56,6 +56,43 @@ test("volumeParMuscle : répartit sur les muscles principaux", () => {
   assert.equal(map.pectoraux, 20);
   // trié décroissant
   assert.ok(parMuscle[0].v >= parMuscle[parMuscle.length - 1].v);
+});
+
+test("serieExercice : un point par séance, selon la métrique", () => {
+  const logs = [
+    { date: "2026-07-01T10:00:00Z", exercices: [{ exerciceId: "sq", series: [{ chargeKg: 60, reps: 8 }, { chargeKg: 60, reps: 6 }] }] },
+    { date: "2026-07-08T10:00:00Z", exercices: [{ exerciceId: "sq", series: [{ chargeKg: 65, reps: 5 }] }] },
+    { date: "2026-07-08T10:00:00Z", exercices: [{ exerciceId: "autre", series: [{ chargeKg: 40, reps: 10 }] }] },
+  ];
+  assert.deepEqual(serieExercice(logs, "sq", "poids").map((p) => p.v), [60, 65]);
+  assert.deepEqual(serieExercice(logs, "sq", "reps").map((p) => p.v), [8, 5]);
+  assert.deepEqual(serieExercice(logs, "sq", "volume").map((p) => p.v), [60 * 8 + 60 * 6, 65 * 5]);
+  // 1RM : max Epley par séance
+  const oneRM = serieExercice(logs, "sq", "1rm").map((p) => p.v);
+  assert.equal(Math.round(oneRM[0]), 76);
+  assert.equal(oneRM.length, 2);
+});
+
+test("serieCorps : filtre le champ et trie", () => {
+  const metrics = [
+    { date: "2026-07-08", poidsKg: 79 },
+    { date: "2026-07-01", poidsKg: 80 },
+    { date: "2026-07-05", taille: 85 }, // pas de poidsKg → ignoré
+  ];
+  assert.deepEqual(serieCorps(metrics, "poidsKg").map((p) => p.v), [80, 79]);
+  assert.deepEqual(serieCorps(metrics, "taille").map((p) => p.v), [85]);
+});
+
+test("filtrerDepuis : ne garde que la fenêtre demandée", () => {
+  const ref = Date.parse("2026-07-20T00:00:00Z");
+  const pts = [
+    { iso: "2026-06-01T00:00:00Z", v: 1 },
+    { iso: "2026-07-15T00:00:00Z", v: 2 },
+    { iso: "2026-07-19T00:00:00Z", v: 3 },
+  ];
+  assert.deepEqual(filtrerDepuis(pts, 0, ref).map((p) => p.v), [1, 2, 3]); // 0 = tout
+  assert.deepEqual(filtrerDepuis(pts, 30, ref).map((p) => p.v), [2, 3]);   // 30 jours
+  assert.deepEqual(filtrerDepuis(pts, 3, ref).map((p) => p.v), [3]);       // 3 jours
 });
 
 test("statsSemaine : séances/volume/durée de la semaine courante", () => {
