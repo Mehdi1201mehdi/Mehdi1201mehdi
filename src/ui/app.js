@@ -29,6 +29,11 @@ import {
   supprimerExerciceIndex, deplacerExercice, definirSeries, dupliquerRoutine,
   seanceDepuisLog,
 } from "../engine/routines.js";
+import { FORMULE_1RM, classementRecords, detecterRecords } from "../engine/records.js";
+import { volumeLog, volumeParSemaine, dureeMoyenneMin, volumeParMuscle, statsSemaine } from "../engine/stats.js";
+
+/** Nom lisible d'un exercice (pour records/stats). */
+const nomExo = (id) => (getExercise(id) ? getExercise(id).nom : id);
 
 /** Toutes les séances jouables : programme généré + routines perso. */
 function toutesSeances() {
@@ -242,11 +247,6 @@ function vDash(v) {
   v.append(h(`<div class="warn small">⚕️ Rappel : douleur vive, articulaire ou inhabituelle = on arrête le mouvement. Cette app ne pose aucun diagnostic médical.</div>`));
 }
 function kpi(lab, val) { return h(`<div class="card kpi"><span class="lab">${esc(lab)}</span><b class="num">${esc(val)}</b></div>`); }
-function volumeLog(l) {
-  let vtot = 0;
-  for (const e of l.exercices || []) for (const s of e.series || []) vtot += (Number(s.chargeKg) || 0) * (Number(s.reps) || 0);
-  return vtot;
-}
 
 /* ======================================================================
    PROGRAMME
@@ -780,16 +780,30 @@ function terminer() {
   }
   const fin = new Date().toISOString();
   const debut = LIVE.debut || fin;
-  Etat.data.logs.push({
+  const nouveauLog = {
     id: Etat.uid(), date: fin, debut, fin,
     dureeSec: dureeSecondes(debut, fin),
     seanceId: seance.id, seanceNom: seance.nom, exercices,
-  });
+  };
+  // Détecte les nouveaux records AVANT d'ajouter la séance à l'historique.
+  const prs = detecterRecords(Etat.data.logs, nouveauLog, nomExo);
+  Etat.data.logs.push(nouveauLog);
   LIVE = null;
   Etat.data.sessionEnCours = null; // séance terminée : plus rien à reprendre
   Etat.sauver();
-  alert("Séance enregistrée 💪 Les suggestions de charge sont mises à jour pour la prochaine fois.");
+  let msg = "Séance enregistrée 💪 Les suggestions de charge sont mises à jour pour la prochaine fois.";
+  if (prs.length) {
+    msg += "\n\n🏆 Nouveau" + (prs.length > 1 ? "x records !" : " record !") + "\n"
+      + prs.map((r) => `• ${r.nom} : ${etiquettePR(r)}`).join("\n");
+  }
+  alert(msg);
   nav("dash");
+}
+/** Libellé court d'un record (poids, reps ou 1RM estimé). */
+function etiquettePR(r) {
+  if (r.type === "poids") return `${r.valeur} kg (avant ${r.ancien} kg)`;
+  if (r.type === "reps") return `${r.valeur} reps (avant ${r.ancien})`;
+  return `1RM estimé ${r.valeur} kg (avant ${r.ancien} kg)`;
 }
 
 /* ---------- minuteur de repos ---------- */
@@ -894,29 +908,6 @@ function vNutrition(v) {
 /* ======================================================================
    PROGRÈS
    ====================================================================== */
-const epley = (kg, reps) => (kg > 0 && reps > 0 ? kg * (1 + reps / 30) : 0);
-function lundiDe(dateStr) {
-  const d = new Date(dateStr); const iso = (d.getDay() + 6) % 7;
-  d.setDate(d.getDate() - iso); return d.toISOString().slice(0, 10);
-}
-function volumeParSemaine(logs) {
-  const m = new Map();
-  for (const l of logs) { const k = lundiDe(l.date); m.set(k, (m.get(k) || 0) + volumeLog(l)); }
-  return [...m.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).slice(-8)
-    .map(([k, val]) => ({ x: new Date(k).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" }), v: Math.round(val) }));
-}
-function recordsParExercice(logs) {
-  const best = {};
-  for (const l of logs) for (const e of l.exercices || []) for (const s of e.series || []) {
-    const kg = Number(s.chargeKg) || 0, reps = Number(s.reps) || 0;
-    if (kg <= 0 || reps <= 0) continue;
-    const val = epley(kg, reps);
-    if (!best[e.exerciceId] || val > best[e.exerciceId].v) best[e.exerciceId] = { v: val, charge: kg, reps };
-  }
-  return Object.entries(best)
-    .map(([id, b]) => ({ nom: getExercise(id)?.nom || id, e1rm: Math.round(b.v), charge: b.charge, reps: b.reps }))
-    .sort((a, b) => b.e1rm - a.e1rm).slice(0, 6);
-}
 function svgLine(points, label = "") {
   if (points.length < 2) return `<div class="muted small">Pas encore assez de données (2 points minimum).</div>`;
   const W = 600, H = 150, pad = 30;
@@ -966,10 +957,17 @@ function carteCalendrier(v, logs) {
 function vStats(v) {
   const logs = Etat.data.logs;
   v.append(h(`<h1>Progrès</h1>`));
+
+  // KPIs : cette semaine + cumul + durée moyenne
+  const sm = statsSemaine(logs);
+  const dm = dureeMoyenneMin(logs);
   const g = h(`<div class="grid2"></div>`);
   g.append(kpi("Séances totales", `${logs.length}`));
+  g.append(kpi("Cette semaine", `${sm.seances} séance${sm.seances > 1 ? "s" : ""}`));
   g.append(kpi("Volume cumulé", `${Math.round(logs.reduce((a, l) => a + volumeLog(l), 0)).toLocaleString("fr-FR")} kg`));
+  g.append(kpi("Durée moyenne", dm != null ? `${dm} min` : "—"));
   v.append(g);
+  if (sm.seances) v.append(h(`<div class="muted small" style="margin:-2px 0 8px">Cette semaine : ${sm.volume.toLocaleString("fr-FR")} kg de volume${sm.dureeMin != null ? ` · ~${sm.dureeMin} min/séance` : ""}.</div>`));
 
   carteCalendrier(v, logs);
 
@@ -980,11 +978,18 @@ function vStats(v) {
   if (taillePts.length >= 2) v.append(h(`<div class="card">${svgLine(taillePts.slice(-30), "Tour de taille (cm)")}</div>`));
   const sem = volumeParSemaine(logs);
   if (sem.length >= 1) v.append(h(`<div class="card">${svgBars(sem, "Volume par semaine (kg)")}</div>`));
-  const prs = recordsParExercice(logs);
+
+  // Volume par groupe musculaire (répartition du travail)
+  const parMuscle = volumeParMuscle(logs, getExercise).slice(0, 8)
+    .map((x) => ({ x: MUSCLE_LABELS[x.muscle] || x.muscle, v: x.v }));
+  if (parMuscle.length) v.append(h(`<div class="card">${svgBars(parMuscle, "Volume par groupe musculaire")}</div>`));
+
+  // Records estimés (1RM · Epley)
+  const prs = classementRecords(logs, nomExo, 8);
   if (prs.length) {
-    const cr = h(`<div class="card stack"><h2 style="margin:0">Records estimés (1RM · Epley)</h2></div>`);
+    const cr = h(`<div class="card stack"><h2 style="margin:0">🏆 Records estimés (1RM)</h2></div>`);
     prs.forEach((r) => cr.append(h(`<div class="spread small" style="padding:5px 0;border-bottom:1px solid var(--line)"><span>${esc(r.nom)}</span><span class="num muted">${r.e1rm} kg <span class="tag">${r.charge}kg×${r.reps}</span></span></div>`)));
-    cr.append(h(`<div class="hint">Estimation indicative (charge × (1 + reps/30)). Ne teste jamais un vrai maximum en reprise.</div>`));
+    cr.append(h(`<div class="hint">${esc(FORMULE_1RM)}. Estimation indicative — ne teste jamais un vrai maximum en reprise.</div>`));
     v.append(cr);
   }
 
