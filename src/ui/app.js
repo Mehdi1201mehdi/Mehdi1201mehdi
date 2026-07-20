@@ -313,34 +313,75 @@ function finaliserOnboarding() {
 function vDash(v) {
   const p = Etat.data.profil, prog = Etat.data.programme;
   const sj = seanceDuJour(prog);
-  v.append(h(`<div class="eyebrow">Salut ${esc(p.prenom || "!")}</div>`));
-  v.append(h(`<h1 style="margin-bottom:6px">${sj ? "Séance prévue aujourd'hui" : "Repos aujourd'hui"}</h1>`));
-
-  const c = h(`<div class="card accent stack"></div>`);
-  if (sj) {
-    c.append(h(`<div class="spread"><h2 style="margin:0">${esc(sj.nom)}</h2><span class="pill">${sj.exercices.length} exos · ~${sj.dureeEstimeeMin} min</span></div>`));
-    c.append(h(`<div class="small">${sj.groupesCibles.map((m) => MUSCLE_LABELS[m] || m).slice(0, 5).join(" · ")}</div>`));
-    const b = h(`<button class="primary big">Démarrer la séance guidée →</button>`);
-    b.addEventListener("click", () => { LIVE = null; nav("train"); });
-    c.append(b);
-  } else {
-    c.append(h(`<div class="small">Jour de repos : marche, mobilité ou récupération active. Reviens demain 💪</div>`));
-  }
-  v.append(c);
-
-  // KPIs
   const logs = Etat.data.logs;
   const nbSem = logs.filter((l) => Date.now() - new Date(l.date).getTime() < 7 * 864e5).length;
-  const volume = logs.reduce((a, l) => a + volumeLog(l), 0);
-  const g = h(`<div class="grid2"></div>`);
-  g.append(kpi("Séances (7 j)", `${nbSem} / ${prog.seances.length}`));
-  g.append(kpi("Séances totales", `${logs.length}`));
+  const cible = prog.seances.length || 1;
+  const volume = Math.round(logs.reduce((a, l) => a + volumeLog(l), 0));
+  const dm = dureeMoyenneMin(logs);
+  const besoins = calculerBesoins(p);
+
+  // En-tête personnalisé selon l'heure
+  const heure = new Date().getHours();
+  const salut = heure < 12 ? "Bonjour" : heure < 18 ? "Bon après-midi" : "Bonsoir";
+  v.append(h(`<div class="eyebrow">${salut}</div>`));
+  v.append(h(`<h1 style="margin-bottom:14px">${esc(p.prenom || "Athlète")} 👋</h1>`));
+
+  // Carte héro : séance du jour + anneau de progression hebdo
+  const hero = h(`<div class="hero stack"><span class="glow"></span></div>`);
+  const top = h(`<div class="ringstat"></div>`);
+  top.append(h(anneauSVG(nbSem / cible, 78, `${nbSem}/${cible}`)));
+  const info = h(`<div style="flex:1;min-width:0"></div>`);
+  info.append(h(`<div class="eyebrow" style="color:var(--accent-ink)">Aujourd'hui</div>`));
+  if (sj) {
+    info.append(h(`<h2 style="margin:2px 0 4px">${esc(sj.nom)}</h2>`));
+    info.append(h(`<div class="muted small">${sj.exercices.length} exercices · ~${sj.dureeEstimeeMin} min · ${sj.groupesCibles.map((m) => MUSCLE_LABELS[m] || m).slice(0, 3).join(" · ")}</div>`));
+  } else {
+    info.append(h(`<h2 style="margin:2px 0 4px">Jour de repos</h2>`));
+    info.append(h(`<div class="muted small">Marche, mobilité ou récupération active. Reviens demain 💪</div>`));
+  }
+  top.append(info);
+  hero.append(top);
+  if (sj) {
+    const b = h(`<button class="primary big">▶  Démarrer la séance</button>`);
+    b.addEventListener("click", () => { LIVE = null; nav("train"); });
+    hero.append(b);
+  }
+  v.append(hero);
+
+  // Statistiques principales
+  v.append(h(`<div class="eyebrow" style="margin:20px 0 9px">En un coup d'œil</div>`));
+  const g = h(`<div class="statgrid"></div>`);
+  g.append(statCard("🔥", `${nbSem}`, "Séances 7 j"));
+  g.append(statCard("🏆", `${logs.length}`, "Séances totales"));
+  g.append(statCard("📊", volume.toLocaleString("fr-FR"), "Volume kg"));
+  g.append(statCard("⏱️", dm != null ? `${dm}′` : "—", "Durée moy."));
   v.append(g);
 
-  v.append(h(`<div class="notice small">${esc(prog.justificationGlobale)}</div>`));
-  v.append(h(`<div class="warn small">⚕️ Rappel : douleur vive, articulaire ou inhabituelle = on arrête le mouvement. Cette app ne pose aucun diagnostic médical.</div>`));
+  // Objectif + besoin calorique
+  const oc = h(`<div class="card stack"></div>`);
+  oc.append(h(`<div class="spread"><div><div class="eyebrow">Objectif</div><b style="font-size:1.05rem">${esc(GOAL_LABELS[p.objectif] || p.objectif)}</b></div><span class="badge accent">≈ ${besoins.tdee} kcal/j</span></div>`));
+  oc.append(h(`<div class="muted small">${esc(prog.justificationGlobale)}</div>`));
+  v.append(oc);
+
+  v.append(h(`<div class="warn small">⚕️ Douleur vive, articulaire ou inhabituelle = on arrête le mouvement. Cette app ne pose aucun diagnostic médical.</div>`));
 }
 function kpi(lab, val) { return h(`<div class="card kpi"><span class="lab">${esc(lab)}</span><b class="num">${esc(val)}</b></div>`); }
+/** Anneau de progression SVG (0..1) avec texte central. Composant réutilisable. */
+function anneauSVG(pct, taille = 76, texte = "") {
+  const r = (taille - 12) / 2, circ = 2 * Math.PI * r;
+  const off = circ * (1 - Math.max(0, Math.min(1, pct || 0)));
+  const cx = taille / 2;
+  return `<svg width="${taille}" height="${taille}" viewBox="0 0 ${taille} ${taille}" aria-hidden="true">
+    <g transform="rotate(-90 ${cx} ${cx})">
+      <circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="var(--surface-2)" stroke-width="8"/>
+      <circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="var(--accent)" stroke-width="8" stroke-linecap="round" stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"/>
+    </g>
+    <text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" font-size="15" font-weight="850" fill="var(--ink)">${esc(texte)}</text></svg>`;
+}
+/** Carte statistique (icône + valeur + libellé). Composant réutilisable. */
+function statCard(icone, valeur, label) {
+  return h(`<div class="stat"><div class="ic" aria-hidden="true">${icone}</div><b class="num">${esc(valeur)}</b><span class="lab">${esc(label)}</span></div>`);
+}
 
 /* ======================================================================
    PROGRAMME
