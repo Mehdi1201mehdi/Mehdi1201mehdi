@@ -130,8 +130,16 @@ export function preferAnimations(mapping, gifUrlSet) {
   const out = { ...mapping };
   let animes = 0;
   for (const exId of Object.keys(out)) {
-    const candidat = out[exId].replace(/\.jpe?g$/i, ".gif");
-    if (candidat !== out[exId] && gifUrlSet.has(candidat)) { out[exId] = candidat; animes++; }
+    const url = out[exId];
+    // Le dataset range les .gif dans "videos/" avec le MÊME nom de base que le
+    // .jpg de "images/". On essaie donc plusieurs transformations plausibles.
+    const candidats = [
+      url.replace(/\/images\//, "/videos/").replace(/\.jpe?g$/i, ".gif"),
+      url.replace(/\.jpe?g$/i, ".gif"),
+    ];
+    for (const c of candidats) {
+      if (c !== url && gifUrlSet.has(c)) { out[exId] = c; animes++; break; }
+    }
   }
   return { mapping: out, animes };
 }

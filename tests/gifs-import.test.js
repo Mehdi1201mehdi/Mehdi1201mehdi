@@ -43,16 +43,21 @@ test("racine : normalise les pluriels de la gym", () => {
   assert.equal(racine("legs"), "leg");
 });
 
-test("preferAnimations : bascule sur .gif quand il existe, sinon garde .jpg", () => {
+test("preferAnimations : images/*.jpg → videos/*.gif (layout hasaneyldrm)", () => {
   const mapping = {
-    a: "https://raw/x/main/images/0025-abc.jpg",
-    b: "https://raw/x/main/images/0100-def.jpg", // pas de .gif → reste .jpg
+    a: "https://raw/x/main/images/0025-abc.jpg", // .gif dans videos/
+    b: "https://raw/x/main/images/0100-def.jpg", // aucun .gif → reste .jpg
+    c: "https://raw/x/main/images/0200-ghi.jpg", // .gif même dossier (autre layout)
   };
-  const gifUrlSet = new Set(["https://raw/x/main/images/0025-abc.gif"]);
+  const gifUrlSet = new Set([
+    "https://raw/x/main/videos/0025-abc.gif",
+    "https://raw/x/main/images/0200-ghi.gif",
+  ]);
   const { mapping: out, animes } = preferAnimations(mapping, gifUrlSet);
-  assert.equal(out.a, "https://raw/x/main/images/0025-abc.gif"); // animé
+  assert.equal(out.a, "https://raw/x/main/videos/0025-abc.gif"); // animé (videos/)
   assert.equal(out.b, "https://raw/x/main/images/0100-def.jpg"); // inchangé
-  assert.equal(animes, 1);
+  assert.equal(out.c, "https://raw/x/main/images/0200-ghi.gif"); // animé (même dossier)
+  assert.equal(animes, 2);
 });
 
 test("jetons : retire les mots vides, racine les pluriels", () => {
