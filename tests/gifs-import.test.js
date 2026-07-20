@@ -1,7 +1,7 @@
 // @ts-check
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normName, indexerDataset, resoudreGif, construireMapping, jetons, scoreJetons, racine } from "../src/integrations/gifs-import.mjs";
+import { normName, indexerDataset, resoudreGif, construireMapping, jetons, scoreJetons, racine, preferAnimations } from "../src/integrations/gifs-import.mjs";
 
 const RAW = "https://raw.githubusercontent.com/owner/repo/main/";
 
@@ -41,6 +41,18 @@ test("racine : normalise les pluriels de la gym", () => {
   assert.equal(racine("presses"), "press");
   assert.equal(racine("press"), "press");
   assert.equal(racine("legs"), "leg");
+});
+
+test("preferAnimations : bascule sur .gif quand il existe, sinon garde .jpg", () => {
+  const mapping = {
+    a: "https://raw/x/main/images/0025-abc.jpg",
+    b: "https://raw/x/main/images/0100-def.jpg", // pas de .gif → reste .jpg
+  };
+  const gifUrlSet = new Set(["https://raw/x/main/images/0025-abc.gif"]);
+  const { mapping: out, animes } = preferAnimations(mapping, gifUrlSet);
+  assert.equal(out.a, "https://raw/x/main/images/0025-abc.gif"); // animé
+  assert.equal(out.b, "https://raw/x/main/images/0100-def.jpg"); // inchangé
+  assert.equal(animes, 1);
 });
 
 test("jetons : retire les mots vides, racine les pluriels", () => {

@@ -118,6 +118,24 @@ export function construireMapping(catalogue, datasetIndex, gifIndex, rawBase, te
   return out;
 }
 
+/**
+ * Préfère les ANIMATIONS : si, pour une image `.jpg` résolue, un fichier `.gif`
+ * de même nom existe (fourni par le dataset), on utilise le `.gif` (animé).
+ * Pur et testable.
+ * @param {Record<string,string>} mapping  exId → URL (.jpg)
+ * @param {Set<string>} gifUrlSet  ensemble des URLs `.gif` disponibles
+ * @returns {{mapping:Record<string,string>, animes:number}}
+ */
+export function preferAnimations(mapping, gifUrlSet) {
+  const out = { ...mapping };
+  let animes = 0;
+  for (const exId of Object.keys(out)) {
+    const candidat = out[exId].replace(/\.jpe?g$/i, ".gif");
+    if (candidat !== out[exId] && gifUrlSet.has(candidat)) { out[exId] = candidat; animes++; }
+  }
+  return { mapping: out, animes };
+}
+
 /* ---------- lecture du dataset cloné (Node/Actions uniquement) ---------- */
 async function walk(dir, filtre, acc = []) {
   for (const nom of await readdir(dir)) {
@@ -154,14 +172,18 @@ async function main() {
   for (const g of gifs) gifIndex.set(basename(g, extname(g)).toLowerCase(), relative(dir, g).split("\\").join("/"));
 
   const datasetIndex = indexerDataset(entrees);
-  const mapping = construireMapping(CATALOGUE, datasetIndex, gifIndex, rawBase, termePour);
+  const mappingJpg = construireMapping(CATALOGUE, datasetIndex, gifIndex, rawBase, termePour);
+
+  // Préférence aux ANIMATIONS : si un .gif de même nom existe, on l'utilise.
+  const gifUrlSet = new Set(gifs.map((g) => rawBase + relative(dir, g).split("\\").join("/")));
+  const { mapping, animes } = preferAnimations(mappingJpg, gifUrlSet);
 
   const n = Object.keys(mapping).length;
   if (n === 0) { console.log("Aucune correspondance trouvée — fichier gifs.js laissé inchangé."); return; }
   const entete = `// @ts-check\n/** Généré par src/integrations/gifs-import.mjs — ne pas éditer.\n`
-    + ` * GIFs référencés depuis ${repo} (branche ${branch}). ${n} exercices associés le ${new Date().toISOString().slice(0, 10)}.\n */\n`;
+    + ` * Médias référencés depuis ${repo} (branche ${branch}). ${n} exercices associés le ${new Date().toISOString().slice(0, 10)} (${animes} animés .gif).\n */\n`;
   await writeFile(out, entete + "export const GIFS = " + JSON.stringify(mapping, null, 1) + ";\n", "utf8");
-  console.log(`✅ ${n} GIFs associés (sur ${CATALOGUE.length} exercices) — dataset : ${entrees.length} entrées, ${gifs.length} fichiers .gif`);
+  console.log(`✅ ${n} médias associés (sur ${CATALOGUE.length} exercices), dont ${animes} animés (.gif) — dataset : ${entrees.length} entrées, ${gifs.length} fichiers .gif`);
   const manquants = CATALOGUE.filter((e) => !mapping[e.id]);
   console.log(`ℹ️ ${manquants.length} sans image (souvent des étirements/mobilité/cardio absents du dataset) :`);
   for (const e of manquants) console.log(`   - ${e.nom}`);
