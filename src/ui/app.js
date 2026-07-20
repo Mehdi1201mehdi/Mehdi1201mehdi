@@ -31,6 +31,7 @@ import {
 } from "../engine/routines.js";
 import { FORMULE_1RM, classementRecords, detecterRecords } from "../engine/records.js";
 import { construireExport, validerImport, appliquerImport, nomFichierBackup } from "../engine/backup.js";
+import { FORMULES_1RM, estimer1RM, tablePourcentages, disquesParCote } from "../engine/powerlifting.js";
 import {
   volumeLog, volumeParSemaine, dureeMoyenneMin, volumeParMuscle, statsSemaine,
   METRIQUES_EXO, serieExercice, serieCorps, filtrerDepuis,
@@ -982,6 +983,59 @@ function carteProgression(v) {
   rebuild();
 }
 
+/* ---------- calculateurs force (1RM, %, disques) ---------- */
+let FORCE = { charge: "", reps: "", formule: "epley", cible: "", barre: "20" };
+
+function carteForce(v) {
+  const card = h(`<div class="card stack"><h2 style="margin:0">🏋️ Calculateurs force</h2></div>`);
+
+  // --- 1RM estimé + table de pourcentages ---
+  card.append(h(`<div class="small muted" style="margin-top:2px">1RM estimé & charges de travail</div>`));
+  const l1 = h(`<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"></div>`);
+  const inC = h(`<label class="small">Charge <input inputmode="decimal" placeholder="kg" value="${esc(FORCE.charge)}" style="width:64px" /></label>`);
+  const inR = h(`<label class="small">Reps <input inputmode="numeric" placeholder="ex. 5" value="${esc(FORCE.reps)}" style="width:56px" /></label>`);
+  const selF = h(`<select aria-label="Formule">${Object.entries(FORMULES_1RM).map(([k, f]) => `<option value="${k}"${k === FORCE.formule ? " selected" : ""}>${esc(f.label.split(" :")[0])}</option>`).join("")}</select>`);
+  l1.append(inC, inR, selF); card.append(l1);
+  const out1 = h(`<div style="margin-top:4px"></div>`); card.append(out1);
+
+  const draw1 = () => {
+    const kg = parseFloat(String(FORCE.charge).replace(",", ".")), reps = parseInt(FORCE.reps, 10);
+    if (!(kg > 0) || !(reps > 0)) { out1.innerHTML = `<div class="muted small">Saisis une charge et des répétitions.</div>`; return; }
+    const rm = estimer1RM(kg, reps, FORCE.formule);
+    const tbl = tablePourcentages(rm, [95, 90, 85, 80, 75, 70, 65, 60]);
+    out1.innerHTML = `<div class="notice small"><b>1RM estimé ≈ ${rm} kg</b> · ${esc(FORMULES_1RM[FORCE.formule].label)}</div>`
+      + `<div class="row" style="flex-wrap:wrap;gap:4px;margin-top:6px">${tbl.map((t) => `<span class="tag">${t.pct}% · ${t.kg} kg</span>`).join("")}</div>`
+      + `<div class="hint">Estimation indicative — ne teste jamais un vrai maximum en reprise.</div>`;
+  };
+  inC.querySelector("input").addEventListener("input", (e) => { FORCE.charge = e.target.value; draw1(); });
+  inR.querySelector("input").addEventListener("input", (e) => { FORCE.reps = e.target.value; draw1(); });
+  selF.addEventListener("change", (e) => { FORCE.formule = e.target.value; draw1(); });
+  draw1();
+
+  // --- calculateur de disques ---
+  card.append(h(`<div class="small muted" style="margin-top:10px">Calculateur de disques (par côté)</div>`));
+  const l2 = h(`<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"></div>`);
+  const inCible = h(`<label class="small">Charge visée <input inputmode="decimal" placeholder="kg" value="${esc(FORCE.cible)}" style="width:70px" /></label>`);
+  const inBarre = h(`<label class="small">Barre <input inputmode="decimal" value="${esc(FORCE.barre)}" style="width:56px" /></label>`);
+  l2.append(inCible, inBarre); card.append(l2);
+  const out2 = h(`<div style="margin-top:4px"></div>`); card.append(out2);
+
+  const draw2 = () => {
+    const cible = parseFloat(String(FORCE.cible).replace(",", ".")), barre = parseFloat(String(FORCE.barre).replace(",", ".")) || 20;
+    if (!(cible > 0)) { out2.innerHTML = `<div class="muted small">Saisis la charge totale visée.</div>`; return; }
+    const r = disquesParCote(cible, barre);
+    if (!r.possible) { out2.innerHTML = `<div class="notice small">${esc(r.message || "Impossible.")}</div>`; return; }
+    const plaques = r.parCote.length ? r.parCote.join(" + ") + " kg par côté" : "barre à vide";
+    out2.innerHTML = `<div class="notice small"><b>${esc(plaques)}</b></div>`
+      + `<div class="hint">Barre ${barre} kg → total réel ${r.totalReel} kg${r.exact ? "" : ` (≈ cible, reste ${r.resteKg} kg/côté non atteignable avec ces disques)`}.</div>`;
+  };
+  inCible.querySelector("input").addEventListener("input", (e) => { FORCE.cible = e.target.value; draw2(); });
+  inBarre.querySelector("input").addEventListener("input", (e) => { FORCE.barre = e.target.value; draw2(); });
+  draw2();
+
+  v.append(card);
+}
+
 function svgLine(points, label = "") {
   if (points.length < 2) return `<div class="muted small">Pas encore assez de données (2 points minimum).</div>`;
   const W = 600, H = 150, pad = 30;
@@ -1064,6 +1118,9 @@ function vStats(v) {
     cr.append(h(`<div class="hint">${esc(FORMULE_1RM)}. Estimation indicative — ne teste jamais un vrai maximum en reprise.</div>`));
     v.append(cr);
   }
+
+  // Calculateurs force (1RM, %, disques)
+  carteForce(v);
 
   // poids
   const c = h(`<div class="card stack"><h2 style="margin:0">Poids du corps</h2></div>`);
