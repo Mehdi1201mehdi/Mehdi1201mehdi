@@ -595,7 +595,7 @@ async function chargerMedia(exo, media) {
   if (!url) { heroAnatomie(); return; }
 
   const estVideo = /\.(mp4|webm|mov)$/i.test(url);
-  const el = estVideo ? h(`<video autoplay loop muted playsinline></video>`) : h(`<img alt="Démonstration : ${esc(exo.nom)}">`);
+  const el = estVideo ? h(`<video autoplay loop muted playsinline></video>`) : h(`<img decoding="async" alt="Démonstration : ${esc(exo.nom)}">`);
   el.addEventListener(estVideo ? "loadeddata" : "load", () => media.querySelector(".spin")?.remove());
   el.addEventListener("error", heroAnatomie);
   el.src = url;
