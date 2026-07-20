@@ -188,6 +188,17 @@ details[open] summary::after{content:"–"}
 .dc-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
 .dc-day{font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft)}
 .dc-name{font-size:1.05rem;font-weight:800;letter-spacing:-.01em}
+/* Détail exercice à onglets */
+.det-sub{font-size:.9rem;margin-top:2px}
+.xtabs{display:flex;gap:2px;margin:15px 0 13px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.xtabs::-webkit-scrollbar{display:none}
+.xtabs button{background:transparent;border:none;border-radius:0;min-height:auto;padding:9px 13px;color:var(--ink-soft);font-weight:750;font-size:.9rem;border-bottom:2px solid transparent;white-space:nowrap}
+.xtabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
+.deflist{background:var(--surface-2);border-radius:var(--radius-sm);padding:2px 13px;margin-top:8px}
+.deflist>div{padding:10px 0;border-bottom:1px solid var(--line)}
+.deflist>div:last-child{border-bottom:none}
+.det-steps{padding-left:20px}
+.det-steps li{margin:7px 0}
 
 /* Saisie de séance */
 .setrow{display:grid;grid-template-columns:38px 1.05fr 1fr 1fr 50px;gap:8px;align-items:center;margin:8px 0}

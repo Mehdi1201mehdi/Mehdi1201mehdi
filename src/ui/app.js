@@ -651,6 +651,25 @@ function diagrammeMuscles(exo) {
   return wrap;
 }
 
+/** Historique réel d'un exercice (à partir des séances enregistrées). */
+function historiqueExercice(exId) {
+  const seances = [];
+  let maxCharge = 0, totalSeries = 0, best1rm = 0;
+  for (const l of Etat.data.logs) {
+    const ex = (l.exercices || []).find((e) => e.exerciceId === exId);
+    if (!ex) continue;
+    const series = ex.series || [];
+    seances.push({ date: l.date, series });
+    for (const s of series) {
+      totalSeries++;
+      const c = Number(s.chargeKg) || 0, r = Number(s.reps) || 0;
+      if (c > maxCharge) maxCharge = c;
+      if (c && r) { const e1 = c * (1 + r / 30); if (e1 > best1rm) best1rm = e1; }
+    }
+  }
+  return { seances: seances.reverse(), maxCharge, totalSeries, nbSeances: seances.length, best1rm: Math.round(best1rm) };
+}
+
 /** Fiche démonstration PREMIUM (feuille plein écran). */
 function ouvrirDetail(exo) {
   const P = new Set(exo.musclesPrincipaux || []), Sec = new Set(exo.musclesSecondaires || []);
@@ -665,42 +684,88 @@ function ouvrirDetail(exo) {
   const media = h(`<div class="media"><div class="spin"></div></div>`);
   inner.append(media);
 
+  const equipTxt = (exo.equipement || []).map((e) => EQUIPMENT_LABELS[e] || e).join(" · ");
+  inner.append(h(`<div class="det-sub muted">${esc(equipTxt || "Poids du corps")}</div>`));
   inner.append(h(`<div class="row" style="margin-top:10px">
     <span class="difbar" title="Difficulté">${[1, 2, 3, 4].map((i) => `<i class="${i <= diff ? "on" : ""}"></i>`).join("")}</span>
     <span class="pill">${DIFF_LABEL[diff] || "—"}</span></div>`));
+  if (!estRealisable(exo)) inner.append(h(`<div class="warn small" style="margin-top:10px">⚠️ Pas réalisable avec ton matériel / tes limitations actuels.</div>`));
 
-  // Matériel requis (façon « You'll need ») — tuiles icône + libellé
-  if ((exo.equipement || []).length) {
-    inner.append(h(`<div class="needrow">${exo.equipement.map((e) =>
-      `<div class="need"><span class="ic" aria-hidden="true">${EQUIPMENT_ICONS[e] || "🏋️"}</span><span>${esc(EQUIPMENT_LABELS[e] || e)}</span></div>`).join("")}</div>`));
-  }
-
-  if (!estRealisable(exo)) inner.append(h(`<div class="warn small">⚠️ Pas réalisable avec ton matériel / tes limitations actuels — vois « Remplacement intelligent » ci-dessous.</div>`));
-
-  // Planche anatomique professionnelle (wger) + légende nommée
-  const anat = h(`<div class="sec"><h3>Muscles sollicités</h3></div>`);
-  anat.append(diagrammeMuscles(exo));
-  const legende = [
-    ...(exo.musclesPrincipaux || []).map((m) => `<span class="pill" style="background:#E5484D;color:#fff">${esc(MUSCLE_LABELS[m] || m)}</span>`),
-    ...(exo.musclesSecondaires || []).map((m) => `<span class="pill" style="background:#F5A524;color:#fff">${esc(MUSCLE_LABELS[m] || m)}</span>`),
-  ].join("");
-  anat.append(h(`<div class="leg">${legende}</div>`));
-  inner.append(anat);
-
-  if ((exo.instructions || []).length) inner.append(h(`<div class="sec"><h3>Étapes du mouvement</h3><ol class="small">${exo.instructions.map((x) => `<li>${esc(x)}</li>`).join("")}</ol></div>`));
-  if (exo.respiration) inner.append(h(`<div class="sec"><h3>Respiration</h3><div class="breath"><span class="in">↧ Inspirer</span><span class="out">↥ Expirer</span></div><div class="small muted" style="margin-top:6px">${esc(exo.respiration)}</div></div>`));
-  if ((exo.erreurs || []).length) inner.append(h(`<div class="sec"><h3>Erreurs fréquentes</h3><div class="small muted">✖ ${exo.erreurs.map(esc).join(" · ")}</div></div>`));
-  if (exo.securite) inner.append(h(`<div class="sec"><h3>Sécurité</h3><div class="warn small">🛟 ${esc(exo.securite)}</div></div>`));
-
-  if (alts.length) {
-    const s = h(`<div class="sec"><h3>Remplacement intelligent</h3></div>`);
-    alts.forEach((a) => {
-      const card = h(`<div class="altcard"><div class="spread"><b class="small">${esc(a.etiquette)}</b><button class="chip" data-alt="${esc(a.exercice.id)}">Ouvrir</button></div><div class="small">${esc(a.exercice.nom)} — <span class="muted">${esc(a.explication)}</span></div></div>`);
-      card.querySelector("[data-alt]").addEventListener("click", () => { fermer(); ouvrirDetail(getExercise(a.exercice.id)); });
-      s.append(card);
-    });
-    inner.append(s);
-  }
+  // Onglets : Info · Instructions · Conseils · Historique
+  const rendus = {
+    Info: () => {
+      const f = h(`<div class="stack"></div>`);
+      const anat = h(`<div class="sec"><h3>Muscles sollicités</h3></div>`);
+      anat.append(diagrammeMuscles(exo));
+      const legende = [
+        ...(exo.musclesPrincipaux || []).map((m) => `<span class="pill" style="background:#EF4444;color:#fff">${esc(MUSCLE_LABELS[m] || m)}</span>`),
+        ...(exo.musclesSecondaires || []).map((m) => `<span class="pill" style="background:#F59E0B;color:#fff">${esc(MUSCLE_LABELS[m] || m)}</span>`),
+      ].join("");
+      anat.append(h(`<div class="leg">${legende}</div>`));
+      f.append(anat);
+      if ((exo.equipement || []).length) f.append(h(`<div class="needrow">${exo.equipement.map((e) => `<div class="need"><span class="ic" aria-hidden="true">${EQUIPMENT_ICONS[e] || "🏋️"}</span><span>${esc(EQUIPMENT_LABELS[e] || e)}</span></div>`).join("")}</div>`));
+      const dl = h(`<div class="deflist"></div>`);
+      const ligne = (k, val) => { if (val) dl.append(h(`<div class="spread small"><span class="muted">${k}</span><b>${esc(val)}</b></div>`)); };
+      ligne("Équipement", equipTxt);
+      ligne("Niveau", DIFF_LABEL[diff]);
+      ligne("Catégorie", exo.typeExercice);
+      ligne("Mouvement", exo.patron);
+      f.append(dl);
+      return f;
+    },
+    Instructions: () => {
+      if (!(exo.instructions || []).length) return h(`<div class="muted small">Pas d'instructions détaillées pour cet exercice.</div>`);
+      return h(`<ol class="small det-steps">${exo.instructions.map((x) => `<li>${esc(x)}</li>`).join("")}</ol>`);
+    },
+    Conseils: () => {
+      const f = h(`<div class="stack"></div>`);
+      if (exo.respiration) f.append(h(`<div class="sec"><h3>Respiration</h3><div class="breath"><span class="in">↧ Inspirer</span><span class="out">↥ Expirer</span></div><div class="small muted" style="margin-top:6px">${esc(exo.respiration)}</div></div>`));
+      if ((exo.erreurs || []).length) f.append(h(`<div class="sec"><h3>Erreurs fréquentes</h3><div class="small muted">✖ ${exo.erreurs.map(esc).join(" · ")}</div></div>`));
+      if (exo.securite) f.append(h(`<div class="sec"><h3>Sécurité</h3><div class="warn small">🛟 ${esc(exo.securite)}</div></div>`));
+      if (alts.length) {
+        const s = h(`<div class="sec"><h3>Remplacement intelligent</h3></div>`);
+        alts.forEach((a) => {
+          const card = h(`<div class="altcard"><div class="spread"><b class="small">${esc(a.etiquette)}</b><button class="chip" data-alt="${esc(a.exercice.id)}">Ouvrir</button></div><div class="small">${esc(a.exercice.nom)} — <span class="muted">${esc(a.explication)}</span></div></div>`);
+          card.querySelector("[data-alt]").addEventListener("click", () => { fermer(); ouvrirDetail(getExercise(a.exercice.id)); });
+          s.append(card);
+        });
+        f.append(s);
+      }
+      if (!f.children.length) return h(`<div class="muted small">Pas de conseils spécifiques pour cet exercice.</div>`);
+      return f;
+    },
+    Historique: () => {
+      const hh = historiqueExercice(exo.id);
+      if (!hh.nbSeances) return h(`<div class="muted small">Aucune donnée pour l'instant. Réalise cet exercice en séance pour suivre ta progression ici.</div>`);
+      const f = h(`<div class="stack"></div>`);
+      const g = h(`<div class="statgrid"></div>`);
+      g.append(statCard("🏋️", `${hh.maxCharge} kg`, "Charge max"));
+      g.append(statCard("📈", `${hh.best1rm} kg`, "1RM estimé"));
+      g.append(statCard("🔁", `${hh.totalSeries}`, "Séries totales"));
+      g.append(statCard("📅", `${hh.nbSeances}`, "Séances"));
+      f.append(g);
+      f.append(h(`<div class="eyebrow" style="margin-top:10px">Dernières séances</div>`));
+      hh.seances.slice(0, 8).forEach((s) => {
+        const d = new Date(s.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+        const detail = s.series.map((x) => `${x.chargeKg || 0}kg×${x.reps || x.dureeSec || 0}`).join(" · ");
+        f.append(h(`<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="eyebrow" style="color:var(--ink-soft)">${d}</div><div class="num small" style="margin-top:2px">${esc(detail)}</div></div>`));
+      });
+      return f;
+    },
+  };
+  const tabsBar = h(`<div class="xtabs"></div>`);
+  const panel = h(`<div class="xpanel"></div>`);
+  const afficher = (nom) => {
+    tabsBar.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.t === nom));
+    panel.innerHTML = ""; panel.append(rendus[nom]());
+  };
+  ["Info", "Instructions", "Conseils", "Historique"].forEach((nom) => {
+    const b = h(`<button data-t="${nom}">${nom}</button>`);
+    b.addEventListener("click", () => afficher(nom));
+    tabsBar.append(b);
+  });
+  inner.append(tabsBar, panel);
+  afficher("Info");
 
   sheet.querySelector("#x").addEventListener("click", fermer);
   document.body.append(sheet);
