@@ -142,6 +142,9 @@ label.f>span{display:block;font-size:.8rem;font-weight:750;color:var(--ink-soft)
 .tgt .ic{font-size:1.25rem;width:38px;height:38px;display:grid;place-items:center;background:var(--surface-2);border-radius:12px;flex:0 0 auto}
 .bar.mt{margin-top:5px}
 .bar.mt>div{background:var(--grad)}
+.tap{cursor:pointer;transition:transform .08s ease,border-color .15s ease}
+.tap:active{transform:scale(.99)}
+.chev{font-size:.78rem;font-weight:750;color:var(--accent-ink)}
 /* Rangée « Matériel requis » (détail d'exercice) */
 .needrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .need{display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:8px 12px;font-size:.85rem;font-weight:600}

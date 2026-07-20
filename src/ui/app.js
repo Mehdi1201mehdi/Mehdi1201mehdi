@@ -363,11 +363,13 @@ function vDash(v) {
   const eauT = Etat.data.waterlog[jour] || 0;
   const eauCibleMl = Math.round((besoins.eau || 2) * 1000);
   const seanceFaite = logs.some((l) => l.date && l.date.slice(0, 10) === jour);
-  const tc = h(`<div class="card stack"></div>`);
-  tc.append(h(`<div class="eyebrow" style="margin-bottom:2px">Objectif du jour</div>`));
+  const tc = h(`<div class="card stack tap"></div>`);
+  const tcHead = h(`<div class="spread" style="margin-bottom:2px"><div class="eyebrow">Objectif du jour</div><span class="chev">Nutrition ›</span></div>`);
+  tc.append(tcHead);
   tc.append(targetLigne("🏋️", "Séance", seanceFaite ? "Faite ✓" : (sj ? "À faire" : "Repos"), seanceFaite ? 1 : (sj ? 0 : 1)));
   tc.append(targetLigne("🔥", "Calories", `${Math.round(foodT)} / ${besoins.kcal} kcal`, foodT / (besoins.kcal || 1)));
   tc.append(targetLigne("💧", "Hydratation", `${(eauT / 1000).toFixed(1)} / ${besoins.eau} L`, eauT / eauCibleMl));
+  tc.addEventListener("click", () => nav("food"));
   v.append(tc);
 
   // Objectif + besoin calorique
@@ -1562,7 +1564,7 @@ function telechargerCSV(contenu, nomFichier) {
 function vSet(v) {
   const p = Etat.data.profil;
   v.append(h(`<div class="eyebrow">Ton compte</div>`));
-  v.append(h(`<h1 style="margin-bottom:14px">Réglages</h1>`));
+  v.append(h(`<h1 style="margin-bottom:14px">Profil</h1>`));
 
   // Carte profil (avatar + objectif)
   const hero = h(`<div class="hero"><span class="glow"></span></div>`);
