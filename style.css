@@ -125,6 +125,10 @@ label.f>span{display:block;font-size:.8rem;font-weight:750;color:var(--ink-soft)
 .bar.mp>div{background:linear-gradient(90deg,var(--accent),var(--accent-ink))}
 .bar.mg>div{background:var(--ok)}
 .bar.ml>div{background:linear-gradient(90deg,var(--accent-2),var(--lime))}
+/* Rangée « Matériel requis » (détail d'exercice) */
+.needrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.need{display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:8px 12px;font-size:.85rem;font-weight:600}
+.need .ic{font-size:1.2rem;line-height:1}
 
 .exline{display:flex;gap:12px;align-items:center;padding:13px 0;border-bottom:1px solid var(--line)}
 .exline:last-child{border-bottom:none}

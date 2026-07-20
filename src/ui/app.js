@@ -382,6 +382,14 @@ function anneauSVG(pct, taille = 76, texte = "") {
 function statCard(icone, valeur, label) {
   return h(`<div class="stat"><div class="ic" aria-hidden="true">${icone}</div><b class="num">${esc(valeur)}</b><span class="lab">${esc(label)}</span></div>`);
 }
+/** Emoji illustratif par type de matériel (rangée « Matériel requis »). */
+const EQUIPMENT_ICONS = {
+  poids_du_corps: "🧍", halteres: "🏋️", barre: "🏋️", barre_ez: "🏋️", kettlebell: "🔔",
+  poulie: "🎚️", elastiques: "🎗️", machine_guidee: "⚙️", machine_leviers: "⚙️",
+  smith: "🏗️", banc: "🪑", rack: "🗄️", barre_traction: "🚪", trx: "🪢",
+  medecine_ball: "🏐", swiss_ball: "⚽", rouleau: "🧻", tapis_course: "🏃",
+  velo: "🚴", rameur: "🚣",
+};
 /** Barre de macro (libellé + valeur/cible + jauge colorée). Composant réutilisable. */
 function macroBar(label, valeur, cible, unite, cls) {
   const v = Math.round(valeur || 0);
@@ -611,8 +619,13 @@ function ouvrirDetail(exo) {
 
   inner.append(h(`<div class="row" style="margin-top:10px">
     <span class="difbar" title="Difficulté">${[1, 2, 3, 4].map((i) => `<i class="${i <= diff ? "on" : ""}"></i>`).join("")}</span>
-    <span class="pill">${DIFF_LABEL[diff] || "—"}</span>
-    ${exo.equipement.map((e) => `<span class="pill">${esc(EQUIPMENT_LABELS[e] || e)}</span>`).join("")}</div>`));
+    <span class="pill">${DIFF_LABEL[diff] || "—"}</span></div>`));
+
+  // Matériel requis (façon « You'll need ») — tuiles icône + libellé
+  if ((exo.equipement || []).length) {
+    inner.append(h(`<div class="needrow">${exo.equipement.map((e) =>
+      `<div class="need"><span class="ic" aria-hidden="true">${EQUIPMENT_ICONS[e] || "🏋️"}</span><span>${esc(EQUIPMENT_LABELS[e] || e)}</span></div>`).join("")}</div>`));
+  }
 
   if (!estRealisable(exo)) inner.append(h(`<div class="warn small">⚠️ Pas réalisable avec ton matériel / tes limitations actuels — vois « Remplacement intelligent » ci-dessous.</div>`));
 
@@ -1278,13 +1291,49 @@ function svgLine(points, label = "") {
   const W = 600, H = 150, pad = 30;
   const ys = points.map((p) => p.v), ymin = Math.min(...ys), ymax = Math.max(...ys), yr = (ymax - ymin) || 1;
   const X = (i) => pad + (W - 2 * pad) * i / (points.length - 1), Y = (val) => H - pad - (H - 2 * pad) * (val - ymin) / yr;
-  const d = points.map((p, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(p.v).toFixed(1)}`).join(" ");
-  const dots = points.map((p, i) => `<circle cx="${X(i).toFixed(1)}" cy="${Y(p.v).toFixed(1)}" r="3" fill="var(--accent)"/>`).join("");
+  const pts = points.map((p, i) => [X(i), Y(p.v)]);
+  // Courbe lissée (Catmull-Rom → Bézier cubique) façon « Workout Tracker »
+  let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+    d += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+  }
+  const uid = "lg" + Math.random().toString(36).slice(2, 8);
+  const aire = `${d} L${pts[pts.length - 1][0].toFixed(1)},${H - pad} L${pts[0][0].toFixed(1)},${H - pad} Z`;
+  const dots = pts.map(([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.2" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/>`).join("");
   return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="${esc(label)}">
+    <defs><linearGradient id="${uid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>
     <text x="${pad}" y="15" font-size="12" fill="var(--ink-soft)">${esc(label)}</text>
     <text x="2" y="${(Y(ymax) + 4).toFixed(1)}" font-size="11" fill="var(--ink-soft)">${ymax.toFixed(1)}</text>
     <text x="2" y="${(Y(ymin) + 4).toFixed(1)}" font-size="11" fill="var(--ink-soft)">${ymin.toFixed(1)}</text>
-    <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="2.5"/>${dots}</svg>`;
+    <path d="${aire}" fill="url(#${uid})" stroke="none"/>
+    <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round"/>${dots}</svg>`;
+}
+/** Catégorie d'IMC : libellé + couleur (variable CSS). */
+function categorieIMC(imc) {
+  if (imc < 18.5) return { txt: "Insuffisant", col: "var(--amber)" };
+  if (imc < 25) return { txt: "Normal", col: "var(--ok)" };
+  if (imc < 30) return { txt: "Surpoids", col: "var(--amber)" };
+  return { txt: "Obésité", col: "var(--danger)" };
+}
+/** Jauge IMC en donut (façon carte « BMI »), colorée selon la catégorie. */
+function gaugeIMC(imc, taille = 96) {
+  const cat = categorieIMC(imc);
+  const r = (taille - 12) / 2, circ = 2 * Math.PI * r, cx = taille / 2;
+  // Fraction sur une échelle lisible 15 → 40
+  const frac = Math.max(0, Math.min(1, (imc - 15) / 25));
+  const off = circ * (1 - frac);
+  return `<svg width="${taille}" height="${taille}" viewBox="0 0 ${taille} ${taille}" aria-hidden="true">
+    <g transform="rotate(-90 ${cx} ${cx})">
+      <circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="var(--surface-2)" stroke-width="8"/>
+      <circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="${cat.col}" stroke-width="8" stroke-linecap="round" stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"/>
+    </g>
+    <text x="50%" y="46%" text-anchor="middle" dominant-baseline="central" font-size="20" font-weight="850" fill="var(--ink)">${imc.toFixed(1)}</text>
+    <text x="50%" y="64%" text-anchor="middle" dominant-baseline="central" font-size="10" font-weight="700" fill="var(--ink-soft)">IMC</text></svg>`;
 }
 function svgBars(bars, label = "") {
   if (!bars.length) return `<div class="muted small">Aucune donnée.</div>`;
@@ -1383,6 +1432,25 @@ function vStats(v) {
   const rowW = h(`<div class="row"><input id="wKg" aria-label="Poids du matin en kg" inputmode="decimal" placeholder="Poids du matin (kg)" style="flex:1"><button class="primary" id="wAdd">Ajouter</button></div>`);
   c.append(rowW);
   const poids = Etat.data.metrics.filter((m) => m.poidsKg);
+  // Jauge IMC (dernier poids connu ou poids du profil), façon carte « BMI »
+  const poidsActuel = poids.length ? poids[poids.length - 1].poidsKg : p.poidsKg;
+  if (poidsActuel && p.tailleCm) {
+    const imc = poidsActuel / Math.pow(p.tailleCm / 100, 2);
+    const cat = categorieIMC(imc);
+    const cimc = h(`<div class="ringstat"></div>`);
+    cimc.append(h(gaugeIMC(imc)));
+    const ii = h(`<div style="flex:1;min-width:0"></div>`);
+    ii.append(h(`<div class="eyebrow" style="color:var(--accent-ink)">Indice de masse corporelle</div>`));
+    ii.append(h(`<div style="margin:2px 0"><b style="font-size:1.4rem">${imc.toFixed(1)}</b> <span class="badge" style="background:color-mix(in srgb,${cat.col} 18%,transparent);color:${cat.col}">${cat.txt}</span></div>`));
+    ii.append(h(`<div class="muted small">${poidsActuel} kg · ${p.tailleCm} cm. L'IMC est indicatif et ne distingue pas muscle et graisse.</div>`));
+    cimc.append(ii);
+    c.append(cimc);
+  }
+  // Courbe de poids lissée (tendance)
+  if (poids.length >= 2) {
+    const dp = poids.slice(-14).map((m) => ({ x: new Date(m.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }), v: m.poidsKg }));
+    c.append(h(`<div>${svgLine(dp, "Tendance du poids (kg)")}</div>`));
+  }
   if (poids.length) c.append(h(`<div class="small muted">Dernier : ${poids[poids.length - 1].poidsKg} kg · ${poids.length} mesure(s)</div>`));
   c.append(h(`<div class="hint">Pèse-toi le matin à jeun. Aucune décision sur une seule pesée : on regarde la tendance sur 1–2 semaines.</div>`));
   v.append(c);
