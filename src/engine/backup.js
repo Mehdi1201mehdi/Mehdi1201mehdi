@@ -12,7 +12,7 @@ import { SCHEMA_VERSION, normaliserEtat } from "../store/migrate.js";
 /** Champs inclus dans l'export (on exclut les caches volatils). */
 const CLES_EXPORT = [
   "profil", "programme", "programmesPerso", "exercicesPerso",
-  "logs", "metrics", "foodlog", "reviews", "reglages",
+  "logs", "metrics", "foodlog", "waterlog", "reviews", "reglages",
 ];
 
 /** Construit l'objet d'export (sérialisable en JSON). */
@@ -70,8 +70,9 @@ export function appliquerImport(actuel, src, mode = "fusionner") {
   out.reviews = fusionListe(base.reviews, src.reviews);
   out.programmesPerso = fusionListe(base.programmesPerso, src.programmesPerso);
   out.exercicesPerso = fusionListe(base.exercicesPerso, src.exercicesPerso);
-  // foodlog : union des jours, priorité aux données actuelles en cas de conflit.
+  // foodlog / waterlog : union des jours, priorité aux données actuelles.
   out.foodlog = { ...(src.foodlog || {}), ...(base.foodlog || {}) };
+  out.waterlog = { ...(src.waterlog || {}), ...(base.waterlog || {}) };
   // profil / programme : garde l'actuel s'il existe, sinon reprend l'import.
   out.profil = base.profil || src.profil || null;
   out.programme = base.programme || src.programme || null;

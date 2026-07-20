@@ -25,6 +25,7 @@ export function etatVide() {
     logs: [],                 // séances réalisées
     metrics: [],              // poids / mensurations
     foodlog: {},              // "YYYY-MM-DD" -> [aliments]
+    waterlog: {},             // "YYYY-MM-DD" -> millilitres bus
     reviews: [],              // bilans d'ajustement
     mediaCache: {},           // exId -> URL de média résolue
     reglages: {
@@ -57,6 +58,7 @@ export function normaliserEtat(brut) {
   out.metrics = toArray(brut.metrics);
   out.reviews = toArray(brut.reviews);
   out.foodlog = brut.foodlog && typeof brut.foodlog === "object" ? brut.foodlog : {};
+  out.waterlog = brut.waterlog && typeof brut.waterlog === "object" ? brut.waterlog : {};
   out.mediaCache = brut.mediaCache && typeof brut.mediaCache === "object" ? brut.mediaCache : {};
   // sessionEnCours : conservée telle quelle si présente (objet), sinon null.
   out.sessionEnCours = brut.sessionEnCours && typeof brut.sessionEnCours === "object" ? brut.sessionEnCours : null;

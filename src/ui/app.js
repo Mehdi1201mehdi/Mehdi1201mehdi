@@ -357,6 +357,19 @@ function vDash(v) {
   g.append(statCard("⏱️", dm != null ? `${dm}′` : "—", "Durée moy."));
   v.append(g);
 
+  // Objectif du jour (façon « Today Target ») : séance, calories, hydratation
+  const jour = todayStr();
+  const foodT = (Etat.data.foodlog[jour] || []).reduce((a, f) => a + (f.kcal || 0), 0);
+  const eauT = Etat.data.waterlog[jour] || 0;
+  const eauCibleMl = Math.round((besoins.eau || 2) * 1000);
+  const seanceFaite = logs.some((l) => l.date && l.date.slice(0, 10) === jour);
+  const tc = h(`<div class="card stack"></div>`);
+  tc.append(h(`<div class="eyebrow" style="margin-bottom:2px">Objectif du jour</div>`));
+  tc.append(targetLigne("🏋️", "Séance", seanceFaite ? "Faite ✓" : (sj ? "À faire" : "Repos"), seanceFaite ? 1 : (sj ? 0 : 1)));
+  tc.append(targetLigne("🔥", "Calories", `${Math.round(foodT)} / ${besoins.kcal} kcal`, foodT / (besoins.kcal || 1)));
+  tc.append(targetLigne("💧", "Hydratation", `${(eauT / 1000).toFixed(1)} / ${besoins.eau} L`, eauT / eauCibleMl));
+  v.append(tc);
+
   // Objectif + besoin calorique
   const oc = h(`<div class="card stack"></div>`);
   oc.append(h(`<div class="spread"><div><div class="eyebrow">Objectif</div><b style="font-size:1.05rem">${esc(GOAL_LABELS[p.objectif] || p.objectif)}</b></div><span class="badge accent">≈ ${besoins.tdee} kcal/j</span></div>`));
@@ -390,6 +403,11 @@ const EQUIPMENT_ICONS = {
   medecine_ball: "🏐", swiss_ball: "⚽", rouleau: "🧻", tapis_course: "🏃",
   velo: "🚴", rameur: "🚣",
 };
+/** Ligne d'objectif du jour (icône + libellé + valeur + mini-jauge). */
+function targetLigne(icone, label, val, pct) {
+  const p = Math.round(Math.max(0, Math.min(1, pct || 0)) * 100);
+  return h(`<div class="tgt"><span class="ic" aria-hidden="true">${icone}</span><div style="flex:1;min-width:0"><div class="spread small"><span>${esc(label)}</span><span class="num muted">${esc(val)}</span></div><div class="bar mt"><div style="width:${p}%"></div></div></div></div>`);
+}
 /** Barre de macro (libellé + valeur/cible + jauge colorée). Composant réutilisable. */
 function macroBar(label, valeur, cible, unite, cls) {
   const v = Math.round(valeur || 0);
@@ -1051,6 +1069,38 @@ function stopTimer() { clearInterval(TMR); $("#overlay").classList.remove("show"
 /* ======================================================================
    NUTRITION (Open Food Facts + base locale)
    ====================================================================== */
+const VERRE_ML = 250; // un verre standard
+/** Carte d'hydratation interactive : verres bus vs objectif du jour. */
+function carteEau(v, b, jour) {
+  const cibleMl = Math.round((b.eau || 2) * 1000);
+  const nbVerres = Math.max(1, Math.round(cibleMl / VERRE_ML));
+  const bus = Etat.data.waterlog[jour] || 0;
+  const busVerres = Math.round(bus / VERRE_ML);
+  const pct = Math.min(100, Math.round((bus / cibleMl) * 100));
+  const majEau = (delta) => {
+    const n = Math.max(0, (Etat.data.waterlog[jour] || 0) + delta);
+    if (n === 0) delete Etat.data.waterlog[jour]; else Etat.data.waterlog[jour] = n;
+    Etat.sauver(); render();
+  };
+  const c = h(`<div class="card stack"></div>`);
+  c.append(h(`<div class="spread"><h2 style="margin:0">💧 Hydratation</h2><span class="num muted">${(bus / 1000).toFixed(2)} / ${b.eau} L</span></div>`));
+  c.append(h(`<div class="bar mw"><div style="width:${pct}%"></div></div>`));
+  // Rangée de verres (remplis / vides)
+  const verres = h(`<div class="glasses"></div>`);
+  for (let i = 0; i < nbVerres; i++) verres.append(h(`<span class="glass${i < busVerres ? " on" : ""}" aria-hidden="true"></span>`));
+  c.append(verres);
+  const row = h(`<div class="row"></div>`);
+  const bMoins = h(`<button aria-label="Retirer un verre" ${bus <= 0 ? "disabled" : ""}>−</button>`);
+  const bVerre = h(`<button class="primary" style="flex:1">+ Un verre (25 cl)</button>`);
+  const bBout = h(`<button aria-label="Ajouter une bouteille de 50 cl">+ 50 cl</button>`);
+  bMoins.addEventListener("click", () => majEau(-VERRE_ML));
+  bVerre.addEventListener("click", () => majEau(VERRE_ML));
+  bBout.addEventListener("click", () => majEau(2 * VERRE_ML));
+  row.append(bMoins, bVerre, bBout);
+  c.append(row);
+  c.append(h(`<div class="hint">Objectif estimé ~${b.eau} L/jour (≈ ${nbVerres} verres). Bois régulièrement, davantage à l'entraînement et par forte chaleur.</div>`));
+  v.append(c);
+}
 function vNutrition(v) {
   const p = Etat.data.profil;
   const b = calculerBesoins(p);
@@ -1073,9 +1123,11 @@ function vNutrition(v) {
   cible.append(macroBar("Protéines", tot.p, b.prot, "g", "mp"));
   cible.append(macroBar("Glucides", tot.c, b.gluc, "g", "mg"));
   cible.append(macroBar("Lipides", tot.l, b.lip, "g", "ml"));
-  cible.append(h(`<div class="spread small" style="margin-top:4px"><span>💧 Eau (objectif)</span><span class="num muted">~${b.eau} L / j</span></div>`));
   cible.append(h(`<div class="hint">Estimation Mifflin-St Jeor : BMR ${b.bmr} × activité ${b.facteur} = ~${b.tdee} kcal, ajusté selon ton objectif. On affine selon la tendance de poids sur 1–2 semaines, jamais sur une seule pesée. Ceci n'est pas un avis diététique médical.</div>`));
   v.append(cible);
+
+  // Hydratation : suivi interactif (façon carte « Water Intake »)
+  carteEau(v, b, jour);
 
   // Journal + recherche
   const cj = h(`<div class="card stack"><h2 style="margin:0">Journal du jour</h2></div>`);
