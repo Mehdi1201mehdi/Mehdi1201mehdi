@@ -310,59 +310,90 @@ function finaliserOnboarding() {
 /* ======================================================================
    TABLEAU DE BORD
    ====================================================================== */
+/** Série de jours d'entraînement consécutifs (streak), terminant aujourd'hui ou hier. */
+function serieJours(logs) {
+  const iso = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+  const jours = new Set(logs.map((l) => l.date && l.date.slice(0, 10)).filter(Boolean));
+  let n = 0; const d = new Date();
+  if (!jours.has(iso(d))) d.setDate(d.getDate() - 1);
+  while (jours.has(iso(d))) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+/** Bande « Ma semaine » : Lun→Dim avec statut (fait / aujourd'hui / à venir). */
+function semaineStrip(logs) {
+  const iso = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+  const noms = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+  const jours = new Set(logs.map((l) => l.date && l.date.slice(0, 10)).filter(Boolean));
+  const now = new Date(), isoToday = iso(now);
+  const lundi = new Date(now); lundi.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  const box = h(`<div class="week"></div>`);
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(lundi); d.setDate(lundi.getDate() + i);
+    const di = iso(d), done = jours.has(di), today = di === isoToday;
+    const cls = done ? "wd done" : today ? "wd today" : "wd";
+    const inner = done ? "✓" : today ? "•" : "";
+    box.append(h(`<div class="wcol"><span class="wl">${noms[i]}</span><span class="${cls}">${inner}</span></div>`));
+  }
+  return box;
+}
+
 function vDash(v) {
   const p = Etat.data.profil, prog = Etat.data.programme;
   const sj = seanceDuJour(prog);
   const logs = Etat.data.logs;
-  const nbSem = logs.filter((l) => Date.now() - new Date(l.date).getTime() < 7 * 864e5).length;
-  const cible = prog.seances.length || 1;
-  const volume = Math.round(logs.reduce((a, l) => a + volumeLog(l), 0));
-  const dm = dureeMoyenneMin(logs);
   const besoins = calculerBesoins(p);
+  const jour = todayStr();
+  const seanceFaite = logs.some((l) => l.date && l.date.slice(0, 10) === jour);
 
   // En-tête personnalisé selon l'heure
   const heure = new Date().getHours();
   const salut = heure < 12 ? "Bonjour" : heure < 18 ? "Bon après-midi" : "Bonsoir";
   v.append(h(`<div class="eyebrow">${salut}</div>`));
-  v.append(h(`<h1 style="margin-bottom:14px">${esc(p.prenom || "Athlète")} 👋</h1>`));
+  v.append(h(`<h1 style="margin:0">${esc(p.prenom || "Athlète")} 👋</h1>`));
+  v.append(h(`<div class="muted small" style="margin-top:3px">Prêt pour ton entraînement ?</div>`));
 
-  // Carte héro : séance du jour + anneau de progression hebdo
-  const hero = h(`<div class="hero stack"><span class="glow"></span></div>`);
-  const top = h(`<div class="ringstat"></div>`);
-  top.append(h(anneauSVG(nbSem / cible, 78, `${nbSem}/${cible}`)));
-  const info = h(`<div style="flex:1;min-width:0"></div>`);
-  info.append(h(`<div class="eyebrow" style="color:var(--accent-ink)">Aujourd'hui</div>`));
+  // Deux cartes : série (streak) + niveau
+  const duo = h(`<div class="statgrid" style="margin-top:15px"></div>`);
+  duo.append(h(`<div class="stat"><div class="ic">🔥</div><b class="num">${serieJours(logs)} j</b><span class="lab">Série actuelle</span></div>`));
+  duo.append(h(`<div class="stat sm"><div class="ic">📊</div><b>${esc(LEVEL_LABELS[p.niveau] || p.niveau)}</b><span class="lab">Niveau</span></div>`));
+  v.append(duo);
+
+  // Entraînement du jour (grande carte)
+  v.append(h(`<div class="eyebrow" style="margin:20px 0 9px">Entraînement du jour</div>`));
+  const wc = h(`<div class="card wkcard"></div>`);
   if (sj) {
-    info.append(h(`<h2 style="margin:2px 0 4px">${esc(sj.nom)}</h2>`));
-    info.append(h(`<div class="muted small">${sj.exercices.length} exercices · ~${sj.dureeEstimeeMin} min · ${sj.groupesCibles.map((m) => MUSCLE_LABELS[m] || m).slice(0, 3).join(" · ")}</div>`));
-  } else {
-    info.append(h(`<h2 style="margin:2px 0 4px">Jour de repos</h2>`));
-    info.append(h(`<div class="muted small">Marche, mobilité ou récupération active. Reviens demain 💪</div>`));
-  }
-  top.append(info);
-  hero.append(top);
-  if (sj) {
-    const b = h(`<button class="primary big">▶  Démarrer la séance</button>`);
+    const kcal = Math.round((sj.dureeEstimeeMin || 45) * 8);
+    const muscles = (sj.groupesCibles || []).map((m) => MUSCLE_LABELS[m] || m).slice(0, 3).join(" · ");
+    let pct = seanceFaite ? 1 : 0;
+    if (LIVE && LIVE.seanceId === sj.id) pct = progressionSeance(sj).pct;
+    wc.append(h(`<div class="spread"><h2 style="margin:0;font-size:1.5rem">${esc(sj.nom)}</h2><span class="wk-ic">🏋️</span></div>`));
+    if (muscles) wc.append(h(`<div class="muted small" style="margin:3px 0 13px">${esc(muscles)}</div>`));
+    const st = h(`<div class="wk-stats"></div>`);
+    st.append(h(`<div><b>${sj.exercices.length}</b><span>Exercices</span></div>`));
+    st.append(h(`<div><b>${sj.dureeEstimeeMin}</b><span>min</span></div>`));
+    st.append(h(`<div><b>${kcal}</b><span>kcal env.</span></div>`));
+    const nivCourt = { debutant: "Débutant", intermediaire: "Inter.", avance: "Avancé" }[p.niveau] || (LEVEL_LABELS[p.niveau] || "—");
+    st.append(h(`<div><b class="lvl">${esc(nivCourt)}</b><span>Niveau</span></div>`));
+    wc.append(st);
+    wc.append(h(`<div class="spread small" style="margin:15px 0 6px"><span class="muted">Progression séance</span><span class="num" style="color:var(--accent-ink);font-weight:800">${Math.round(pct * 100)}%</span></div>`));
+    wc.append(h(`<div class="bar"><div style="width:${Math.round(pct * 100)}%"></div></div>`));
+    const b = h(`<button class="primary big" style="margin-top:15px">${seanceFaite ? "✓  Séance faite — revoir" : "▶  Commencer la séance"}</button>`);
     b.addEventListener("click", () => { LIVE = null; nav("train"); });
-    hero.append(b);
+    wc.append(b);
+  } else {
+    wc.append(h(`<div class="spread"><h2 style="margin:0">Jour de repos</h2><span class="wk-ic">😴</span></div>`));
+    wc.append(h(`<div class="muted small" style="margin-top:5px">Marche, mobilité ou récupération active. Reviens demain 💪</div>`));
   }
-  v.append(hero);
+  v.append(wc);
 
-  // Statistiques principales
-  v.append(h(`<div class="eyebrow" style="margin:20px 0 9px">En un coup d'œil</div>`));
-  const g = h(`<div class="statgrid"></div>`);
-  g.append(statCard("🔥", `${nbSem}`, "Séances 7 j"));
-  g.append(statCard("🏆", `${logs.length}`, "Séances totales"));
-  g.append(statCard("📊", volume.toLocaleString("fr-FR"), "Volume kg"));
-  g.append(statCard("⏱️", dm != null ? `${dm}′` : "—", "Durée moy."));
-  v.append(g);
+  // Ma semaine
+  v.append(h(`<div class="eyebrow" style="margin:20px 0 9px">Ma semaine</div>`));
+  v.append(semaineStrip(logs));
 
   // Objectif du jour (façon « Today Target ») : séance, calories, hydratation
-  const jour = todayStr();
   const foodT = (Etat.data.foodlog[jour] || []).reduce((a, f) => a + (f.kcal || 0), 0);
   const eauT = Etat.data.waterlog[jour] || 0;
   const eauCibleMl = Math.round((besoins.eau || 2) * 1000);
-  const seanceFaite = logs.some((l) => l.date && l.date.slice(0, 10) === jour);
   const tc = h(`<div class="card stack tap"></div>`);
   const tcHead = h(`<div class="spread" style="margin-bottom:2px"><div class="eyebrow">Objectif du jour</div><span class="chev">Nutrition ›</span></div>`);
   tc.append(tcHead);
@@ -371,12 +402,6 @@ function vDash(v) {
   tc.append(targetLigne("💧", "Hydratation", `${(eauT / 1000).toFixed(1)} / ${besoins.eau} L`, eauT / eauCibleMl));
   tc.addEventListener("click", () => nav("food"));
   v.append(tc);
-
-  // Objectif + besoin calorique
-  const oc = h(`<div class="card stack"></div>`);
-  oc.append(h(`<div class="spread"><div><div class="eyebrow">Objectif</div><b style="font-size:1.05rem">${esc(GOAL_LABELS[p.objectif] || p.objectif)}</b></div><span class="badge accent">≈ ${besoins.tdee} kcal/j</span></div>`));
-  oc.append(h(`<div class="muted small">${esc(prog.justificationGlobale)}</div>`));
-  v.append(oc);
 
   v.append(h(`<div class="warn small">⚕️ Douleur vive, articulaire ou inhabituelle = on arrête le mouvement. Cette app ne pose aucun diagnostic médical.</div>`));
 }
