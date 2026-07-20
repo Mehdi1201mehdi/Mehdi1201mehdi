@@ -1321,18 +1321,34 @@ function carteCalendrier(v, logs) {
 }
 function vStats(v) {
   const logs = Etat.data.logs;
-  v.append(h(`<h1>Progrès</h1>`));
+  const p = Etat.data.profil;
+  v.append(h(`<div class="eyebrow">Ton évolution</div>`));
+  v.append(h(`<h1 style="margin-bottom:14px">Progrès</h1>`));
 
-  // KPIs : cette semaine + cumul + durée moyenne
   const sm = statsSemaine(logs);
   const dm = dureeMoyenneMin(logs);
-  const g = h(`<div class="grid2"></div>`);
-  g.append(kpi("Séances totales", `${logs.length}`));
-  g.append(kpi("Cette semaine", `${sm.seances} séance${sm.seances > 1 ? "s" : ""}`));
-  g.append(kpi("Volume cumulé", `${Math.round(logs.reduce((a, l) => a + volumeLog(l), 0)).toLocaleString("fr-FR")} kg`));
-  g.append(kpi("Durée moyenne", dm != null ? `${dm} min` : "—"));
+  const objSem = p.joursParSemaine || 3;
+
+  // Carte héro : activité de la semaine (anneau séances 7 j vs objectif)
+  const hero = h(`<div class="hero stack"><span class="glow"></span></div>`);
+  const top = h(`<div class="ringstat"></div>`);
+  top.append(h(anneauSVG(sm.seances / objSem, 78, `${sm.seances}/${objSem}`)));
+  const info = h(`<div style="flex:1;min-width:0"></div>`);
+  info.append(h(`<div class="eyebrow" style="color:var(--accent-ink)">Cette semaine</div>`));
+  info.append(h(`<h2 style="margin:2px 0 4px">${sm.seances} séance${sm.seances > 1 ? "s" : ""}</h2>`));
+  info.append(h(`<div class="muted small">${sm.seances ? `${sm.volume.toLocaleString("fr-FR")} kg de volume${sm.dureeMin != null ? ` · ~${sm.dureeMin} min/séance` : ""}` : "Aucune séance cette semaine — c'est le moment 💪"}</div>`));
+  top.append(info);
+  hero.append(top);
+  v.append(hero);
+
+  // Statistiques cumulées
+  v.append(h(`<div class="eyebrow" style="margin:20px 0 9px">Depuis le début</div>`));
+  const g = h(`<div class="statgrid"></div>`);
+  g.append(statCard("🏆", `${logs.length}`, "Séances totales"));
+  g.append(statCard("🔥", `${sm.seances}`, "Cette semaine"));
+  g.append(statCard("📊", Math.round(logs.reduce((a, l) => a + volumeLog(l), 0)).toLocaleString("fr-FR"), "Volume kg"));
+  g.append(statCard("⏱️", dm != null ? `${dm}′` : "—", "Durée moy."));
   v.append(g);
-  if (sm.seances) v.append(h(`<div class="muted small" style="margin:-2px 0 8px">Cette semaine : ${sm.volume.toLocaleString("fr-FR")} kg de volume${sm.dureeMin != null ? ` · ~${sm.dureeMin} min/séance` : ""}.</div>`));
 
   carteCalendrier(v, logs);
 
@@ -1425,10 +1441,22 @@ function telechargerCSV(contenu, nomFichier) {
 }
 function vSet(v) {
   const p = Etat.data.profil;
-  v.append(h(`<h1>Réglages</h1>`));
+  v.append(h(`<div class="eyebrow">Ton compte</div>`));
+  v.append(h(`<h1 style="margin-bottom:14px">Réglages</h1>`));
 
-  const prof = h(`<div class="card stack"><h2 style="margin:0">Profil & programme</h2>
-    <div class="small muted">Objectif : ${GOAL_LABELS[p.objectif]} · Niveau : ${LEVEL_LABELS[p.niveau]} · ${p.joursParSemaine} j/sem · ${p.dureeSeanceMin} min · ${esc(p.lieu)}</div></div>`);
+  // Carte profil (avatar + objectif)
+  const hero = h(`<div class="hero"><span class="glow"></span></div>`);
+  const row = h(`<div class="ringstat"></div>`);
+  row.append(h(`<div class="avatar">${esc((p.prenom || "A").slice(0, 1).toUpperCase())}</div>`));
+  const pi = h(`<div style="flex:1;min-width:0"></div>`);
+  pi.append(h(`<h2 style="margin:0 0 3px">${esc(p.prenom || "Athlète")}</h2>`));
+  pi.append(h(`<span class="badge accent">${esc(GOAL_LABELS[p.objectif] || p.objectif)}</span>`));
+  pi.append(h(`<div class="muted small" style="margin-top:6px">${esc(LEVEL_LABELS[p.niveau] || p.niveau)} · ${p.joursParSemaine} j/sem · ${p.dureeSeanceMin} min · ${esc(p.lieu)}</div>`));
+  row.append(pi);
+  hero.append(row);
+  v.append(hero);
+
+  const prof = h(`<div class="card stack"><h2 style="margin:0">Profil & programme</h2></div>`);
   const bRegen = h(`<button>Refaire l'onboarding / régénérer</button>`);
   bRegen.addEventListener("click", async () => { if (await confirmer("Refaire l'onboarding ? Ton programme sera régénéré (ton historique de séances est conservé).", { ok: "Refaire" })) { DRAFT = { ...p }; STEP = 0; Etat.data.profil = null; render(); } });
   const bReg = h(`<button>Régénérer le programme avec le profil actuel</button>`);
