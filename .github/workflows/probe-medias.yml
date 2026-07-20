@@ -1,0 +1,33 @@
+name: Sonde médias (diagnostic)
+
+# Diagnostic seulement : n'écrit rien dans le dépôt. Vérifie si un dataset
+# contient des images animées et combien d'exercices wger ont une vidéo.
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: "Dataset à inspecter (owner/name)"
+        required: false
+        default: "hasaneyldrm/exercises-dataset"
+      pages:
+        description: "Pages wger à échantillonner (100 exos/page)"
+        required: false
+        default: "8"
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Cloner le dataset à inspecter
+        run: git clone --depth 1 "https://github.com/${{ github.event.inputs.repo }}" ext || echo "clone impossible"
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Lancer la sonde
+        run: node src/integrations/media-probe.mjs --dir=ext --pages=${{ github.event.inputs.pages }}
