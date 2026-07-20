@@ -1641,7 +1641,7 @@ function vSet(v) {
   bDel.addEventListener("click", async () => { if (await confirmer("Effacer TOUTES les données (profil, programme, historique) ? Cette action est irréversible.", { danger: true, ok: "Tout effacer" })) { Etat.reset(); DRAFT = null; STEP = 0; $("#tabs").hidden = true; render(); } });
   don.append(bExp, bImp, file, bExpCsvSeances, bExpCsvPoids, bDel); v.append(don);
 
-  v.append(h(`<div class="card flat small muted">Coach Perso IA — v0.1 (Phase 1). Application personnelle, locale et hors ligne. Ne remplace pas un avis médical.</div>`));
+  v.append(h(`<div class="card flat small muted">Coach Perso — Application de musculation personnelle, locale et hors ligne. Ne remplace pas un avis médical.</div>`));
 }
 
 /* ======================================================================

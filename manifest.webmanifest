@@ -1,13 +1,13 @@
 {
-  "name": "Coach Perso IA",
-  "short_name": "CoachPerso",
-  "description": "Coaching sportif intelligent, personnel et hors ligne.",
+  "name": "Coach Perso — Musculation",
+  "short_name": "Coach Perso",
+  "description": "Programmes de musculation, séances guidées, suivi et progression. Personnel et hors ligne.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#080B16",
-  "theme_color": "#2E8BFF",
+  "background_color": "#0B0D10",
+  "theme_color": "#0B0D10",
   "lang": "fr",
   "icons": [
     { "src": "assets/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
