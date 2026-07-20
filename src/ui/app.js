@@ -747,31 +747,26 @@ function vTrain(v) {
   if (!LIVE && estReprenable(Etat.data.sessionEnCours, trouverSeance)) LIVE = restaurer(Etat.data.sessionEnCours);
   if (!LIVE) {
     const sj = seanceDuJour(prog);
-    v.append(h(`<h1>Choisir une séance</h1>`));
+    v.append(h(`<h1 style="margin-bottom:6px">Choisir une séance</h1>`));
     v.append(h(`<div class="notice small">Échauffe-toi 5–10 min (cardio léger + mobilité + séries d'approche sur les gros mouvements) avant de commencer.</div>`));
-    prog.seances.forEach((s) => {
-      const b = h(`<button class="big" style="justify-content:space-between;text-align:left;margin:8px 0;${sj && sj.id === s.id ? "border-color:var(--accent)" : ""}">
-        <span><b>${esc(s.nom)}</b><br><span class="muted small">${s.exercices.length} exos · ~${s.dureeEstimeeMin} min${sj && sj.id === s.id ? " · aujourd'hui" : ""}</span></span></button>`);
-      b.addEventListener("click", () => demarrer(s));
-      v.append(b);
-    });
+    prog.seances.forEach((s) => v.append(carteSeanceChoix(s, "", sj && sj.id === s.id)));
     // Séances des routines perso.
     const persos = Etat.data.programmesPerso || [];
     if (persos.some((r) => r.seances.length)) {
-      v.append(h(`<h3 style="margin-top:16px">Mes routines</h3>`));
-      persos.forEach((r) => r.seances.forEach((s) => {
-        const b = h(`<button class="big" style="justify-content:space-between;text-align:left;margin:8px 0">
-          <span><b>${esc(s.nom)}</b> <span class="muted small">· ${esc(r.nom)}</span><br><span class="muted small">${s.exercices.length} exos · ~${s.dureeEstimeeMin || 0} min</span></span></button>`);
-        b.addEventListener("click", () => demarrer(s));
-        v.append(b);
-      }));
+      v.append(h(`<div class="eyebrow" style="margin:18px 0 8px">Mes routines</div>`));
+      persos.forEach((r) => r.seances.forEach((s) => v.append(carteSeanceChoix(s, r.nom, false))));
     }
     return;
   }
   const seance = trouverSeance(LIVE.seanceId);
   if (!seance) { LIVE = null; persistLive(true); render(); return; }
-  v.append(h(`<div class="spread"><h1 style="margin:0">${esc(seance.nom)}</h1><button class="chip" id="abandon">Abandonner</button></div>`));
-  v.append(h(`<div class="muted small">Séance en cours · sauvegarde automatique 💾 (reprise possible après fermeture)</div>`));
+  // En-tête de séance avec progression (séries validées / total)
+  const pr = progressionSeance(seance);
+  const head = h(`<div class="card trainhead stack"></div>`);
+  head.append(h(`<div class="spread"><h1 style="margin:0;font-size:1.3rem">${esc(seance.nom)}</h1><button class="chip danger" id="abandon">Abandonner</button></div>`));
+  head.append(h(`<div class="bar"><div id="seanceProgBar" style="width:${Math.round(pr.pct * 100)}%"></div></div>`));
+  head.append(h(`<div class="muted small" id="seanceProgTxt">${pr.faits}/${pr.tot} séries validées · sauvegarde auto 💾</div>`));
+  v.append(head);
   seance.exercices.forEach((e) => v.append(carteExoLive(e)));
   const bAdd = h(`<button class="chip" style="margin-top:8px">➕ Ajouter un exercice</button>`);
   bAdd.addEventListener("click", () => ajouterExerciceLive(seance));
@@ -785,6 +780,36 @@ function demarrer(seance) {
   LIVE = nouvelleSession(seance);
   persistLive(true);
   render();
+}
+/** Carte cliquable de choix de séance (composant WorkoutCard). */
+function carteSeanceChoix(s, sousTitre, aujourdhui) {
+  const meta = `${s.exercices.length} exos · ~${s.dureeEstimeeMin || 0} min`
+    + (sousTitre ? ` · ${esc(sousTitre)}` : "") + (aujourdhui ? " · aujourd'hui" : "");
+  const b = h(`<button class="card wcard ${aujourdhui ? "today" : ""}">
+    <span class="idx" aria-hidden="true">▶</span>
+    <span class="g"><b>${esc(s.nom)}</b><br><span class="muted small">${meta}</span></span>
+    <span class="chev" aria-hidden="true">›</span></button>`);
+  b.addEventListener("click", () => demarrer(s));
+  return b;
+}
+/** Met à jour en direct le bandeau de progression sans re-rendre toute la vue. */
+function majProgressionSeance() {
+  const seance = LIVE && trouverSeance(LIVE.seanceId);
+  if (!seance) return;
+  const pr = progressionSeance(seance);
+  const bar = $("#seanceProgBar"), txt = $("#seanceProgTxt");
+  if (bar) bar.style.width = `${Math.round(pr.pct * 100)}%`;
+  if (txt) txt.textContent = `${pr.faits}/${pr.tot} séries validées · sauvegarde auto 💾`;
+}
+/** Progression d'une séance en cours : séries validées / total. */
+function progressionSeance(seance) {
+  let tot = 0, faits = 0;
+  for (const e of seance.exercices) {
+    const st = LIVE.data[e.exerciceId];
+    if (!st) continue;
+    for (const s of st.series) { tot++; if (s.done) faits++; }
+  }
+  return { tot, faits, pct: tot ? faits / tot : 0 };
 }
 function carteExoLive(e) {
   const st = LIVE.data[e.exerciceId];
@@ -809,7 +834,7 @@ function carteExoLive(e) {
       <input inputmode="numeric" placeholder="2" value="${s.rir}" data-f="rir">
       <button class="done ${s.done ? "on" : ""}" aria-label="Valider la série">✓</button></div>`);
     on(row, "input", "input", (ev) => { const f = ev.target.dataset.f; s[f] = ev.target.value; persistLive(); });
-    row.querySelector(".done").addEventListener("click", (ev) => { s.done = !s.done; ev.target.classList.toggle("on", s.done); persistLive(); if (s.done) startTimer(t?.reposSec || 60); });
+    row.querySelector(".done").addEventListener("click", (ev) => { s.done = !s.done; ev.target.classList.toggle("on", s.done); persistLive(); majProgressionSeance(); if (s.done) startTimer(t?.reposSec || 60); });
     c.append(row);
   });
   // Ajouter / retirer une série pendant la séance.
@@ -826,12 +851,16 @@ function carteExoLive(e) {
   const acts = h(`<div class="row"></div>`);
   const bDouleur = h(`<button class="chip ${st.douleur ? "danger" : ""}">${st.douleur ? "⚠️ Douleur signalée" : "Signaler une douleur"}</button>`);
   bDouleur.addEventListener("click", () => { st.douleur = !st.douleur; persistLive(true); if (st.douleur) info("Douleur vive, articulaire ou inhabituelle : arrête cet exercice aujourd'hui. Si elle persiste, consulte un professionnel de santé.", { titre: "⚠️ Douleur signalée" }); render(); });
+  const bDemo = h(`<button class="chip">▶ Démo</button>`);
+  bDemo.addEventListener("click", () => ouvrirDetail(exo));
   const bRempl = h(`<button class="chip">🔄 Remplacer</button>`);
   bRempl.addEventListener("click", () => remplacer(e.exerciceId));
   const bRetirer = h(`<button class="chip">🗑️ Retirer</button>`);
   bRetirer.addEventListener("click", async () => { if (await confirmer(`Retirer « ${exo.nom} » de la séance ?`, { danger: true, ok: "Retirer" })) retirerExerciceLive(e.exerciceId); });
-  acts.append(bDouleur, bRempl, bRetirer);
+  acts.append(bDemo, bDouleur, bRempl, bRetirer);
   c.append(acts);
+  // Exercice terminé (toutes les séries validées) → état visuel discret.
+  if (st.series.length && st.series.every((s) => s.done)) c.classList.add("exo-done");
   return c;
 }
 /** Ajoute un exercice au vol pendant la séance (choix dans le catalogue). */
