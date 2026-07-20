@@ -1,6 +1,6 @@
 // @ts-check
 /** Généré par src/integrations/gifs-import.mjs — ne pas éditer.
- * GIFs référencés depuis hasaneyldrm/exercises-dataset (branche main). 224 exercices associés le 2026-07-16.
+ * Médias référencés depuis hasaneyldrm/exercises-dataset (branche main). 224 exercices associés le 2026-07-20 (0 animés .gif).
  */
 export const GIFS = {
  "squat-poids-du-corps": "https://raw.githubusercontent.com/hasaneyldrm/exercises-dataset/main/images/0987-arsYEd3.jpg",
