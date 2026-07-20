@@ -1541,6 +1541,7 @@ function carteCalendrier(v, logs) {
   $("#calPrev", c).addEventListener("click", () => { CAL_VIEW = moisAdjacent(g.annee, g.mois, -1); render(); });
   $("#calNext", c).addEventListener("click", () => { CAL_VIEW = moisAdjacent(g.annee, g.mois, 1); render(); });
 }
+let STATS_PERIODE = "30"; // période sélectionnée dans l'aperçu Progrès
 function vStats(v) {
   const logs = Etat.data.logs;
   const p = Etat.data.profil;
@@ -1563,13 +1564,25 @@ function vStats(v) {
   hero.append(top);
   v.append(hero);
 
-  // Statistiques cumulées
-  v.append(h(`<div class="eyebrow" style="margin:20px 0 9px">Depuis le début</div>`));
+  // Aperçu par période : filtres 7J · 30J · 3M · 6M · 1A · Tout
+  v.append(h(`<div class="eyebrow" style="margin:20px 0 0">Aperçu</div>`));
+  const PERIODES = [["7", "7J"], ["30", "30J"], ["90", "3M"], ["180", "6M"], ["365", "1A"], ["0", "Tout"]];
+  const chipsP = h(`<div class="row" style="overflow-x:auto;flex-wrap:nowrap;margin:10px 0 12px;scrollbar-width:none"></div>`);
+  PERIODES.forEach(([val, lab]) => {
+    const b = h(`<button class="chip ${STATS_PERIODE === val ? "on" : ""}">${lab}</button>`);
+    b.addEventListener("click", () => { STATS_PERIODE = val; render(); });
+    chipsP.append(b);
+  });
+  v.append(chipsP);
+  const jp = Number(STATS_PERIODE), depuis = jp ? Date.now() - jp * 864e5 : 0;
+  const lp = logs.filter((l) => new Date(l.date).getTime() >= depuis);
+  const volP = Math.round(lp.reduce((a, l) => a + volumeLog(l), 0));
+  const dureeP = Math.round(lp.reduce((a, l) => a + (l.dureeSec || 0), 0) / 60);
   const g = h(`<div class="statgrid"></div>`);
-  g.append(statCard("🏆", `${logs.length}`, "Séances totales"));
-  g.append(statCard("🔥", `${sm.seances}`, "Cette semaine"));
-  g.append(statCard("📊", Math.round(logs.reduce((a, l) => a + volumeLog(l), 0)).toLocaleString("fr-FR"), "Volume kg"));
-  g.append(statCard("⏱️", dm != null ? `${dm}′` : "—", "Durée moy."));
+  g.append(statCard("🏋️", `${lp.length}`, "Séances"));
+  g.append(statCard("⏱️", `${Math.floor(dureeP / 60)}h${String(dureeP % 60).padStart(2, "0")}`, "Temps total"));
+  g.append(statCard("📊", volP.toLocaleString("fr-FR"), "Volume kg"));
+  g.append(statCard("🔥", (dureeP * 8).toLocaleString("fr-FR"), "Calories"));
   v.append(g);
 
   carteCalendrier(v, logs);
@@ -1588,13 +1601,14 @@ function vStats(v) {
   // Carte de chaleur musculaire (visuel des zones travaillées)
   carteMuscleHeatmap(v);
 
-  // Records estimés (1RM · Epley)
+  // Records personnels (1RM estimé · Epley) — grille de cartes
   const prs = classementRecords(logs, nomExo, 8);
   if (prs.length) {
-    const cr = h(`<div class="card stack"><h2 style="margin:0">🏆 Records estimés (1RM)</h2></div>`);
-    prs.forEach((r) => cr.append(h(`<div class="spread small" style="padding:5px 0;border-bottom:1px solid var(--line)"><span>${esc(r.nom)}</span><span class="num muted">${r.e1rm} kg <span class="tag">${r.charge}kg×${r.reps}</span></span></div>`)));
-    cr.append(h(`<div class="hint">${esc(FORMULE_1RM)}. Estimation indicative — ne teste jamais un vrai maximum en reprise.</div>`));
-    v.append(cr);
+    v.append(h(`<div class="eyebrow" style="margin:18px 0 9px">Records personnels</div>`));
+    const rg = h(`<div class="recgrid"></div>`);
+    prs.slice(0, 6).forEach((r) => rg.append(h(`<div class="reccard"><div class="rc-name">${esc(r.nom)}</div><div class="rc-val num">${r.e1rm}<span> kg</span></div><div class="rc-sub muted">${r.charge}kg × ${r.reps}</div></div>`)));
+    v.append(rg);
+    v.append(h(`<div class="hint">${esc(FORMULE_1RM)}. Estimation indicative — ne teste jamais un vrai maximum en reprise.</div>`));
   }
 
   // Calculateurs force (1RM, %, disques)
@@ -1685,24 +1699,41 @@ function vSet(v) {
   v.append(h(`<div class="eyebrow">Ton compte</div>`));
   v.append(h(`<h1 style="margin-bottom:14px">Profil</h1>`));
 
-  // Carte profil (avatar + objectif)
+  // Carte profil : avatar + nom + « Modifier le profil »
   const hero = h(`<div class="hero"><span class="glow"></span></div>`);
   const row = h(`<div class="ringstat"></div>`);
   row.append(h(`<div class="avatar">${esc((p.prenom || "A").slice(0, 1).toUpperCase())}</div>`));
   const pi = h(`<div style="flex:1;min-width:0"></div>`);
   pi.append(h(`<h2 style="margin:0 0 3px">${esc(p.prenom || "Athlète")}</h2>`));
-  pi.append(h(`<span class="badge accent">${esc(GOAL_LABELS[p.objectif] || p.objectif)}</span>`));
-  pi.append(h(`<div class="muted small" style="margin-top:6px">${esc(LEVEL_LABELS[p.niveau] || p.niveau)} · ${p.joursParSemaine} j/sem · ${p.dureeSeanceMin} min · ${esc(p.lieu)}</div>`));
+  const bModif = h(`<button class="linklike">Modifier le profil</button>`);
+  bModif.addEventListener("click", async () => { if (await confirmer("Modifier ton profil ? Tu repasses par les questions et ton programme est régénéré (ton historique est conservé).", { ok: "Modifier" })) { DRAFT = { ...p }; STEP = 0; Etat.data.profil = null; render(); } });
+  pi.append(bModif);
   row.append(pi);
   hero.append(row);
   v.append(hero);
 
-  const prof = h(`<div class="card stack"><h2 style="margin:0">Profil & programme</h2></div>`);
-  const bRegen = h(`<button>Refaire l'onboarding / régénérer</button>`);
-  bRegen.addEventListener("click", async () => { if (await confirmer("Refaire l'onboarding ? Ton programme sera régénéré (ton historique de séances est conservé).", { ok: "Refaire" })) { DRAFT = { ...p }; STEP = 0; Etat.data.profil = null; render(); } });
+  // 3 colonnes : Poids · Taille · Âge
+  const ps = h(`<div class="profstats"></div>`);
+  ps.append(h(`<div><b>${p.poidsKg ? p.poidsKg + " kg" : "—"}</b><span>Poids</span></div>`));
+  ps.append(h(`<div><b>${p.tailleCm ? p.tailleCm + " cm" : "—"}</b><span>Taille</span></div>`));
+  ps.append(h(`<div><b>${p.age || "—"}</b><span>Âge</span></div>`));
+  v.append(ps);
+
+  // Lignes d'informations
+  const info = h(`<div class="deflist" style="margin-top:12px"></div>`);
+  const ligneI = (k, val) => { if (val) info.append(h(`<div class="spread small"><span class="muted">${k}</span><b>${esc(val)}</b></div>`)); };
+  ligneI("Objectif", GOAL_LABELS[p.objectif] || p.objectif);
+  ligneI("Niveau", LEVEL_LABELS[p.niveau] || p.niveau);
+  ligneI("Jours par semaine", `${p.joursParSemaine} jours`);
+  ligneI("Durée de séance", `${p.dureeSeanceMin} min`);
+  ligneI("Lieu", p.lieu);
+  ligneI("Unité", p.unites === "imperial" ? "lb / in" : "kg / cm");
+  v.append(info);
+
+  const prof = h(`<div class="card stack"><h2 style="margin:0">Programme</h2></div>`);
   const bReg = h(`<button>Régénérer le programme avec le profil actuel</button>`);
   bReg.addEventListener("click", () => { Etat.data.programme = genererProgramme(p); Etat.sauver(); nav("prog"); toast("Programme régénéré ✔"); });
-  prof.append(bReg, bRegen); v.append(prof);
+  prof.append(bReg); v.append(prof);
 
   const aff = h(`<div class="card stack"><h2 style="margin:0">Apparence</h2></div>`);
   aff.append(chipsInline([["auto", "Auto"], ["light", "Clair"], ["dark", "Sombre"]], (val) => Etat.data.reglages.theme === val, (val) => { Etat.data.reglages.theme = val; Etat.sauver(); appliquerTheme(); }));

@@ -199,6 +199,19 @@ details[open] summary::after{content:"–"}
 .deflist>div:last-child{border-bottom:none}
 .det-steps{padding-left:20px}
 .det-steps li{margin:7px 0}
+/* Profil : colonnes stats + lien */
+.profstats{display:flex;gap:10px;margin-top:13px}
+.profstats>div{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:14px 6px;text-align:center}
+.profstats b{display:block;font-size:1.12rem;font-weight:850;letter-spacing:-.02em}
+.profstats span{display:block;font-size:.64rem;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;margin-top:4px;font-weight:800}
+button.linklike{background:transparent;border:none;min-height:auto;padding:0;color:var(--accent-ink);font-weight:750;font-size:.9rem}
+/* Records personnels (grille) */
+.recgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.reccard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:14px;min-width:0}
+.rc-name{font-size:.82rem;font-weight:700;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc-val{font-size:1.7rem;font-weight:850;letter-spacing:-.03em;margin-top:4px}
+.rc-val span{font-size:.9rem;font-weight:700;color:var(--ink-soft)}
+.rc-sub{font-size:.74rem;margin-top:2px}
 
 /* Saisie de séance */
 .setrow{display:grid;grid-template-columns:38px 1.05fr 1fr 1fr 50px;gap:8px;align-items:center;margin:8px 0}
