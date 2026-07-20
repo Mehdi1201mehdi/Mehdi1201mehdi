@@ -134,6 +134,13 @@ nav.tabs button.on .ico{filter:drop-shadow(0 0 6px color-mix(in srgb,var(--accen
 /* ---- Fiche démonstration premium ---- */
 .sheet{position:fixed;inset:0;z-index:55;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch}
 .sheet .inner{max-width:720px;margin:0 auto;padding:14px 16px calc(30px + env(safe-area-inset-bottom))}
+/* Dialogue modal centré (remplace prompt/alert/confirm) */
+.sheet.dlg{display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(4,6,12,.55);backdrop-filter:blur(3px)}
+.sheet.dlg .inner{max-width:420px;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+.sheet.dlg input{margin-top:4px}
+/* Toast non bloquant */
+.toast{position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom));transform:translate(-50%,16px);z-index:80;background:var(--surface-2);color:var(--ink);border:1px solid var(--line);border-radius:16px;padding:10px 16px;font-weight:650;font-size:.9rem;box-shadow:0 10px 34px rgba(0,0,0,.4);opacity:0;transition:opacity .25s,transform .25s;max-width:90vw;text-align:center;white-space:pre-line}
+.toast.show{opacity:1;transform:translate(-50%,0)}
 .sheet-top{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0 12px;background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:blur(12px)}
 .media{position:relative;width:100%;aspect-ratio:1/1;max-height:58vh;background:radial-gradient(circle at 50% 35%,var(--surface-2),var(--surface));border:1px solid var(--line);border-radius:20px;overflow:hidden;display:flex;align-items:center;justify-content:center}
 .media img,.media video{width:100%;height:100%;object-fit:contain;display:block}

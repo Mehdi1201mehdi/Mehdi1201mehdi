@@ -105,13 +105,81 @@ window.addEventListener("popstate", (e) => {
   const sh = document.querySelector(".sheet");
   if (sh) {
     if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
-    sh.remove();
+    if (typeof sh.__resolve === "function") sh.__resolve(sh.__cancel); // dialogue → renvoie l'annulation
+    else sh.remove();
     history.pushState({ tab: TAB }, "");
     return;
   }
   // 2) Sinon, retour = changement d'onglet.
   if (Etat.data.profil) { TAB = (e.state && e.state.tab) || "dash"; majTabs(); render(); window.scrollTo(0, 0); }
 });
+
+/* ---------- dialogues internes (remplacent prompt / alert / confirm) ---------- */
+/**
+ * Ouvre une petite feuille modale et résout avec la valeur de l'action choisie.
+ * Le bouton retour / un tap sur le fond renvoie `cancelVal`.
+ * @param {{titre?:string, message?:string, actions:{label:string,valeur:any,primary?:boolean,danger?:boolean}[], cancelVal?:any, onMount?:(inner:HTMLElement, close:(v:any)=>void)=>void}} opts
+ */
+function dialogue(opts) {
+  return new Promise((resolve) => {
+    const sheet = h(`<div class="sheet dlg"><div class="inner"></div></div>`);
+    const inner = sheet.querySelector(".inner");
+    if (opts.titre) inner.append(h(`<h2 style="margin:0 0 6px">${esc(opts.titre)}</h2>`));
+    if (opts.message) inner.append(h(`<div class="small muted" style="margin-bottom:10px">${esc(opts.message)}</div>`));
+    const close = (v) => { if (sheet.__done) return; sheet.__done = true; sheet.remove(); resolve(typeof v === "function" ? v() : v); };
+    sheet.__resolve = close;
+    sheet.__cancel = "cancelVal" in opts ? opts.cancelVal : null;
+    const row = h(`<div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px"></div>`);
+    for (const a of opts.actions) {
+      const b = h(`<button class="${a.primary ? "primary" : ""} ${a.danger ? "danger" : ""}">${esc(a.label)}</button>`);
+      b.addEventListener("click", () => close(a.valeur));
+      row.append(b);
+    }
+    inner.append(row);
+    sheet.addEventListener("click", (e) => { if (e.target === sheet) close(sheet.__cancel); });
+    document.body.append(sheet);
+    if (opts.onMount) opts.onMount(inner, close);
+    else row.querySelector("button:last-child")?.focus();
+  });
+}
+
+/** Demande une valeur texte (remplace prompt). Résout la chaîne, ou null si annulé. */
+function demanderTexte(titre, valeurDefaut = "", opts = {}) {
+  let input;
+  return dialogue({
+    titre,
+    cancelVal: null,
+    actions: [{ label: "Annuler", valeur: null }, { label: opts.ok || "Valider", primary: true, valeur: () => input.value }],
+    onMount: (inner, close) => {
+      input = h(`<input type="${opts.type || "text"}" ${opts.inputmode ? `inputmode="${opts.inputmode}"` : ""} placeholder="${esc(opts.placeholder || "")}" style="width:100%" />`);
+      input.value = valeurDefaut == null ? "" : String(valeurDefaut);
+      inner.insertBefore(input, inner.querySelector(".row"));
+      input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); close(input.value); } });
+      setTimeout(() => { input.focus(); input.select?.(); }, 0);
+    },
+  });
+}
+
+/** Confirmation (remplace confirm). Résout true/false. */
+function confirmer(message, { titre = "Confirmer", ok = "Confirmer", danger = false } = {}) {
+  return dialogue({
+    titre, message, cancelVal: false,
+    actions: [{ label: "Annuler", valeur: false }, { label: ok, valeur: true, primary: !danger, danger }],
+  });
+}
+
+/** Message d'information (remplace alert). */
+function info(message, { titre = "" } = {}) {
+  return dialogue({ titre, message, cancelVal: true, actions: [{ label: "OK", valeur: true, primary: true }] });
+}
+
+/** Notification non bloquante (records, confirmations). */
+function toast(message, ms = 3200) {
+  const t = h(`<div class="toast" role="status">${esc(message)}</div>`);
+  document.body.append(t);
+  requestAnimationFrame(() => t.classList.add("show"));
+  setTimeout(() => { t.classList.remove("show"); setTimeout(() => t.remove(), 300); }, ms);
+}
 
 /* ======================================================================
    ONBOARDING (assistant étape par étape, avec explications)
@@ -304,15 +372,15 @@ function vProg(v) {
     bOpen.addEventListener("click", () => { EDIT_ROUTINE = r.id; render(); });
     const bDup = h(`<button class="chip">📄 Dupliquer</button>`);
     bDup.addEventListener("click", () => { Etat.data.programmesPerso.push(dupliquerRoutine(r)); Etat.sauver(); render(); });
-    const bDel = h(`<button class="chip danger">🗑️</button>`);
-    bDel.addEventListener("click", () => { if (confirm(`Supprimer la routine « ${r.nom} » ?`)) { Etat.data.programmesPerso = Etat.data.programmesPerso.filter((x) => x.id !== r.id); Etat.sauver(); render(); } });
+    const bDel = h(`<button class="chip danger" aria-label="Supprimer la routine">🗑️</button>`);
+    bDel.addEventListener("click", async () => { if (await confirmer(`Supprimer la routine « ${r.nom} » ?`, { danger: true, ok: "Supprimer" })) { Etat.data.programmesPerso = Etat.data.programmesPerso.filter((x) => x.id !== r.id); Etat.sauver(); render(); } });
     acts.append(bOpen, bDup, bDel); card.append(acts);
     v.append(card);
   });
   const barre = h(`<div class="row" style="margin-top:8px"></div>`);
   const bNew = h(`<button class="primary">➕ Nouvelle routine</button>`);
-  bNew.addEventListener("click", () => {
-    const nom = prompt("Nom de la routine :", "Ma routine");
+  bNew.addEventListener("click", async () => {
+    const nom = await demanderTexte("Nom de la routine", "Ma routine", { ok: "Créer" });
     if (nom === null) return;
     const r = creerRoutine(nom);
     (Etat.data.programmesPerso ||= []).push(r);
@@ -332,11 +400,11 @@ function vRoutineEditor(v, routineId) {
   v.append(head);
   v.append(h(`<h1 style="margin:6px 0">${esc(r.nom)}</h1>`));
   $("#back", v).addEventListener("click", () => { EDIT_ROUTINE = null; render(); });
-  $("#ren", v).addEventListener("click", () => { const n = prompt("Nom de la routine :", r.nom); if (n !== null) { renommer(r, n); Etat.sauver(); render(); } });
+  $("#ren", v).addEventListener("click", async () => { const n = await demanderTexte("Nom de la routine", r.nom); if (n !== null) { renommer(r, n); Etat.sauver(); render(); } });
   if (!r.seances.length) v.append(h(`<div class="muted small">Aucune séance. Ajoute-en une pour commencer.</div>`));
   r.seances.forEach((s) => v.append(carteSeanceEditor(r, s)));
   const bAddS = h(`<button class="primary" style="margin-top:10px">➕ Ajouter une séance</button>`);
-  bAddS.addEventListener("click", () => { const n = prompt("Nom de la séance :", `Séance ${r.seances.length + 1}`); if (n === null) return; ajouterSeance(r, n); Etat.sauver(); render(); });
+  bAddS.addEventListener("click", async () => { const n = await demanderTexte("Nom de la séance", `Séance ${r.seances.length + 1}`, { ok: "Ajouter" }); if (n === null) return; ajouterSeance(r, n); Etat.sauver(); render(); });
   v.append(bAddS);
 }
 
@@ -345,9 +413,9 @@ function carteSeanceEditor(r, s) {
   c.append(h(`<summary class="spread"><b>${esc(s.nom)}</b><span class="pill">${s.exercices.length} exos · ~${s.dureeEstimeeMin || 0} min</span></summary>`));
   const acts = h(`<div class="row" style="margin:6px 0"></div>`);
   const bRen = h(`<button class="chip">✏️ Nom</button>`);
-  bRen.addEventListener("click", () => { const n = prompt("Nom de la séance :", s.nom); if (n !== null) { renommer(s, n); Etat.sauver(); render(); } });
+  bRen.addEventListener("click", async () => { const n = await demanderTexte("Nom de la séance", s.nom); if (n !== null) { renommer(s, n); Etat.sauver(); render(); } });
   const bDel = h(`<button class="chip danger">🗑️ Séance</button>`);
-  bDel.addEventListener("click", () => { if (confirm(`Supprimer « ${s.nom} » ?`)) { supprimerSeance(r, s.id); Etat.sauver(); render(); } });
+  bDel.addEventListener("click", async () => { if (await confirmer(`Supprimer la séance « ${s.nom} » ?`, { danger: true, ok: "Supprimer" })) { supprimerSeance(r, s.id); Etat.sauver(); render(); } });
   acts.append(bRen, bDel); c.append(acts);
   s.exercices.forEach((e, i) => c.append(ligneExoEditor(s, e, i)));
   const bAddE = h(`<button class="chip">➕ Exercice</button>`);
@@ -384,9 +452,9 @@ function ligneExoEditor(s, e, i) {
   };
   ctr.querySelectorAll("input").forEach((inp) => inp.addEventListener("change", apply));
   const nav2 = h(`<div class="row" style="margin-top:6px"></div>`);
-  const up = h(`<button class="chip">↑</button>`); up.addEventListener("click", () => { deplacerExercice(s, i, -1); Etat.sauver(); render(); });
-  const down = h(`<button class="chip">↓</button>`); down.addEventListener("click", () => { deplacerExercice(s, i, 1); Etat.sauver(); render(); });
-  const del = h(`<button class="chip danger">🗑️</button>`); del.addEventListener("click", () => { supprimerExerciceIndex(s, i); Etat.sauver(); render(); });
+  const up = h(`<button class="chip" aria-label="Monter l'exercice">↑</button>`); up.addEventListener("click", () => { deplacerExercice(s, i, -1); Etat.sauver(); render(); });
+  const down = h(`<button class="chip" aria-label="Descendre l'exercice">↓</button>`); down.addEventListener("click", () => { deplacerExercice(s, i, 1); Etat.sauver(); render(); });
+  const del = h(`<button class="chip danger" aria-label="Retirer l'exercice">🗑️</button>`); del.addEventListener("click", () => { supprimerExerciceIndex(s, i); Etat.sauver(); render(); });
   nav2.append(up, down, del); row.append(nav2);
   return row;
 }
@@ -394,17 +462,17 @@ function ligneExoEditor(s, e, i) {
 /** Crée une routine à partir d'une séance déjà réalisée (historique). */
 function dupliquerSeancePassee() {
   const logs = (Etat.data.logs || []).slice(-20).reverse();
-  if (!logs.length) { alert("Aucune séance enregistrée à dupliquer pour l'instant."); return; }
+  if (!logs.length) { info("Aucune séance enregistrée à dupliquer pour l'instant.", { titre: "Dupliquer" }); return; }
   const sheet = h(`<div class="sheet"><div class="inner"></div></div>`);
   const inner = sheet.querySelector(".inner");
-  inner.append(h(`<div class="spread"><h2 style="margin:0">Dupliquer une séance passée</h2><button class="chip" id="fx">✕</button></div>`));
+  inner.append(h(`<div class="spread"><h2 style="margin:0">Dupliquer une séance passée</h2><button class="chip" id="fx" aria-label="Fermer">✕</button></div>`));
   const liste = h(`<div class="stack"></div>`); inner.append(liste);
   logs.forEach((l) => {
     const d = new Date(l.date).toLocaleDateString("fr-FR");
     const b = h(`<button class="big" style="justify-content:space-between;text-align:left;margin:4px 0"><span><b>${esc(l.seanceNom || "Séance")}</b><br><span class="muted small">${d} · ${(l.exercices || []).length} exercice(s)</span></span></button>`);
-    b.addEventListener("click", () => {
+    b.addEventListener("click", async () => {
       sheet.remove();
-      const nom = prompt("Nom de la nouvelle routine :", `${l.seanceNom || "Séance"} (copie)`);
+      const nom = await demanderTexte("Nom de la nouvelle routine", `${l.seanceNom || "Séance"} (copie)`, { ok: "Créer" });
       if (nom === null) return;
       const r = creerRoutine(nom);
       r.seances.push(seanceDepuisLog(l, l.seanceNom));
@@ -670,7 +738,7 @@ function vTrain(v) {
   const fin = h(`<button class="primary big" style="margin-top:12px">Terminer et enregistrer</button>`);
   fin.addEventListener("click", terminer);
   v.append(fin);
-  $("#abandon", v).addEventListener("click", () => { if (confirm("Abandonner la séance sans enregistrer ?")) { LIVE = null; persistLive(true); render(); } });
+  $("#abandon", v).addEventListener("click", async () => { if (await confirmer("Abandonner la séance sans enregistrer ?", { danger: true, ok: "Abandonner" })) { LIVE = null; persistLive(true); render(); } });
 }
 function demarrer(seance) {
   LIVE = nouvelleSession(seance);
@@ -716,11 +784,11 @@ function carteExoLive(e) {
   c.append(serieActs);
   const acts = h(`<div class="row"></div>`);
   const bDouleur = h(`<button class="chip ${st.douleur ? "danger" : ""}">${st.douleur ? "⚠️ Douleur signalée" : "Signaler une douleur"}</button>`);
-  bDouleur.addEventListener("click", () => { st.douleur = !st.douleur; persistLive(true); if (st.douleur) alert("Douleur vive, articulaire ou inhabituelle : arrête cet exercice aujourd'hui. Si elle persiste, consulte un professionnel de santé."); render(); });
+  bDouleur.addEventListener("click", () => { st.douleur = !st.douleur; persistLive(true); if (st.douleur) info("Douleur vive, articulaire ou inhabituelle : arrête cet exercice aujourd'hui. Si elle persiste, consulte un professionnel de santé.", { titre: "⚠️ Douleur signalée" }); render(); });
   const bRempl = h(`<button class="chip">🔄 Remplacer</button>`);
   bRempl.addEventListener("click", () => remplacer(e.exerciceId));
   const bRetirer = h(`<button class="chip">🗑️ Retirer</button>`);
-  bRetirer.addEventListener("click", () => { if (confirm(`Retirer « ${exo.nom} » de la séance ?`)) retirerExerciceLive(e.exerciceId); });
+  bRetirer.addEventListener("click", async () => { if (await confirmer(`Retirer « ${exo.nom} » de la séance ?`, { danger: true, ok: "Retirer" })) retirerExerciceLive(e.exerciceId); });
   acts.append(bDouleur, bRempl, bRetirer);
   c.append(acts);
   return c;
@@ -728,7 +796,7 @@ function carteExoLive(e) {
 /** Ajoute un exercice au vol pendant la séance (choix dans le catalogue). */
 function ajouterExerciceLive(seance) {
   choisirExercice((exId) => {
-    if (LIVE.data[exId]) { alert("Cet exercice est déjà dans la séance."); return; }
+    if (LIVE.data[exId]) { toast("Cet exercice est déjà dans la séance."); return; }
     const e = ajouterExercice(seance, exId, { nbSeries: 3 });
     if (!e) return;
     const enTemps = e.series.some((s) => s.dureeSec);
@@ -779,18 +847,30 @@ function choisirExercice(onPick) {
   document.body.append(sheet);
   search.focus();
 }
-function remplacer(exId) {
+async function remplacer(exId) {
   const seance = trouverSeance(LIVE.seanceId);
   const presents = seance.exercices.map((x) => x.exerciceId);
   const alts = alternatives(exId, Etat.data.profil, presents);
-  if (!alts.length) { alert("Aucune alternative compatible trouvée avec ton matériel et tes contraintes."); return; }
-  const choix = prompt("Remplacer par :\n" + alts.map((a, i) => `${i + 1}. ${a.etiquette} — ${a.exercice.nom}`).join("\n") + "\n\nNuméro (1-" + alts.length + ") :", "1");
-  const idx = (parseInt(choix, 10) || 0) - 1;
-  if (idx < 0 || idx >= alts.length) return;
-  const nouvel = alts[idx].exercice;
+  if (!alts.length) { info("Aucune alternative compatible trouvée avec ton matériel et tes contraintes.", { titre: "Remplacer" }); return; }
+  const choix = await dialogue({
+    titre: "Remplacer par",
+    cancelVal: null,
+    actions: [{ label: "Annuler", valeur: null }],
+    onMount: (inner, close) => {
+      const liste = h(`<div class="stack" style="margin-bottom:8px"></div>`);
+      alts.forEach((a, i) => {
+        const b = h(`<button class="big" style="justify-content:flex-start;text-align:left;margin:3px 0"><span><b>${esc(a.exercice.nom)}</b><br><span class="muted small">${esc(a.etiquette)}</span></span></button>`);
+        b.addEventListener("click", () => close(i));
+        liste.append(b);
+      });
+      inner.insertBefore(liste, inner.querySelector(".row"));
+    },
+  });
+  if (choix == null || choix < 0 || choix >= alts.length) return;
+  const nouvel = alts[choix].exercice;
   // remplace dans le programme ET dans la séance en cours
   const ex = seance.exercices.find((x) => x.exerciceId === exId);
-  ex.exerciceId = nouvel.id; ex.justification = `Remplacement choisi : ${alts[idx].explication}`;
+  ex.exerciceId = nouvel.id; ex.justification = `Remplacement choisi : ${alts[choix].explication}`;
   const anc = LIVE.data[exId]; delete LIVE.data[exId];
   LIVE.data[nouvel.id] = { ...anc, exId: nouvel.id };
   persistLive(true); render();
@@ -817,13 +897,13 @@ function terminer() {
   LIVE = null;
   Etat.data.sessionEnCours = null; // séance terminée : plus rien à reprendre
   Etat.sauver();
-  let msg = "Séance enregistrée 💪 Les suggestions de charge sont mises à jour pour la prochaine fois.";
+  let msg = "Séance enregistrée 💪";
   if (prs.length) {
-    msg += "\n\n🏆 Nouveau" + (prs.length > 1 ? "x records !" : " record !") + "\n"
+    msg += "\n🏆 Nouveau" + (prs.length > 1 ? "x records !" : " record !") + "\n"
       + prs.map((r) => `• ${r.nom} : ${etiquettePR(r)}`).join("\n");
   }
-  alert(msg);
   nav("dash");
+  toast(msg, prs.length ? 5000 : 3000);
 }
 /** Libellé court d'un record (poids, reps ou 1RM estimé). */
 function etiquettePR(r) {
@@ -876,8 +956,8 @@ function vNutrition(v) {
 
   // Journal + recherche
   const cj = h(`<div class="card stack"><h2 style="margin:0">Journal du jour</h2></div>`);
-  const rowSearch = h(`<div class="row"><input id="foodQ" placeholder="Rechercher un aliment (riz, poulet…)" style="flex:1"><button class="primary" id="foodGo">OK</button></div>`);
-  const rowCode = h(`<div class="row"><input id="foodCode" inputmode="numeric" placeholder="Code-barres" style="flex:1"><button id="codeGo">Scanner</button></div>`);
+  const rowSearch = h(`<div class="row"><input id="foodQ" aria-label="Rechercher un aliment" placeholder="Rechercher un aliment (riz, poulet…)" style="flex:1"><button class="primary" id="foodGo">OK</button></div>`);
+  const rowCode = h(`<div class="row"><input id="foodCode" aria-label="Code-barres produit" inputmode="numeric" placeholder="Code-barres" style="flex:1"><button id="codeGo">Scanner</button></div>`);
   const res = h(`<div id="foodRes"></div>`);
   const logBox = h(`<div id="foodLog" style="margin-top:6px"></div>`);
   cj.append(rowSearch, rowCode, res, h(`<hr style="border:none;border-top:1px solid var(--line);margin:6px 0">`), logBox);
@@ -895,8 +975,8 @@ function vNutrition(v) {
       const line = h(`<div class="exline"><div class="meta"><div class="nm small">${esc(f.n)} <span class="tag">${esc(f.src)}${f.note ? " · " + esc(f.note) : ""}</span></div>
         <div class="muted small">${f.kcal} kcal · P${f.p} · G${f.c} · L${f.l} /100 g</div></div>
         <button class="chip">+ Ajouter</button></div>`);
-      line.querySelector("button").addEventListener("click", () => {
-        const g = prompt(`Quantité en grammes pour « ${f.n} » :`, "100");
+      line.querySelector("button").addEventListener("click", async () => {
+        const g = await demanderTexte(`Quantité pour « ${f.n} »`, "100", { ok: "Ajouter", inputmode: "decimal", placeholder: "grammes" });
         if (g && +g > 0) ajouter(f, +g);
       });
       res.append(line);
@@ -908,7 +988,7 @@ function vNutrition(v) {
     if (!lg.length) { logBox.append(h(`<div class="muted small">Rien d'enregistré aujourd'hui.</div>`)); return; }
     lg.forEach((f, i) => {
       const line = h(`<div class="exline"><div class="meta"><div class="nm small">${esc(f.name)} <span class="muted">· ${f.g} g</span></div>
-        <div class="muted small">${f.kcal} kcal · P${f.p}</div></div><button class="chip">✕</button></div>`);
+        <div class="muted small">${f.kcal} kcal · P${f.p}</div></div><button class="chip" aria-label="Retirer l'aliment">✕</button></div>`);
       line.querySelector("button").addEventListener("click", () => { Etat.data.foodlog[jour].splice(i, 1); Etat.sauver(); render(); });
       logBox.append(line);
     });
@@ -1174,7 +1254,7 @@ function vStats(v) {
 
   // poids
   const c = h(`<div class="card stack"><h2 style="margin:0">Poids du corps</h2></div>`);
-  const rowW = h(`<div class="row"><input id="wKg" inputmode="decimal" placeholder="Poids du matin (kg)" style="flex:1"><button class="primary" id="wAdd">Ajouter</button></div>`);
+  const rowW = h(`<div class="row"><input id="wKg" aria-label="Poids du matin en kg" inputmode="decimal" placeholder="Poids du matin (kg)" style="flex:1"><button class="primary" id="wAdd">Ajouter</button></div>`);
   c.append(rowW);
   const poids = Etat.data.metrics.filter((m) => m.poidsKg);
   if (poids.length) c.append(h(`<div class="small muted">Dernier : ${poids[poids.length - 1].poidsKg} kg · ${poids.length} mesure(s)</div>`));
@@ -1187,8 +1267,8 @@ function vStats(v) {
 
   // Mensurations
   const cm = h(`<div class="card stack"><h2 style="margin:0">Mensurations</h2>
-    <div class="row"><input id="mTaille" inputmode="decimal" placeholder="Tour de taille (cm)" style="flex:1"><input id="mPoit" inputmode="decimal" placeholder="Poitrine" style="flex:1"></div>
-    <div class="row"><input id="mBras" inputmode="decimal" placeholder="Bras" style="flex:1"><input id="mCuisse" inputmode="decimal" placeholder="Cuisse" style="flex:1"><button id="mAdd">Enregistrer</button></div>
+    <div class="row"><input id="mTaille" aria-label="Tour de taille en cm" inputmode="decimal" placeholder="Tour de taille (cm)" style="flex:1"><input id="mPoit" aria-label="Poitrine en cm" inputmode="decimal" placeholder="Poitrine" style="flex:1"></div>
+    <div class="row"><input id="mBras" aria-label="Bras en cm" inputmode="decimal" placeholder="Bras" style="flex:1"><input id="mCuisse" aria-label="Cuisse en cm" inputmode="decimal" placeholder="Cuisse" style="flex:1"><button id="mAdd">Enregistrer</button></div>
     <div class="hint">Mesure 1×/semaine, mêmes conditions. Le tour de taille est le meilleur repère de perte de graisse.</div></div>`);
   v.append(cm);
   $("#mAdd", v).addEventListener("click", () => {
@@ -1240,9 +1320,9 @@ function vSet(v) {
   const prof = h(`<div class="card stack"><h2 style="margin:0">Profil & programme</h2>
     <div class="small muted">Objectif : ${GOAL_LABELS[p.objectif]} · Niveau : ${LEVEL_LABELS[p.niveau]} · ${p.joursParSemaine} j/sem · ${p.dureeSeanceMin} min · ${esc(p.lieu)}</div></div>`);
   const bRegen = h(`<button>Refaire l'onboarding / régénérer</button>`);
-  bRegen.addEventListener("click", () => { if (confirm("Refaire l'onboarding ? Ton programme sera régénéré (ton historique de séances est conservé).")) { DRAFT = { ...p }; STEP = 0; Etat.data.profil = null; render(); } });
+  bRegen.addEventListener("click", async () => { if (await confirmer("Refaire l'onboarding ? Ton programme sera régénéré (ton historique de séances est conservé).", { ok: "Refaire" })) { DRAFT = { ...p }; STEP = 0; Etat.data.profil = null; render(); } });
   const bReg = h(`<button>Régénérer le programme avec le profil actuel</button>`);
-  bReg.addEventListener("click", () => { Etat.data.programme = genererProgramme(p); Etat.sauver(); alert("Programme régénéré ✔"); nav("prog"); });
+  bReg.addEventListener("click", () => { Etat.data.programme = genererProgramme(p); Etat.sauver(); nav("prog"); toast("Programme régénéré ✔"); });
   prof.append(bReg, bRegen); v.append(prof);
 
   const aff = h(`<div class="card stack"><h2 style="margin:0">Apparence</h2></div>`);
@@ -1269,20 +1349,29 @@ function vSet(v) {
   file.addEventListener("change", (ev) => {
     const f = ev.target.files[0]; if (!f) return;
     const r = new FileReader();
-    r.onload = () => {
+    r.onload = async () => {
       let obj;
-      try { obj = JSON.parse(String(r.result)); } catch (e) { alert("Fichier illisible : ce n'est pas un JSON valide."); file.value = ""; return; }
+      try { obj = JSON.parse(String(r.result)); } catch (e) { await info("Fichier illisible : ce n'est pas un JSON valide.", { titre: "Import impossible" }); file.value = ""; return; }
       const v = validerImport(obj);
-      if (!v.ok) { alert("Import impossible :\n" + v.erreurs.join("\n")); file.value = ""; return; }
-      const mode = confirm("Restaurer cette sauvegarde.\n\nOK = Fusionner (recommandé : rien n'est perdu, pas de doublon)\nAnnuler = Remplacer TOUT par la sauvegarde")
-        ? "fusionner" : "remplacer";
-      if (mode === "remplacer" && !confirm("Remplacer définitivement toutes tes données actuelles par cette sauvegarde ?")) { file.value = ""; return; }
+      if (!v.ok) { await info(v.erreurs.join("\n"), { titre: "Import impossible" }); file.value = ""; return; }
+      const mode = await dialogue({
+        titre: "Restaurer cette sauvegarde",
+        message: "Fusionner ajoute sans rien perdre (recommandé). Remplacer écrase toutes tes données actuelles.",
+        cancelVal: null,
+        actions: [
+          { label: "Annuler", valeur: null },
+          { label: "Remplacer tout", valeur: "remplacer", danger: true },
+          { label: "Fusionner", valeur: "fusionner", primary: true },
+        ],
+      });
+      if (!mode) { file.value = ""; return; }
+      if (mode === "remplacer" && !(await confirmer("Remplacer définitivement toutes tes données actuelles par cette sauvegarde ?", { danger: true, ok: "Remplacer" }))) { file.value = ""; return; }
       Etat.data = appliquerImport(Etat.data, v.data, mode);
       Etat.sauver();
-      alert(mode === "fusionner" ? "Sauvegarde fusionnée ✔" : "Données remplacées ✔");
       file.value = "";
       appliquerTheme();
       if (Etat.data.profil) { $("#tabs").hidden = false; nav("dash"); } else render();
+      toast(mode === "fusionner" ? "Sauvegarde fusionnée ✔" : "Données remplacées ✔");
     };
     r.readAsText(f);
   });
@@ -1291,7 +1380,7 @@ function vSet(v) {
   const bExpCsvPoids = h(`<button>Exporter mon poids/mensurations (CSV)</button>`);
   bExpCsvPoids.addEventListener("click", () => telechargerCSV(metriquesVersCSV(Etat.data.metrics), nomFichierExport("suivi-corporel")));
   const bDel = h(`<button class="danger">Tout effacer</button>`);
-  bDel.addEventListener("click", () => { if (confirm("Effacer TOUTES les données (profil, programme, historique) ?")) { Etat.reset(); DRAFT = null; STEP = 0; $("#tabs").hidden = true; render(); } });
+  bDel.addEventListener("click", async () => { if (await confirmer("Effacer TOUTES les données (profil, programme, historique) ? Cette action est irréversible.", { danger: true, ok: "Tout effacer" })) { Etat.reset(); DRAFT = null; STEP = 0; $("#tabs").hidden = true; render(); } });
   don.append(bExp, bImp, file, bExpCsvSeances, bExpCsvPoids, bDel); v.append(don);
 
   v.append(h(`<div class="card flat small muted">Coach Perso IA — v0.1 (Phase 1). Application personnelle, locale et hors ligne. Ne remplace pas un avis médical.</div>`));
