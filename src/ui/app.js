@@ -390,14 +390,44 @@ let EDIT_ROUTINE = null; // id de la routine en cours d'édition (onglet Program
 
 function vProg(v) {
   if (EDIT_ROUTINE) { vRoutineEditor(v, EDIT_ROUTINE); return; }
-  const prog = Etat.data.programme;
-  v.append(h(`<div class="spread"><h1>Programme</h1><span class="badge accent">${splitLabel(prog.split)}</span></div>`));
-  v.append(h(`<div class="muted small" style="margin-bottom:8px">${esc(prog.justificationGlobale)}</div>`));
-  const bCat = h(`<button class="chip" style="margin-bottom:8px">🔎 Rechercher dans le catalogue d'exercices</button>`);
+  const prog = Etat.data.programme, p = Etat.data.profil;
+  const sj = seanceDuJour(prog);
+  const nbEx = prog.seances.reduce((a, s) => a + s.exercices.length, 0);
+  const muscles = [...new Set(prog.seances.flatMap((s) => s.groupesCibles || []))].slice(0, 8);
+
+  v.append(h(`<div class="eyebrow">Mon programme</div>`));
+  v.append(h(`<div class="spread" style="margin-bottom:12px"><h1 style="margin:0">${splitLabel(prog.split)}</h1><span class="badge accent">${prog.seances.length} séances</span></div>`));
+
+  // Vue d'ensemble (facts + prochaine séance)
+  const ov = h(`<div class="hero stack"><span class="glow"></span></div>`);
+  const facts = h(`<div class="statgrid"></div>`);
+  facts.append(statCard("🗓️", `${p.joursParSemaine}`, "Jours / sem"));
+  facts.append(statCard("🏋️", `${prog.seances.length}`, "Séances"));
+  facts.append(statCard("💪", `${nbEx}`, "Exercices"));
+  facts.append(statCard("🎯", `${(GOAL_LABELS[p.objectif] || "—").split(" ")[0]}`, "Objectif"));
+  ov.append(facts);
+  if (sj) {
+    const b = h(`<button class="primary big">▶  Séance du jour · ${esc(sj.nom)}</button>`);
+    b.addEventListener("click", () => { LIVE = null; nav("train"); });
+    ov.append(b);
+  }
+  v.append(ov);
+
+  if (muscles.length) {
+    const mc = h(`<div class="row" style="margin:12px 0"></div>`);
+    muscles.forEach((m) => mc.append(h(`<span class="pill">${esc(MUSCLE_LABELS[m] || m)}</span>`)));
+    v.append(mc);
+  }
+  v.append(h(`<div class="notice small">${esc(prog.justificationGlobale)}</div>`));
+  const bCat = h(`<button class="chip" style="margin:2px 0 10px">🔎 Catalogue d'exercices</button>`);
   bCat.addEventListener("click", () => nav("cat"));
   v.append(bCat);
+
+  v.append(h(`<div class="eyebrow" style="margin:6px 0 8px">Séances</div>`));
   prog.seances.forEach((s) => {
-    const d = h(`<details><summary>${esc(s.nom)}<span class="pill">${s.exercices.length} exos</span></summary></details>`);
+    const meta = `${s.exercices.length} exos · ~${s.dureeEstimeeMin || 0} min`
+      + ((s.groupesCibles || []).length ? ` · ${s.groupesCibles.map((m) => MUSCLE_LABELS[m] || m).slice(0, 3).join(" · ")}` : "");
+    const d = h(`<details><summary><span><b>${esc(s.nom)}</b><br><span class="muted small">${esc(meta)}</span></span></summary></details>`);
     s.exercices.forEach((e, i) => d.append(ligneExo(e, i)));
     v.append(d);
   });
