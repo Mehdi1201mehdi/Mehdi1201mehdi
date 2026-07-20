@@ -19,7 +19,7 @@ import { calculerBesoins } from "../engine/nutrition.js";
 import { bilan } from "../engine/review.js";
 import { chercherFoods, portion } from "../data/foods.js";
 import { rechercher as offRechercher, parCodeBarres } from "../integrations/openfoodfacts.js";
-import { Etat, seanceDuJour } from "../store/state.js";
+import { Etat, seanceDuJour, planningJours } from "../store/state.js";
 import {
   nouvelleSession, ajouterSerie, retirerDerniereSerie,
   serialiser, restaurer, estReprenable, dureeSecondes,
@@ -450,46 +450,46 @@ let EDIT_ROUTINE = null; // id de la routine en cours d'édition (onglet Program
 function vProg(v) {
   if (EDIT_ROUTINE) { vRoutineEditor(v, EDIT_ROUTINE); return; }
   const prog = Etat.data.programme, p = Etat.data.profil;
-  const sj = seanceDuJour(prog);
-  const nbEx = prog.seances.reduce((a, s) => a + s.exercices.length, 0);
-  const muscles = [...new Set(prog.seances.flatMap((s) => s.groupesCibles || []))].slice(0, 8);
 
-  v.append(h(`<div class="eyebrow">Mon programme</div>`));
-  v.append(h(`<div class="spread" style="margin-bottom:12px"><h1 style="margin:0">${splitLabel(prog.split)}</h1><span class="badge accent">${prog.seances.length} séances</span></div>`));
+  // En-tête : « Mon programme » + nom du split + Modifier
+  const head = h(`<div class="spread" style="margin-bottom:14px"></div>`);
+  head.append(h(`<div><div class="eyebrow">Mon programme</div><h1 style="margin:2px 0 0">${esc(splitLabel(prog.split))}</h1></div>`));
+  const bEdit = h(`<button class="chip">Modifier</button>`);
+  bEdit.addEventListener("click", () => nav("cat"));
+  head.append(bEdit);
+  v.append(head);
 
-  // Vue d'ensemble (facts + prochaine séance)
-  const ov = h(`<div class="hero stack"><span class="glow"></span></div>`);
-  const facts = h(`<div class="statgrid"></div>`);
-  facts.append(statCard("🗓️", `${p.joursParSemaine}`, "Jours / sem"));
-  facts.append(statCard("🏋️", `${prog.seances.length}`, "Séances"));
-  facts.append(statCard("💪", `${nbEx}`, "Exercices"));
-  facts.append(statCard("🎯", `${(GOAL_LABELS[p.objectif] || "—").split(" ")[0]}`, "Objectif"));
-  ov.append(facts);
-  if (sj) {
-    const b = h(`<button class="primary big">▶  Séance du jour · ${esc(sj.nom)}</button>`);
-    b.addEventListener("click", () => { LIVE = null; nav("train"); });
-    ov.append(b);
+  // Semaine du programme : une carte par jour (Lun→Dim), jours de repos grisés
+  const COULEURS = ["#3B82F6", "#6366F1", "#22C55E", "#F59E0B", "#EF4444", "#06B6D4", "#8B5CF6"];
+  const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+  const planning = planningJours(prog.seances.length);
+  const parJour = {};
+  prog.seances.forEach((s, i) => { if (planning[i]) parJour[planning[i]] = { s, i }; });
+  const auj = ((new Date().getDay() + 6) % 7) + 1;
+  for (let wd = 1; wd <= 7; wd++) {
+    const cell = parJour[wd];
+    if (cell) {
+      const s = cell.s, col = COULEURS[cell.i % COULEURS.length];
+      const muscles = (s.groupesCibles || []).map((m) => MUSCLE_LABELS[m] || m).slice(0, 3).join(" · ");
+      const meta = `${muscles}${muscles ? " · " : ""}${s.exercices.length} exos · ${s.dureeEstimeeMin || 0} min`;
+      const d = h(`<details class="daycard${wd === auj ? " today" : ""}"></details>`);
+      d.append(h(`<summary><span class="dc-ic" style="background:${col}26;color:${col}">🏋️</span><span class="dc-main"><span class="dc-day">${JOURS[wd - 1]}${wd === auj ? " · Aujourd'hui" : ""}</span><b class="dc-name">${esc(s.nom)}</b><span class="muted small">${esc(meta)}</span></span></summary>`));
+      s.exercices.forEach((e, i) => d.append(ligneExo(e, i)));
+      if (wd === auj) {
+        const b = h(`<button class="primary big" style="margin-top:11px">▶  Commencer la séance</button>`);
+        b.addEventListener("click", () => { LIVE = null; nav("train"); });
+        d.append(b);
+      }
+      v.append(d);
+    } else {
+      v.append(h(`<div class="daycard rest"><span class="dc-ic" style="background:var(--surface-2);color:var(--ink-soft)">😴</span><span class="dc-main"><span class="dc-day">${JOURS[wd - 1]}</span><b class="dc-name">Repos</b><span class="muted small">Récupération</span></span></div>`));
+    }
   }
-  v.append(ov);
 
-  if (muscles.length) {
-    const mc = h(`<div class="row" style="margin:12px 0"></div>`);
-    muscles.forEach((m) => mc.append(h(`<span class="pill">${esc(MUSCLE_LABELS[m] || m)}</span>`)));
-    v.append(mc);
-  }
-  v.append(h(`<div class="notice small">${esc(prog.justificationGlobale)}</div>`));
+  v.append(h(`<div class="hint" style="margin:12px 0 6px">${esc(prog.justificationGlobale)}</div>`));
   const bCat = h(`<button class="chip" style="margin:2px 0 10px">🔎 Catalogue d'exercices</button>`);
   bCat.addEventListener("click", () => nav("cat"));
   v.append(bCat);
-
-  v.append(h(`<div class="eyebrow" style="margin:6px 0 8px">Séances</div>`));
-  prog.seances.forEach((s) => {
-    const meta = `${s.exercices.length} exos · ~${s.dureeEstimeeMin || 0} min`
-      + ((s.groupesCibles || []).length ? ` · ${s.groupesCibles.map((m) => MUSCLE_LABELS[m] || m).slice(0, 3).join(" · ")}` : "");
-    const d = h(`<details><summary><span><b>${esc(s.nom)}</b><br><span class="muted small">${esc(meta)}</span></span></summary></details>`);
-    s.exercices.forEach((e, i) => d.append(ligneExo(e, i)));
-    v.append(d);
-  });
 
   // ---- Mes routines (programmes créés à la main, illimités) ----
   v.append(h(`<h2 style="margin:18px 0 2px">Mes routines</h2>`));
@@ -620,13 +620,15 @@ function ligneExo(e, i) {
   const t = e.series.find((s) => s.type === "travail") || e.series[0];
   const cible = t?.dureeSec ? `${t.dureeSec} s` : t?.repsCible ? `${t.repsCible[0]}–${t.repsCible[1]} reps` : "";
   const nb = e.series.filter((s) => s.type !== "echauffement").length;
+  const nom = exo ? exo.nom : e.exerciceId;
   const row = h(`<div class="exline">
     <div class="idx">${i + 1}</div>
-    <div class="meta"><div class="nm">${esc(exo.nom)}</div>
-      <div class="muted small">${nb} × ${cible} · repos ${t?.reposSec || 60}s · ${esc(e.role)}</div>
-      <div class="muted small">${esc(e.justification)}</div></div>
-    <button class="chip" aria-label="Détails">ℹ️</button></div>`);
-  row.querySelector("button").addEventListener("click", () => ouvrirDetail(exo));
+    <div class="meta"><div class="nm">${esc(nom)}</div>
+      <div class="muted small">${nb} × ${cible} · repos ${t?.reposSec || 60}s · ${esc(e.role || "")}</div>
+      ${e.justification ? `<div class="muted small">${esc(e.justification)}</div>` : ""}</div>
+    ${exo ? `<button class="chip" aria-label="Détails">ℹ️</button>` : ""}</div>`);
+  const btn = row.querySelector("button");
+  if (btn) btn.addEventListener("click", () => ouvrirDetail(exo));
   return row;
 }
 const DIFF_LABEL = ["", "Grand débutant", "Débutant", "Intermédiaire", "Avancé"];
