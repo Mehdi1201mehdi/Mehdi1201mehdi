@@ -216,6 +216,12 @@ button.linklike{background:transparent;border:none;min-height:auto;padding:0;col
 /* Écran fin de séance */
 .finseance .fin-head{text-align:center;padding-top:24px}
 .fin-check{width:82px;height:82px;border-radius:50%;margin:0 auto;display:grid;place-items:center;font-size:2.4rem;font-weight:900;color:#fff;background:var(--ok);box-shadow:0 10px 30px color-mix(in srgb,var(--ok) 40%,transparent)}
+/* Splash de démarrage */
+#splash{position:fixed;inset:0;z-index:100;background:radial-gradient(120% 60% at 50% 30%,color-mix(in srgb,var(--accent) 14%,var(--bg)),var(--bg));display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;transition:opacity .45s ease}
+#splash.hidden{opacity:0;pointer-events:none}
+#splash .sp-logo img{width:104px;height:104px;border-radius:26px;box-shadow:var(--shadow-lg)}
+#splash .sp-name{font-size:1.85rem;font-weight:850;letter-spacing:.03em;margin-top:10px}
+#splash .sp-tag{color:var(--ink-soft);font-size:.9rem;letter-spacing:.01em;padding:0 32px;text-align:center}
 
 /* Saisie de séance */
 .setrow{display:grid;grid-template-columns:38px 1.05fr 1fr 1fr 50px;gap:8px;align-items:center;margin:8px 0}
