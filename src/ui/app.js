@@ -14,7 +14,7 @@ import { genererProgramme } from "../engine/generator.js";
 import { recommander } from "../engine/progression.js";
 import { alternatives } from "../engine/replacement.js";
 import { chercherDemonstration, lienYouTube } from "../integrations/exercisedb.js";
-import { muscleDiagram } from "./anatomy.js";
+import { muscleDiagram, muscleHeatmap } from "./anatomy.js";
 import { calculerBesoins } from "../engine/nutrition.js";
 import { bilan } from "../engine/review.js";
 import { chercherFoods, portion } from "../data/foods.js";
@@ -1036,6 +1036,30 @@ function carteForce(v) {
   v.append(card);
 }
 
+/** Carte de chaleur musculaire : zones réellement travaillées (données locales). */
+function carteMuscleHeatmap(v) {
+  const logs = Etat.data.logs || [];
+  if (!logs.length) return;
+  const recents = logs.filter((l) => Date.now() - Date.parse(l.date) < 30 * 864e5);
+  const source = recents.length ? recents : logs;
+  const vm = volumeParMuscle(source, getExercise);
+  if (!vm.length) return;
+  const max = Math.max(...vm.map((x) => x.v), 1);
+  const intensites = {};
+  for (const x of vm) intensites[x.muscle] = x.v / max;
+  const card = h(`<div class="card stack"><h2 style="margin:0">🗺️ Carte musculaire</h2><div class="small muted">Zones travaillées ${recents.length ? "(30 derniers jours)" : "(tout l'historique)"} · plus c'est vif, plus c'est sollicité</div></div>`);
+  const wrap = h(`<div>${muscleHeatmap(intensites)}</div>`);
+  let repli = false;
+  wrap.querySelectorAll("img.base").forEach((img) => img.addEventListener("error", () => {
+    if (repli) return; repli = true;
+    wrap.innerHTML = `<div class="hint" style="text-align:center;padding:8px 0">Planche musculaire indisponible hors ligne pour l'instant.</div>`;
+  }));
+  card.append(wrap);
+  const top = vm.slice(0, 4).map((x) => `<span class="tag">${esc(MUSCLE_LABELS[x.muscle] || x.muscle)}</span>`).join(" ");
+  if (top) card.append(h(`<div class="row" style="flex-wrap:wrap;gap:4px;margin-top:6px">${top}</div>`));
+  v.append(card);
+}
+
 function svgLine(points, label = "") {
   if (points.length < 2) return `<div class="muted small">Pas encore assez de données (2 points minimum).</div>`;
   const W = 600, H = 150, pad = 30;
@@ -1109,6 +1133,9 @@ function vStats(v) {
   const parMuscle = volumeParMuscle(logs, getExercise).slice(0, 8)
     .map((x) => ({ x: MUSCLE_LABELS[x.muscle] || x.muscle, v: x.v }));
   if (parMuscle.length) v.append(h(`<div class="card">${svgBars(parMuscle, "Volume par groupe musculaire")}</div>`));
+
+  // Carte de chaleur musculaire (visuel des zones travaillées)
+  carteMuscleHeatmap(v);
 
   // Records estimés (1RM · Epley)
   const prs = classementRecords(logs, nomExo, 8);

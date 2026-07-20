@@ -45,3 +45,41 @@ export function muscleDiagram(principaux, secondaires) {
     <div class="anview"><img class="base" src="${BASE}/muscular_system_back.svg" alt="Vue arrière">${calques(0)}<span class="lab">Arrière</span></div>
   </div>`;
 }
+
+/**
+ * Carte de chaleur musculaire : colore chaque muscle selon son INTENSITÉ de
+ * travail (0 → 1). Plus un muscle a été sollicité, plus le calque est opaque.
+ * Sert à visualiser, sur le corps, les zones réellement entraînées (à partir
+ * des données locales de l'utilisateur — aucune API).
+ *
+ * @param {Record<string,number>|Map<string,number>} intensites  muscle → 0..1
+ */
+export function muscleHeatmap(intensites) {
+  const get = (m) => {
+    const x = intensites instanceof Map ? intensites.get(m) : intensites[m];
+    return Number(x) || 0;
+  };
+  // Un exercice « corps entier » rejaillit sur les grands groupes.
+  const base = {};
+  for (const m of Object.keys(WGER)) base[m] = get(m);
+  const global = get("corps_entier");
+  if (global > 0) for (const m of CORPS_ENTIER) base[m] = Math.max(base[m] || 0, global);
+
+  const calques = (front) => {
+    let html = "";
+    for (const [m, w] of Object.entries(WGER)) {
+      if (w.front !== front) continue;
+      const i = Math.max(0, Math.min(1, base[m] || 0));
+      if (i > 0) {
+        const opac = (0.3 + 0.7 * i).toFixed(2); // toujours visible dès qu'entraîné
+        html += `<img class="ov" style="opacity:${opac}" src="${BASE}/main/muscle-${w.id}.svg" alt="">`;
+      }
+    }
+    return html;
+  };
+
+  return `<div class="anat2">
+    <div class="anview"><img class="base" src="${BASE}/muscular_system_front.svg" alt="Vue avant">${calques(1)}<span class="lab">Avant</span></div>
+    <div class="anview"><img class="base" src="${BASE}/muscular_system_back.svg" alt="Vue arrière">${calques(0)}<span class="lab">Arrière</span></div>
+  </div>`;
+}
