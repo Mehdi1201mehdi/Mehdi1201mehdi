@@ -84,13 +84,34 @@ $("#themeBtn").addEventListener("click", () => {
 /* ---------- navigation ---------- */
 let TAB = "dash";
 const TABS = { dash: vDash, prog: vProg, cat: vCatalogue, train: vTrain, food: vNutrition, stats: vStats, set: vSet };
-function nav(t) {
+function majTabs() {
+  $("#tabs").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.tab === TAB));
+}
+/** Change d'onglet + entrée d'historique (le bouton retour renavigue). */
+function nav(t, remplace = false) {
   TAB = t;
-  $("#tabs").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.tab === t));
+  majTabs();
   render(); window.scrollTo(0, 0);
+  const etat = { tab: t };
+  if (remplace) history.replaceState(etat, ""); else history.pushState(etat, "");
 }
 $("#tabs").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => nav(b.dataset.tab)));
 function render() { view.innerHTML = ""; (Etat.data.profil ? TABS[TAB] : vOnboarding)(view); }
+
+/* ---------- bouton retour (feuilles modales + onglets) ---------- */
+window.addEventListener("popstate", (e) => {
+  // 1) Une feuille est ouverte → le retour la ferme (et ré-affirme l'onglet
+  //    courant pour ne pas naviguer en même temps).
+  const sh = document.querySelector(".sheet");
+  if (sh) {
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    sh.remove();
+    history.pushState({ tab: TAB }, "");
+    return;
+  }
+  // 2) Sinon, retour = changement d'onglet.
+  if (Etat.data.profil) { TAB = (e.state && e.state.tab) || "dash"; majTabs(); render(); window.scrollTo(0, 0); }
+});
 
 /* ======================================================================
    ONBOARDING (assistant étape par étape, avec explications)
@@ -823,6 +844,8 @@ function startTimer(sec) {
   $("#ovPlus").onclick = () => { left += 15; total = Math.max(total, left); draw(); };
   $("#ovMinus").onclick = () => { left = Math.max(1, left - 15); draw(); };
   $("#ovSkip").onclick = stopTimer;
+  // Un tap sur le fond ferme le minuteur (pour revenir à « Terminer » facilement).
+  ov.onclick = (e) => { if (e.target === ov) stopTimer(); };
 }
 function stopTimer() { clearInterval(TMR); $("#overlay").classList.remove("show"); }
 
@@ -1283,24 +1306,8 @@ function vSet(v) {
  */
 async function amorcerApp() {
   await Etat.init();
-
-  // Activation de la clé WorkoutX par lien : …/?wxkey=wx_…  → enregistrée
-  // localement (jamais dans le code) puis retirée de l'URL.
-  try {
-    const params = new URLSearchParams(location.search);
-    const k = params.get("wxkey");
-    if (k && k.trim()) {
-      Etat.data.reglages.workoutxKey = k.trim();
-      Etat.data.mediaCache = {};
-      Etat.sauver();
-      params.delete("wxkey");
-      const q = params.toString();
-      history.replaceState(null, "", location.pathname + (q ? "?" + q : "") + location.hash);
-    }
-  } catch (e) { /* ignore */ }
-
   appliquerTheme();
-  if (Etat.data.profil) { $("#tabs").hidden = false; nav("dash"); }
-  else render();
+  if (Etat.data.profil) { $("#tabs").hidden = false; nav("dash", true); }
+  else { history.replaceState({ tab: null }, ""); render(); }
 }
 amorcerApp();

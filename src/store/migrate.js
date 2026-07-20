@@ -28,8 +28,7 @@ export function etatVide() {
     reviews: [],              // bilans d'ajustement
     mediaCache: {},           // exId -> URL de média résolue
     reglages: {
-      theme: "auto", unites: "metrique", sons: true,
-      vibrations: true, rapidKey: "", workoutxKey: "",
+      theme: "auto", unites: "metrique", sons: true, vibrations: true,
     },
   };
 }
