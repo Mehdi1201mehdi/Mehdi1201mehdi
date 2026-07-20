@@ -382,6 +382,12 @@ function anneauSVG(pct, taille = 76, texte = "") {
 function statCard(icone, valeur, label) {
   return h(`<div class="stat"><div class="ic" aria-hidden="true">${icone}</div><b class="num">${esc(valeur)}</b><span class="lab">${esc(label)}</span></div>`);
 }
+/** Barre de macro (libellé + valeur/cible + jauge colorée). Composant réutilisable. */
+function macroBar(label, valeur, cible, unite, cls) {
+  const v = Math.round(valeur || 0);
+  const pct = cible ? Math.min(100, Math.round((v / cible) * 100)) : 0;
+  return h(`<div class="macro"><div class="lg spread small"><span>${esc(label)}</span><span class="num muted">${v} / ${cible} ${esc(unite)}</span></div><div class="bar ${cls}"><div style="width:${pct}%"></div></div></div>`);
+}
 
 /* ======================================================================
    PROGRAMME
@@ -1039,19 +1045,23 @@ function vNutrition(v) {
   const log = Etat.data.foodlog[jour] || [];
   const tot = log.reduce((a, f) => ({ kcal: a.kcal + f.kcal, p: a.p + f.p, c: a.c + f.c, l: a.l + f.l }), { kcal: 0, p: 0, c: 0, l: 0 });
 
-  v.append(h(`<h1>Nutrition</h1>`));
-  // Objectifs du jour
-  const cible = h(`<div class="card stack">
-    <div class="spread"><h2 style="margin:0">Objectifs du jour</h2><span class="badge ${tot.kcal > b.kcal * 1.07 ? "amber" : "ok"}">${Math.round(tot.kcal)} / ${b.kcal} kcal</span></div>
-    <div class="bar lime"><div style="width:${Math.min(100, Math.round(tot.kcal / b.kcal * 100))}%"></div></div>
-    <table>
-      <tr><td>Protéines</td><td class="num">${Math.round(tot.p)} / ${b.prot} g</td></tr>
-      <tr><td>Glucides</td><td class="num">${Math.round(tot.c)} / ${b.gluc} g</td></tr>
-      <tr><td>Lipides</td><td class="num">${Math.round(tot.l)} / ${b.lip} g</td></tr>
-      <tr><td>Eau</td><td class="num">~${b.eau} L</td></tr>
-    </table>
-    <div class="hint">Estimation Mifflin-St Jeor : BMR ${b.bmr} × activité ${b.facteur} = ~${b.tdee} kcal, ajusté selon ton objectif. On affine selon la tendance de poids sur 1–2 semaines, jamais sur une seule pesée. Ceci n'est pas un avis diététique médical.</div>
-  </div>`);
+  v.append(h(`<h1 style="margin-bottom:12px">Nutrition</h1>`));
+  // Objectifs du jour : anneau calories + barres de macros
+  const restant = b.kcal - Math.round(tot.kcal);
+  const cible = h(`<div class="card stack"></div>`);
+  const top = h(`<div class="ringstat"></div>`);
+  top.append(h(anneauSVG(Math.min(1, tot.kcal / (b.kcal || 1)), 96, `${Math.round(tot.kcal)}`)));
+  const kinfo = h(`<div style="flex:1;min-width:0"></div>`);
+  kinfo.append(h(`<div class="eyebrow" style="color:var(--accent-ink)">Calories</div>`));
+  kinfo.append(h(`<div style="margin:2px 0"><b style="font-size:1.5rem">${Math.round(tot.kcal)}</b> <span class="muted">/ ${b.kcal} kcal</span></div>`));
+  kinfo.append(h(`<span class="badge ${restant >= 0 ? "ok" : "amber"}">${restant >= 0 ? `${restant} kcal restantes` : `${-restant} kcal au-dessus`}</span>`));
+  top.append(kinfo);
+  cible.append(top);
+  cible.append(macroBar("Protéines", tot.p, b.prot, "g", "mp"));
+  cible.append(macroBar("Glucides", tot.c, b.gluc, "g", "mg"));
+  cible.append(macroBar("Lipides", tot.l, b.lip, "g", "ml"));
+  cible.append(h(`<div class="spread small" style="margin-top:4px"><span>💧 Eau (objectif)</span><span class="num muted">~${b.eau} L / j</span></div>`));
+  cible.append(h(`<div class="hint">Estimation Mifflin-St Jeor : BMR ${b.bmr} × activité ${b.facteur} = ~${b.tdee} kcal, ajusté selon ton objectif. On affine selon la tendance de poids sur 1–2 semaines, jamais sur une seule pesée. Ceci n'est pas un avis diététique médical.</div>`));
   v.append(cible);
 
   // Journal + recherche

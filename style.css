@@ -118,6 +118,12 @@ label.f>span{display:block;font-size:.8rem;font-weight:750;color:var(--ink-soft)
 .trainhead{margin-bottom:6px}
 .exo-done{opacity:.66}
 .exo-done .setrow input{opacity:.9}
+/* Nutrition : barres de macros colorées */
+.macro+.macro{margin-top:11px}
+.macro .lg{margin-bottom:5px}
+.bar.mp>div{background:linear-gradient(90deg,var(--accent),var(--accent-ink))}
+.bar.mg>div{background:var(--ok)}
+.bar.ml>div{background:linear-gradient(90deg,var(--accent-2),var(--lime))}
 
 .exline{display:flex;gap:12px;align-items:center;padding:13px 0;border-bottom:1px solid var(--line)}
 .exline:last-child{border-bottom:none}
