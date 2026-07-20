@@ -11,17 +11,22 @@
  * Usage : node src/integrations/media-probe.mjs --dir=ext [--pages=6]
  */
 import { readdir, stat } from "node:fs/promises";
-import { join, extname } from "node:path";
+import { join, extname, relative } from "node:path";
 
-async function walkExt(dir, acc = {}) {
+async function walkExt(dir, racine = dir, acc = { counts: {}, samples: {} }) {
   let noms;
   try { noms = await readdir(dir); } catch { return acc; }
   for (const nom of noms) {
     if (nom === ".git") continue;
     const p = join(dir, nom);
     const s = await stat(p);
-    if (s.isDirectory()) await walkExt(p, acc);
-    else { const e = extname(p).toLowerCase() || "(sans)"; acc[e] = (acc[e] || 0) + 1; }
+    if (s.isDirectory()) await walkExt(p, racine, acc);
+    else {
+      const e = extname(p).toLowerCase() || "(sans)";
+      acc.counts[e] = (acc.counts[e] || 0) + 1;
+      (acc.samples[e] ||= []);
+      if (acc.samples[e].length < 6) acc.samples[e].push(relative(racine, p).split("\\").join("/"));
+    }
   }
   return acc;
 }
@@ -54,13 +59,14 @@ async function main() {
   const pagesMax = Number(args.pages || 6);
 
   console.log("=== 1) Dataset cloné :", dir, "===");
-  const exts = await walkExt(dir);
+  const { counts: exts, samples } = await walkExt(dir);
   const anim = (exts[".gif"] || 0) + (exts[".webp"] || 0) + (exts[".apng"] || 0);
   const video = (exts[".mp4"] || 0) + (exts[".webm"] || 0) + (exts[".mov"] || 0);
   const fixe = (exts[".jpg"] || 0) + (exts[".jpeg"] || 0) + (exts[".png"] || 0);
   for (const [e, n] of Object.entries(exts).sort((a, b) => b[1] - a[1])) console.log(`  ${e.padEnd(8)} ${n}`);
   console.log(`  → images fixes: ${fixe} · animations (gif/webp): ${anim} · vidéos: ${video}`);
-  console.log(anim > 0 ? "  ✅ Ce dataset CONTIENT des images animées." : "  ❌ Aucune image animée dans ce dataset (fixes uniquement).");
+  console.log("  Exemples .jpg :\n   - " + ((samples[".jpg"] || []).join("\n   - ") || "aucun"));
+  console.log("  Exemples .gif :\n   - " + ((samples[".gif"] || []).join("\n   - ") || "aucun"));
 
   console.log("\n=== 2) wger : exercices avec vidéo ===");
   try {
