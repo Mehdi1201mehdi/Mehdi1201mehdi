@@ -1154,13 +1154,41 @@ function terminer() {
   LIVE = null;
   Etat.data.sessionEnCours = null; // séance terminée : plus rien à reprendre
   Etat.sauver();
-  let msg = "Séance enregistrée 💪";
-  if (prs.length) {
-    msg += "\n🏆 Nouveau" + (prs.length > 1 ? "x records !" : " record !") + "\n"
-      + prs.map((r) => `• ${r.nom} : ${etiquettePR(r)}`).join("\n");
-  }
+  arreterChrono();
   nav("dash");
-  toast(msg, prs.length ? 5000 : 3000);
+  ecranFinSeance(nouveauLog, prs);
+}
+/** Écran récapitulatif de fin de séance (façon maquette). */
+function ecranFinSeance(log, prs) {
+  const min = Math.round((log.dureeSec || 0) / 60);
+  const dureeTxt = min >= 60 ? `${Math.floor(min / 60)}h${String(min % 60).padStart(2, "0")}` : `${min} min`;
+  const nbSeries = (log.exercices || []).reduce((a, e) => a + (e.series || []).length, 0);
+  const volume = Math.round(volumeLog(log));
+  const kcal = Math.round(min * 8);
+  const sheet = h(`<div class="sheet finseance"><div class="inner"></div></div>`);
+  const inner = sheet.querySelector(".inner");
+  inner.append(h(`<div class="fin-head"><div class="fin-check">✓</div><h1 style="margin:16px 0 4px">Séance terminée 🎉</h1><div class="muted">Excellent travail, continue comme ça !</div></div>`));
+  const g = h(`<div class="statgrid" style="margin-top:20px"></div>`);
+  g.append(statCard("⏱️", dureeTxt, "Durée"));
+  g.append(statCard("🏋️", `${(log.exercices || []).length}`, "Exercices"));
+  g.append(statCard("🔁", `${nbSeries}`, "Séries"));
+  g.append(statCard("📊", volume.toLocaleString("fr-FR"), "Volume kg"));
+  g.append(statCard("🔥", `${kcal}`, "Calories"));
+  g.append(statCard("🏆", `${prs.length}`, prs.length > 1 ? "Records" : "Record"));
+  inner.append(g);
+  if (prs.length) {
+    const rc = h(`<div class="card stack" style="margin-top:14px"><b>🏆 ${prs.length > 1 ? "Nouveaux records" : "Nouveau record"} !</b></div>`);
+    prs.forEach((r) => rc.append(h(`<div class="small">• ${esc(r.nom)} : ${esc(etiquettePR(r))}</div>`)));
+    inner.append(rc);
+  }
+  const acts = h(`<div class="row" style="margin-top:20px"></div>`);
+  const bVoir = h(`<button class="secondary big" style="flex:1">Voir la séance</button>`);
+  bVoir.addEventListener("click", () => { sheet.remove(); nav("stats"); });
+  const bFin = h(`<button class="primary big" style="flex:1">Terminer</button>`);
+  bFin.addEventListener("click", () => { sheet.remove(); nav("dash"); });
+  acts.append(bVoir, bFin);
+  inner.append(acts);
+  document.body.append(sheet);
 }
 /** Libellé court d'un record (poids, reps ou 1RM estimé). */
 function etiquettePR(r) {
@@ -1191,6 +1219,8 @@ function stopTimer() { clearInterval(TMR); $("#overlay").classList.remove("show"
    NUTRITION (Open Food Facts + base locale)
    ====================================================================== */
 const VERRE_ML = 250; // un verre standard
+const REPAS = [["petit_dej", "Petit déjeuner", "🌅"], ["dejeuner", "Déjeuner", "🍽️"], ["collation", "Collation", "🍎"], ["diner", "Dîner", "🌙"]];
+let CUR_REPAS = null; // repas cible pour les ajouts (défaut : selon l'heure)
 /** Carte d'hydratation interactive : verres bus vs objectif du jour. */
 function carteEau(v, b, jour) {
   const cibleMl = Math.round((b.eau || 2) * 1000);
@@ -1250,18 +1280,23 @@ function vNutrition(v) {
   // Hydratation : suivi interactif (façon carte « Water Intake »)
   carteEau(v, b, jour);
 
-  // Journal + recherche
+  // Journal par repas + recherche
+  if (!CUR_REPAS) { const hr = new Date().getHours(); CUR_REPAS = hr < 11 ? "petit_dej" : hr < 15 ? "dejeuner" : hr < 19 ? "collation" : "diner"; }
   const cj = h(`<div class="card stack"><h2 style="margin:0">Journal du jour</h2></div>`);
+  const selRepas = h(`<div><div class="eyebrow" style="margin-bottom:6px">Ajouter à</div></div>`);
+  const chipsRepas = h(`<div class="row" style="overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none"></div>`);
+  REPAS.forEach(([k, lab, ic]) => { const b = h(`<button class="chip ${CUR_REPAS === k ? "on" : ""}">${ic} ${lab}</button>`); b.addEventListener("click", () => { CUR_REPAS = k; render(); }); chipsRepas.append(b); });
+  selRepas.append(chipsRepas);
   const rowSearch = h(`<div class="row"><input id="foodQ" aria-label="Rechercher un aliment" placeholder="Rechercher un aliment (riz, poulet…)" style="flex:1"><button class="primary" id="foodGo">OK</button></div>`);
   const rowCode = h(`<div class="row"><input id="foodCode" aria-label="Code-barres produit" inputmode="numeric" placeholder="Code-barres" style="flex:1"><button id="codeGo">Scanner</button></div>`);
   const res = h(`<div id="foodRes"></div>`);
   const logBox = h(`<div id="foodLog" style="margin-top:6px"></div>`);
-  cj.append(rowSearch, rowCode, res, h(`<hr style="border:none;border-top:1px solid var(--line);margin:6px 0">`), logBox);
+  cj.append(selRepas, rowSearch, rowCode, res, h(`<hr style="border:none;border-top:1px solid var(--line);margin:6px 0">`), logBox);
   v.append(cj);
 
   const ajouter = (f, g) => {
     const m = portion(f, g);
-    (Etat.data.foodlog[jour] ||= []).push({ name: f.n, g, ...m, src: f.src });
+    (Etat.data.foodlog[jour] ||= []).push({ name: f.n, g, ...m, src: f.src, repas: CUR_REPAS });
     Etat.sauver(); render();
   };
   const afficherResultats = (list) => {
@@ -1282,11 +1317,19 @@ function vNutrition(v) {
     const lg = Etat.data.foodlog[jour] || [];
     logBox.innerHTML = "";
     if (!lg.length) { logBox.append(h(`<div class="muted small">Rien d'enregistré aujourd'hui.</div>`)); return; }
-    lg.forEach((f, i) => {
-      const line = h(`<div class="exline"><div class="meta"><div class="nm small">${esc(f.name)} <span class="muted">· ${f.g} g</span></div>
-        <div class="muted small">${f.kcal} kcal · P${f.p}</div></div><button class="chip" aria-label="Retirer l'aliment">✕</button></div>`);
-      line.querySelector("button").addEventListener("click", () => { Etat.data.foodlog[jour].splice(i, 1); Etat.sauver(); render(); });
-      logBox.append(line);
+    const groupes = [...REPAS, ["autre", "Autres", "🍴"]];
+    const cle = (f) => (REPAS.some((r) => r[0] === f.repas) ? f.repas : "autre");
+    groupes.forEach(([k, lab, ic]) => {
+      const items = lg.map((f, i) => ({ f, i })).filter(({ f }) => cle(f) === k);
+      if (!items.length) return;
+      const tot = items.reduce((a, { f }) => a + (f.kcal || 0), 0);
+      logBox.append(h(`<div class="spread" style="margin:10px 0 4px"><span class="repas-h">${ic} ${lab}</span><span class="num muted small">${Math.round(tot)} kcal</span></div>`));
+      items.forEach(({ f, i }) => {
+        const line = h(`<div class="exline"><div class="meta"><div class="nm small">${esc(f.name)} <span class="muted">· ${f.g} g</span></div>
+          <div class="muted small">${f.kcal} kcal · P${f.p}</div></div><button class="chip" aria-label="Retirer l'aliment">✕</button></div>`);
+        line.querySelector("button").addEventListener("click", () => { Etat.data.foodlog[jour].splice(i, 1); Etat.sauver(); render(); });
+        logBox.append(line);
+      });
     });
   };
   dessinerLog();

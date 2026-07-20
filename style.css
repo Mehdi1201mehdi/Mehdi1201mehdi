@@ -212,6 +212,10 @@ button.linklike{background:transparent;border:none;min-height:auto;padding:0;col
 .rc-val{font-size:1.7rem;font-weight:850;letter-spacing:-.03em;margin-top:4px}
 .rc-val span{font-size:.9rem;font-weight:700;color:var(--ink-soft)}
 .rc-sub{font-size:.74rem;margin-top:2px}
+.repas-h{font-weight:800;font-size:.92rem}
+/* Écran fin de séance */
+.finseance .fin-head{text-align:center;padding-top:24px}
+.fin-check{width:82px;height:82px;border-radius:50%;margin:0 auto;display:grid;place-items:center;font-size:2.4rem;font-weight:900;color:#fff;background:var(--ok);box-shadow:0 10px 30px color-mix(in srgb,var(--ok) 40%,transparent)}
 
 /* Saisie de séance */
 .setrow{display:grid;grid-template-columns:38px 1.05fr 1fr 1fr 50px;gap:8px;align-items:center;margin:8px 0}
