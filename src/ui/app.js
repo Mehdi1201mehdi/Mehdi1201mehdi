@@ -89,6 +89,7 @@ function majTabs() {
 }
 /** Change d'onglet + entrée d'historique (le bouton retour renavigue). */
 function nav(t, remplace = false) {
+  if (t !== "train") arreterChrono();
   TAB = t;
   majTabs();
   render(); window.scrollTo(0, 0);
@@ -820,6 +821,15 @@ function vCatalogue(v) {
    SÉANCE GUIDÉE (mode entraînement)
    ====================================================================== */
 let LIVE = null; // état live (voir engine/liveSession.js)
+let SESSION_TMR = null; // chronomètre de séance (temps écoulé)
+/** Met à jour le chrono de séance (mm:ss) à partir de l'heure de début. */
+function majChrono() {
+  const el = document.getElementById("seanceTimer");
+  if (!el || !LIVE) return;
+  const sec = Math.max(0, Math.floor((Date.now() - Date.parse(LIVE.debut)) / 1000));
+  el.textContent = `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}`;
+}
+function arreterChrono() { if (SESSION_TMR) { clearInterval(SESSION_TMR); SESSION_TMR = null; } }
 
 /**
  * Persiste la séance en cours dans l'état (donc IndexedDB) pour pouvoir la
@@ -842,6 +852,7 @@ function vTrain(v) {
   // Reprise d'une séance interrompue (après actualisation / fermeture).
   if (!LIVE && estReprenable(Etat.data.sessionEnCours, trouverSeance)) LIVE = restaurer(Etat.data.sessionEnCours);
   if (!LIVE) {
+    arreterChrono();
     const sj = seanceDuJour(prog);
     v.append(h(`<h1 style="margin-bottom:6px">Choisir une séance</h1>`));
     v.append(h(`<div class="notice small">Échauffe-toi 5–10 min (cardio léger + mobilité + séries d'approche sur les gros mouvements) avant de commencer.</div>`));
@@ -856,13 +867,15 @@ function vTrain(v) {
   }
   const seance = trouverSeance(LIVE.seanceId);
   if (!seance) { LIVE = null; persistLive(true); render(); return; }
-  // En-tête de séance avec progression (séries validées / total)
+  // En-tête de séance : nom + chrono + progression (séries validées / total)
   const pr = progressionSeance(seance);
+  const nbExos = seance.exercices.length;
   const head = h(`<div class="card trainhead stack"></div>`);
-  head.append(h(`<div class="spread"><h1 style="margin:0;font-size:1.3rem">${esc(seance.nom)}</h1><button class="chip danger" id="abandon">Abandonner</button></div>`));
+  head.append(h(`<div class="spread"><div style="min-width:0"><h1 style="margin:0;font-size:1.3rem">${esc(seance.nom)}</h1><span class="num" style="color:var(--accent-ink);font-weight:800;font-size:1.05rem" id="seanceTimer">00:00</span></div><button class="chip danger" id="abandon">Abandonner</button></div>`));
   head.append(h(`<div class="bar"><div id="seanceProgBar" style="width:${Math.round(pr.pct * 100)}%"></div></div>`));
-  head.append(h(`<div class="muted small" id="seanceProgTxt">${pr.faits}/${pr.tot} séries validées · sauvegarde auto 💾</div>`));
+  head.append(h(`<div class="muted small" id="seanceProgTxt">${pr.faits}/${pr.tot} séries · ${nbExos} exercices · sauvegarde auto 💾</div>`));
   v.append(head);
+  arreterChrono(); majChrono(); SESSION_TMR = setInterval(majChrono, 1000);
   seance.exercices.forEach((e) => v.append(carteExoLive(e)));
   const bAdd = h(`<button class="chip" style="margin-top:8px">➕ Ajouter un exercice</button>`);
   bAdd.addEventListener("click", () => ajouterExerciceLive(seance));
@@ -910,6 +923,11 @@ function progressionSeance(seance) {
 function carteExoLive(e) {
   const st = LIVE.data[e.exerciceId];
   const exo = getExercise(st.exId);
+  if (!exo) {
+    const c = h(`<div class="card"><div class="spread"><b>${esc(st.exId)}</b><button class="chip danger" aria-label="Retirer">🗑️</button></div><div class="muted small">Exercice indisponible.</div></div>`);
+    c.querySelector("button").addEventListener("click", () => retirerExerciceLive(e.exerciceId));
+    return c;
+  }
   const t = e.series.find((s) => s.type === "travail") || e.series[0];
   const plage = t?.repsCible || exo.repsPertinent;
   const [derniere, avant] = Etat.perfs(st.exId);
@@ -920,17 +938,23 @@ function carteExoLive(e) {
   c.append(h(`<div class="muted small">${(exo.musclesPrincipaux || []).map((m) => MUSCLE_LABELS[m] || m).join(", ")} · repos ${t?.reposSec || 60}s</div>`));
   c.append(h(`<div class="notice small"><b>Conseil :</b> ${esc(sug.message)}${sug.chargeKg ? ` <b>(~${sug.chargeKg} kg)</b>` : ""}</div>`));
   if (derniere) c.append(h(`<div class="muted small">Dernière fois : ${derniere.series.map((s) => `${s.chargeKg || 0}kg×${s.reps || s.dureeSec || 0}`).join(" · ")}</div>`));
-  // en-têtes
-  c.append(h(`<div class="setrow"><span class="head">#</span><span class="head">kg</span><span class="head">${enTemps ? "sec" : "reps"}</span><span class="head">RIR</span><span class="head"></span></div>`));
+  // Tableau des séries : Série · Précédent (ou RIR) · Kg · Reps · Validé
+  const col2 = st.showRir ? "RIR" : "Précédent";
+  c.append(h(`<div class="setrow"><span class="head">Série</span><span class="head">${col2}</span><span class="head">${enTemps ? "Sec" : "Kg"}</span><span class="head">${enTemps ? "Durée" : "Reps"}</span><span class="head">✓</span></div>`));
   st.series.forEach((s, i) => {
+    const dp = derniere && derniere.series[i];
+    const prev = dp ? (enTemps ? `${dp.dureeSec || 0}s` : `${dp.chargeKg || 0}×${dp.reps || 0}`) : "—";
+    const col2El = st.showRir
+      ? `<input inputmode="numeric" placeholder="2" value="${s.rir}" data-f="rir" aria-label="RIR série ${i + 1}">`
+      : `<span class="prev muted">${prev}</span>`;
     const row = h(`<div class="setrow">
-      <span class="num muted" style="text-align:center">${i + 1}</span>
-      <input inputmode="decimal" placeholder="${sug.chargeKg || "—"}" value="${s.charge}" data-f="charge">
-      <input inputmode="numeric" placeholder="${enTemps ? s.dureeSec : plage[0]}" value="${enTemps ? s.dureeSec : s.reps}" data-f="${enTemps ? "dureeSec" : "reps"}">
-      <input inputmode="numeric" placeholder="2" value="${s.rir}" data-f="rir">
-      <button class="done ${s.done ? "on" : ""}" aria-label="Valider la série">✓</button></div>`);
+      <span class="serie">${i + 1}</span>
+      ${col2El}
+      <input inputmode="decimal" placeholder="${sug.chargeKg || "—"}" value="${s.charge}" data-f="charge" aria-label="Charge série ${i + 1}">
+      <input inputmode="numeric" placeholder="${enTemps ? s.dureeSec : plage[0]}" value="${enTemps ? s.dureeSec : s.reps}" data-f="${enTemps ? "dureeSec" : "reps"}" aria-label="${enTemps ? "Durée" : "Répétitions"} série ${i + 1}">
+      <button class="done ${s.done ? "on" : ""}" aria-label="Valider la série ${i + 1}">✓</button></div>`);
     on(row, "input", "input", (ev) => { const f = ev.target.dataset.f; s[f] = ev.target.value; persistLive(); });
-    row.querySelector(".done").addEventListener("click", (ev) => { s.done = !s.done; ev.target.classList.toggle("on", s.done); persistLive(); majProgressionSeance(); if (s.done) startTimer(t?.reposSec || 60); });
+    row.querySelector(".done").addEventListener("click", (ev) => { s.done = !s.done; ev.currentTarget.classList.toggle("on", s.done); persistLive(); majProgressionSeance(); if (s.done) startTimer(t?.reposSec || 60, `${exo.nom} · série ${i + 1}`); });
     c.append(row);
   });
   // Ajouter / retirer une série pendant la séance.
@@ -949,11 +973,13 @@ function carteExoLive(e) {
   bDouleur.addEventListener("click", () => { st.douleur = !st.douleur; persistLive(true); if (st.douleur) info("Douleur vive, articulaire ou inhabituelle : arrête cet exercice aujourd'hui. Si elle persiste, consulte un professionnel de santé.", { titre: "⚠️ Douleur signalée" }); render(); });
   const bDemo = h(`<button class="chip">▶ Démo</button>`);
   bDemo.addEventListener("click", () => ouvrirDetail(exo));
+  const bRir = h(`<button class="chip ${st.showRir ? "on" : ""}" title="Afficher la colonne RIR (reps en réserve)">RIR</button>`);
+  bRir.addEventListener("click", () => { st.showRir = !st.showRir; persistLive(true); render(); });
   const bRempl = h(`<button class="chip">🔄 Remplacer</button>`);
   bRempl.addEventListener("click", () => remplacer(e.exerciceId));
   const bRetirer = h(`<button class="chip">🗑️ Retirer</button>`);
   bRetirer.addEventListener("click", async () => { if (await confirmer(`Retirer « ${exo.nom} » de la séance ?`, { danger: true, ok: "Retirer" })) retirerExerciceLive(e.exerciceId); });
-  acts.append(bDemo, bDouleur, bRempl, bRetirer);
+  acts.append(bDemo, bRir, bDouleur, bRempl, bRetirer);
   c.append(acts);
   // Exercice terminé (toutes les séries validées) → état visuel discret.
   if (st.series.length && st.series.every((s) => s.done)) c.classList.add("exo-done");
@@ -1081,8 +1107,9 @@ function etiquettePR(r) {
 /* ---------- minuteur de repos ---------- */
 let TMR = null;
 let CAL_VIEW = null; // {annee, mois} du calendrier d'assiduité affiché (Progrès)
-function startTimer(sec) {
+function startTimer(sec, label = "") {
   const ov = $("#overlay"); ov.classList.add("show");
+  const sub = $("#ovSub"); if (sub) sub.textContent = label;
   let total = sec, left = sec;
   const draw = () => { $("#ovTxt").textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`; $("#ringFg").style.strokeDashoffset = String(653 * (1 - left / total)); };
   draw(); clearInterval(TMR);

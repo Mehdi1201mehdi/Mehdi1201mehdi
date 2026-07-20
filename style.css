@@ -190,11 +190,13 @@ details[open] summary::after{content:"–"}
 .dc-name{font-size:1.05rem;font-weight:800;letter-spacing:-.01em}
 
 /* Saisie de séance */
-.setrow{display:grid;grid-template-columns:30px 1fr 1fr 1fr 52px;gap:8px;align-items:center;margin:8px 0}
+.setrow{display:grid;grid-template-columns:38px 1.05fr 1fr 1fr 50px;gap:8px;align-items:center;margin:8px 0}
 .setrow input{text-align:center;padding:13px 4px;font-weight:800;font-size:1.05rem}
-.setrow .done{min-height:46px;padding:0;font-size:1.2rem;background:var(--surface-2);border-color:transparent}
-.setrow .done.on{background:var(--grad);color:var(--on-accent)}
-.setrow .head{color:var(--ink-soft);font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;text-align:center;font-weight:800}
+.setrow .serie{text-align:center;font-weight:850;font-variant-numeric:tabular-nums;color:var(--ink-soft)}
+.setrow .prev{text-align:center;font-size:.9rem;font-weight:700;font-variant-numeric:tabular-nums}
+.setrow .done{min-height:46px;padding:0;font-size:1.2rem;background:var(--surface-2);border-color:transparent;color:var(--ink-soft)}
+.setrow .done.on{background:var(--ok);color:#fff}
+.setrow .head{color:var(--ink-soft);font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;text-align:center;font-weight:800}
 
 nav.tabs{position:fixed;bottom:0;left:0;right:0;z-index:30;background:color-mix(in srgb,var(--surface) 88%,transparent);backdrop-filter:blur(16px);border-top:1px solid var(--line)}
 nav.tabs .wrap{display:flex;gap:2px;padding:8px 8px calc(8px + env(safe-area-inset-bottom))}
@@ -208,6 +210,8 @@ nav.tabs button.on .ico{filter:drop-shadow(0 0 6px color-mix(in srgb,var(--accen
 .ring{width:240px;height:240px;position:relative;display:grid;place-items:center}
 .ring svg{position:absolute;inset:0;transform:rotate(-90deg)}
 .ring .t{font-size:4.1rem;font-weight:850;font-variant-numeric:tabular-nums;letter-spacing:-.03em}
+.ovhead{text-align:center}
+.ovsub{margin-top:-8px}
 
 .wiz-dots{display:flex;gap:6px;justify-content:center;margin:8px 0 4px}
 .wiz-dots i{width:8px;height:8px;border-radius:999px;background:var(--line);transition:width .25s}

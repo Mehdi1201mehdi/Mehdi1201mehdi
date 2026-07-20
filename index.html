@@ -38,17 +38,18 @@
 </div></nav>
 
 <div id="overlay" role="dialog" aria-label="Minuteur de repos">
-  <div class="eyebrow">Repos</div>
+  <div class="ovhead"><span class="eyebrow">Récupération</span><h2 style="margin:3px 0 0;font-size:1.7rem">Repos</h2></div>
   <div class="ring">
     <svg viewBox="0 0 230 230"><circle cx="115" cy="115" r="104" fill="none" stroke="var(--surface-2)" stroke-width="12"/>
       <circle id="ringFg" cx="115" cy="115" r="104" fill="none" stroke="var(--accent)" stroke-width="12" stroke-linecap="round" stroke-dasharray="653" stroke-dashoffset="0"/></svg>
     <div class="t num" id="ovTxt">1:30</div>
   </div>
-  <div class="row">
-    <button class="chip" id="ovMinus">−15 s</button>
-    <button class="chip" id="ovPlus">+15 s</button>
-    <button class="primary" id="ovSkip">Reprendre</button>
+  <div class="ovsub muted small" id="ovSub"></div>
+  <div class="row" style="justify-content:center">
+    <button class="chip" id="ovMinus">−15 SEC</button>
+    <button class="chip" id="ovPlus">+15 SEC</button>
   </div>
+  <button class="primary big" id="ovSkip" style="max-width:300px">Passer le repos</button>
 </div>
 
 <script type="module" src="src/ui/app.js"></script>
