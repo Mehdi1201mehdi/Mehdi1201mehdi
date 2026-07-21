@@ -138,6 +138,8 @@ label.f>span{display:block;font-size:.8rem;font-weight:750;color:var(--ink-soft)
 .wcard .g{flex:1;min-width:0}
 .wcard .g b{font-weight:800}
 .wcard .chev{color:var(--ink-soft);font-size:1.35rem;flex:0 0 auto}
+.wcard.sil{align-items:center;padding:12px 14px}
+.wcard .mini-silhouette{width:38px;height:76px;flex:0 0 auto;border-radius:10px;background:color-mix(in srgb,var(--accent) 8%,var(--surface-2))}
 .wcard.today{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent),var(--shadow)}
 /* Séance en cours : bandeau de progression */
 .trainhead{margin-bottom:6px}

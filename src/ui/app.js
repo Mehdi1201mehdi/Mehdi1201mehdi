@@ -15,7 +15,7 @@ import { genererProgramme } from "../engine/generator.js";
 import { recommander } from "../engine/progression.js";
 import { alternatives } from "../engine/replacement.js";
 import { chercherDemonstration, lienYouTube } from "../integrations/exercisedb.js";
-import { muscleDiagram, muscleHeatmap } from "./anatomy.js";
+import { muscleDiagram, muscleHeatmap, miniSilhouette } from "./anatomy.js";
 import { calculerBesoins } from "../engine/nutrition.js";
 import { bilan } from "../engine/review.js";
 import { chercherFoods, portion } from "../data/foods.js";
@@ -113,7 +113,7 @@ function ouvrirPlus() {
 }
 /** Change d'onglet + entrée d'historique (le bouton retour renavigue). */
 function nav(t, remplace = false) {
-  if (t !== "train") arreterChrono();
+  if (t !== "train") { arreterChrono(); APERCU = null; }
   TAB = t;
   majTabs();
   render(); window.scrollTo(0, 0);
@@ -416,7 +416,7 @@ function vDash(v) {
     wc.append(h(`<div class="spread small" style="margin:15px 0 6px"><span class="muted">Progression séance</span><span class="num" style="color:var(--accent-ink);font-weight:800">${Math.round(pct * 100)}%</span></div>`));
     wc.append(h(`<div class="bar"><div style="width:${Math.round(pct * 100)}%"></div></div>`));
     const b = h(`<button class="primary big" style="margin-top:15px">${seanceFaite ? "✓  Séance faite — revoir" : "▶  Commencer la séance"}</button>`);
-    b.addEventListener("click", () => { LIVE = null; nav("train"); });
+    b.addEventListener("click", () => { LIVE = null; APERCU = sj.id; nav("train"); });
     wc.append(b);
   } else {
     wc.append(h(`<div class="spread"><h2 style="margin:0">Jour de repos</h2><span class="wk-ic">😴</span></div>`));
@@ -515,7 +515,7 @@ function vProg(v) {
       s.exercices.forEach((e, i) => d.append(ligneExo(e, i)));
       if (wd === auj) {
         const b = h(`<button class="primary big" style="margin-top:11px">▶  Commencer la séance</button>`);
-        b.addEventListener("click", () => { LIVE = null; nav("train"); });
+        b.addEventListener("click", () => { LIVE = null; APERCU = s.id; nav("train"); });
         d.append(b);
       }
       v.append(d);
@@ -1018,7 +1018,57 @@ function vAnatoly(v) {
    SÉANCE GUIDÉE (mode entraînement)
    ====================================================================== */
 let LIVE = null; // état live (voir engine/liveSession.js)
+let APERCU = null; // id de la séance dont on affiche l'aperçu (avant de démarrer)
 let SESSION_TMR = null; // chronomètre de séance (temps écoulé)
+/** Muscles ciblés par une séance (groupesCibles, sinon déduits des exercices). */
+function musclesSeance(s) {
+  if (s.groupesCibles && s.groupesCibles.length) return s.groupesCibles;
+  const set = new Set();
+  for (const e of s.exercices) (getExercise(e.exerciceId)?.musclesPrincipaux || []).forEach((m) => set.add(m));
+  return [...set];
+}
+/** Carte d'exercice (style Anatoly) pour l'aperçu d'une séance : vignette + séries/reps + repos. */
+function carteExoApercu(e, num) {
+  const exo = getExercise(e.exerciceId);
+  const gif = GIFS[e.exerciceId];
+  const t = e.series.find((s) => s.type === "travail") || e.series[0];
+  const nb = e.series.filter((s) => s.type !== "echauffement").length || e.series.length;
+  const reps = t?.dureeSec ? `${t.dureeSec} s` : t?.repsCible ? `${t.repsCible[0]}–${t.repsCible[1]}` : "—";
+  const repos = t?.reposSec ? (t.reposSec >= 60 ? `${Math.round(t.reposSec / 60 * 10) / 10} min` : `${t.reposSec} s`) : "—";
+  const nom = exo ? exo.nom : e.exerciceId;
+  const c = h(`<div class="card anat-ex${exo ? " tap" : ""}"></div>`);
+  const top = h(`<div class="anat-ex-top"></div>`);
+  if (gif) top.append(h(`<img class="anat-thumb" src="${esc(gif)}" alt="" loading="lazy" decoding="async">`));
+  const body = h(`<div style="flex:1;min-width:0"></div>`);
+  body.append(h(`<div class="anat-nom"><span class="anat-num">${num}</span>${esc(nom)}</div>`));
+  body.append(h(`<div class="anat-meta"><span class="badge accent">${nb} × ${esc(reps)}</span><span class="anat-rest">⏱ repos ${esc(repos)}</span></div>`));
+  top.append(body);
+  if (exo) top.append(h(`<span class="chev" aria-hidden="true">›</span>`));
+  c.append(top);
+  if (exo) c.addEventListener("click", () => ouvrirDetail(exo));
+  return c;
+}
+/** Aperçu d'une séance : liste des exercices (façon programme) + bouton Commencer. */
+function vApercuSeance(v, seanceId) {
+  const s = trouverSeance(seanceId);
+  if (!s) { APERCU = null; render(); return; }
+  const back = h(`<button class="chip" style="margin-bottom:12px">← Séances</button>`);
+  back.addEventListener("click", () => { APERCU = null; render(); });
+  v.append(back);
+  v.append(h(`<h1 style="margin:0 0 3px">${esc(s.nom)}</h1>`));
+  v.append(h(`<div class="muted small">${s.exercices.length} exercices · ~${s.dureeEstimeeMin || 0} min</div>`));
+  const muscles = musclesSeance(s);
+  if (muscles.length) {
+    const mc = h(`<div class="row" style="margin:10px 0"></div>`);
+    muscles.slice(0, 6).forEach((m) => mc.append(h(`<span class="pill">${esc(MUSCLE_LABELS[m] || m)}</span>`)));
+    v.append(mc);
+  }
+  const start = h(`<button class="primary big" style="margin:6px 0 14px">▶  Commencer la séance</button>`);
+  start.addEventListener("click", () => { APERCU = null; demarrer(s); });
+  v.append(start);
+  s.exercices.forEach((e, i) => v.append(carteExoApercu(e, i + 1)));
+  v.append(h(`<div class="notice small" style="margin-top:12px">Échauffe-toi 5–10 min (cardio léger + mobilité) avant de commencer.</div>`));
+}
 /** Met à jour le chrono de séance (mm:ss) à partir de l'heure de début. */
 function majChrono() {
   const el = document.getElementById("seanceTimer");
@@ -1048,6 +1098,7 @@ function vTrain(v) {
   const prog = Etat.data.programme;
   // Reprise d'une séance interrompue (après actualisation / fermeture).
   if (!LIVE && estReprenable(Etat.data.sessionEnCours, trouverSeance)) LIVE = restaurer(Etat.data.sessionEnCours);
+  if (!LIVE && APERCU) { arreterChrono(); vApercuSeance(v, APERCU); return; }
   if (!LIVE) {
     arreterChrono();
     const sj = seanceDuJour(prog);
@@ -1083,19 +1134,20 @@ function vTrain(v) {
   $("#abandon", v).addEventListener("click", async () => { if (await confirmer("Abandonner la séance sans enregistrer ?", { danger: true, ok: "Abandonner" })) { LIVE = null; persistLive(true); render(); } });
 }
 function demarrer(seance) {
+  APERCU = null;
   LIVE = nouvelleSession(seance);
   persistLive(true);
   render();
 }
-/** Carte cliquable de choix de séance (composant WorkoutCard). */
+/** Carte cliquable de choix de séance : silhouette des muscles + ouverture de l'aperçu. */
 function carteSeanceChoix(s, sousTitre, aujourdhui) {
   const meta = `${s.exercices.length} exos · ~${s.dureeEstimeeMin || 0} min`
     + (sousTitre ? ` · ${esc(sousTitre)}` : "") + (aujourdhui ? " · aujourd'hui" : "");
-  const b = h(`<button class="card wcard ${aujourdhui ? "today" : ""}">
-    <span class="idx" aria-hidden="true">▶</span>
+  const b = h(`<button class="card wcard sil ${aujourdhui ? "today" : ""}">
+    ${miniSilhouette(musclesSeance(s))}
     <span class="g"><b>${esc(s.nom)}</b><br><span class="muted small">${meta}</span></span>
     <span class="chev" aria-hidden="true">›</span></button>`);
-  b.addEventListener("click", () => demarrer(s));
+  b.addEventListener("click", () => { APERCU = s.id; render(); window.scrollTo(0, 0); });
   return b;
 }
 /** Met à jour en direct le bandeau de progression sans re-rendre toute la vue. */

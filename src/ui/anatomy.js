@@ -27,6 +27,23 @@ function vueSVG(view, couleur, label) {
 }
 
 /**
+ * Mini-silhouette (une seule vue) pour illustrer une séance : muscles ciblés
+ * en surbrillance. Sert de vignette sur les cartes de séance.
+ * @param {Iterable<string>} muscles  muscles à mettre en avant
+ * @param {"front"|"back"} [view]
+ */
+export function miniSilhouette(muscles, view = "front") {
+  const set = new Set(muscles || []);
+  if (set.has("corps_entier")) CORPS_ENTIER.forEach((m) => set.add(m));
+  const A = ANATOMY[view];
+  const outline = `<path d="${A.outline}" fill="var(--anat-body)"/>`;
+  const mus = Object.entries(A.groups).map(([m, paths]) =>
+    `<g fill="${set.has(m) ? "#EF4444" : "var(--anat-muscle)"}">${paths.map((d) => `<path d="${d}"/>`).join("")}</g>`).join("");
+  const neutral = A.neutral.map((d) => `<path d="${d}" fill="var(--anat-body)"/>`).join("");
+  return `<svg class="mini-silhouette" viewBox="${VIEWBOX[view]}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">${outline}${mus}${neutral}</svg>`;
+}
+
+/**
  * Planche des muscles ciblés (principal = rouge, secondaire = ambre).
  * @param {Iterable<string>} principaux
  * @param {Iterable<string>} secondaires
