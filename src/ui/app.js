@@ -10,6 +10,7 @@ import {
 } from "../models.js";
 import { getExercise, chercherCatalogue, CATALOGUE } from "../data/exercises.js";
 import { GIFS } from "../data/gifs.js";
+import { ANATOLY_INFO, ANATOLY_SEMAINES } from "../data/anatoly.js";
 import { genererProgramme } from "../engine/generator.js";
 import { recommander } from "../engine/progression.js";
 import { alternatives } from "../engine/replacement.js";
@@ -83,7 +84,7 @@ $("#themeBtn").addEventListener("click", () => {
 
 /* ---------- navigation ---------- */
 let TAB = "dash";
-const TABS = { dash: vDash, prog: vProg, cat: vCatalogue, train: vTrain, food: vNutrition, stats: vStats, set: vSet };
+const TABS = { dash: vDash, prog: vProg, cat: vCatalogue, train: vTrain, food: vNutrition, stats: vStats, set: vSet, anatoly: vAnatoly };
 function majTabs() {
   $("#tabs").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.tab === TAB));
 }
@@ -880,6 +881,76 @@ function vCatalogue(v) {
   };
   dessine();
   inp.addEventListener("input", () => { CAT_FILTRE.q = inp.value; dessine(); });
+}
+
+/* ======================================================================
+   PROGRAMME ANATOLY (Powerbuilding 8 semaines — depuis le PDF fourni)
+   ====================================================================== */
+let ANATOLY_SEM = 1; // semaine sélectionnée
+/** Temps de repos indicatif selon la règle du programme (base = squat/DC/SDT). */
+function reposAnat(nom) {
+  return /squat|développé couché|soulevé de terre/i.test(nom) ? "4 min" : "2 min";
+}
+/** Carte d'un exercice du programme Anatoly (média réutilisé si disponible). */
+function carteAnatoly(ex, num) {
+  const exo = ex.ref ? getExercise(ex.ref) : null;
+  const gif = ex.ref ? GIFS[ex.ref] : null;
+  const c = h(`<div class="card anat-ex${exo ? " tap" : ""}"></div>`);
+  const top = h(`<div class="anat-ex-top"></div>`);
+  if (gif) top.append(h(`<img class="anat-thumb" src="${esc(gif)}" alt="" loading="lazy" decoding="async">`));
+  const body = h(`<div style="flex:1;min-width:0"></div>`);
+  body.append(h(`<div class="anat-nom"><span class="anat-num">${num}</span>${esc(ex.nom)}</div>`));
+  body.append(h(`<div class="anat-meta"><span class="badge accent">${ex.series} × ${esc(ex.reps)}</span><span class="anat-rest">⏱ ${reposAnat(ex.nom)}</span></div>`));
+  if (ex.note) body.append(h(`<div class="hint" style="margin-top:6px">${esc(ex.note)}</div>`));
+  top.append(body);
+  if (exo) top.append(h(`<span class="chev" aria-hidden="true">›</span>`));
+  c.append(top);
+  if (exo) c.addEventListener("click", () => ouvrirDetail(exo));
+  return c;
+}
+function vAnatoly(v) {
+  const info = ANATOLY_INFO;
+  v.append(h(`<div class="eyebrow">🏋️ Programme Anatoly</div>`));
+  v.append(h(`<h1 style="margin:2px 0 2px">Powerbuilding</h1>`));
+  v.append(h(`<div class="muted small" style="margin-bottom:13px">${info.nbSemaines} semaines · force &amp; esthétique</div>`));
+
+  // Sélecteur de semaine S1..S8
+  const sel = h(`<div class="anat-weeks"></div>`);
+  for (let i = 1; i <= info.nbSemaines; i++) {
+    const b = h(`<button class="anat-wk${ANATOLY_SEM === i ? " on" : ""}">S${i}</button>`);
+    b.addEventListener("click", () => { ANATOLY_SEM = i; render(); window.scrollTo(0, 0); });
+    sel.append(b);
+  }
+  v.append(sel);
+
+  // Navigation ← Semaine N →
+  const navrow = h(`<div class="spread" style="margin:14px 0 8px"></div>`);
+  const prev = h(`<button class="chip" aria-label="Semaine précédente" ${ANATOLY_SEM <= 1 ? "disabled" : ""}>←</button>`);
+  prev.addEventListener("click", () => { if (ANATOLY_SEM > 1) { ANATOLY_SEM--; render(); window.scrollTo(0, 0); } });
+  const next = h(`<button class="chip" aria-label="Semaine suivante" ${ANATOLY_SEM >= info.nbSemaines ? "disabled" : ""}>→</button>`);
+  next.addEventListener("click", () => { if (ANATOLY_SEM < info.nbSemaines) { ANATOLY_SEM++; render(); window.scrollTo(0, 0); } });
+  navrow.append(prev, h(`<b style="font-size:1.15rem">Semaine ${ANATOLY_SEM}</b>`), next);
+  v.append(navrow);
+
+  const semaine = ANATOLY_SEMAINES.find((s) => s.n === ANATOLY_SEM) || ANATOLY_SEMAINES[0];
+  semaine.jours.forEach((j) => {
+    v.append(h(`<div class="anat-day"><span class="anat-jour">${esc(j.jour)}</span><span class="anat-grp">${esc(j.groupe)}</span></div>`));
+    j.exercices.forEach((ex, idx) => v.append(carteAnatoly(ex, idx + 1)));
+  });
+
+  // Infos programme (repliable) : intro, échauffement, repos, abdos, consignes
+  const extra = h(`<details class="card" style="margin-top:16px"><summary><b>Infos, échauffement &amp; abdos</b></summary></details>`);
+  extra.append(h(`<div class="sec"><h3>Avant de commencer</h3><div class="small muted">${esc(info.intro)}</div></div>`));
+  extra.append(h(`<div class="sec"><h3>Échauffement</h3><div class="small muted">${esc(info.echauffement)}</div></div>`));
+  extra.append(h(`<div class="sec"><h3>Temps de repos</h3><div class="deflist">${info.repos.map(([k, val]) => `<div class="spread small"><span class="muted">${esc(k)}</span><b>${esc(val)}</b></div>`).join("")}</div></div>`));
+  extra.append(h(`<div class="sec"><h3>${esc(info.abdos.titre)}</h3></div>`));
+  info.abdos.exercices.forEach((ex, idx) => extra.append(carteAnatoly(ex, idx + 1)));
+  const cons = h(`<div class="sec"><h3>Consignes importantes</h3></div>`);
+  info.consignes.forEach((c) => cons.append(h(`<div class="small muted" style="margin:6px 0">• ${esc(c)}</div>`)));
+  extra.append(cons);
+  v.append(extra);
+
+  v.append(h(`<div class="warn small" style="margin-top:12px">⚕️ Programme intense. Adapte les charges à ton niveau, respecte la technique et arrête en cas de douleur. Ceci n'est pas un avis médical.</div>`));
 }
 
 /* ======================================================================

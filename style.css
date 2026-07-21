@@ -222,6 +222,20 @@ button.linklike{background:transparent;border:none;min-height:auto;padding:0;col
 #splash .sp-logo img{width:104px;height:104px;border-radius:26px;box-shadow:var(--shadow-lg)}
 #splash .sp-name{font-size:1.85rem;font-weight:850;letter-spacing:.03em;margin-top:10px}
 #splash .sp-tag{color:var(--ink-soft);font-size:.9rem;letter-spacing:.01em;padding:0 32px;text-align:center}
+/* Programme Anatoly */
+.anat-weeks{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+.anat-wk{min-height:44px;padding:0;border-radius:12px;font-weight:800;font-size:.9rem;background:var(--surface-2);border-color:transparent}
+.anat-wk.on{background:var(--accent);color:var(--on-accent)}
+.anat-day{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:20px 0 8px}
+.anat-jour{font-size:1.15rem;font-weight:850;letter-spacing:-.02em}
+.anat-grp{font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--accent-ink)}
+.anat-ex{padding:13px}
+.anat-ex-top{display:flex;align-items:center;gap:12px}
+.anat-thumb{width:60px;height:60px;flex:0 0 auto;border-radius:12px;object-fit:cover;background:var(--surface-2)}
+.anat-nom{font-weight:750;font-size:.98rem;line-height:1.25}
+.anat-num{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:7px;background:var(--surface-2);color:var(--ink-soft);font-size:.74rem;font-weight:850;margin-right:8px;vertical-align:middle}
+.anat-meta{display:flex;align-items:center;gap:10px;margin-top:7px;flex-wrap:wrap}
+.anat-rest{font-size:.78rem;color:var(--ink-soft);font-weight:700}
 
 /* Saisie de séance */
 .setrow{display:grid;grid-template-columns:38px 1.05fr 1fr 1fr 50px;gap:8px;align-items:center;margin:8px 0}
