@@ -40,8 +40,11 @@
   --shadow:0 4px 16px rgba(20,28,60,.08); --shadow-lg:0 16px 42px rgba(20,28,60,.16);
 }
 
-*{box-sizing:border-box;margin:0}
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;accent-color:var(--accent)}
+@media (prefers-reduced-motion: no-preference){html{scroll-behavior:smooth}}
+::selection{background:color-mix(in srgb,var(--accent) 82%,#000);color:#fff}
 body{
   background:
     radial-gradient(120% 55% at 50% -12%,var(--glow),transparent 60%),
@@ -51,7 +54,10 @@ body{
   font-family:"Inter","SF Pro Text",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
   padding-bottom:calc(98px + env(safe-area-inset-bottom));
+  overscroll-behavior-y:contain;
 }
+/* Retire le délai de 300 ms et le double-tap-zoom sur tout ce qui est cliquable */
+button,a,input,select,textarea,[role="button"],.tabs button{touch-action:manipulation}
 h1{font-size:1.95rem;font-weight:850;letter-spacing:-.035em;line-height:1.06}
 h2{font-size:1.24rem;font-weight:800;letter-spacing:-.02em;margin-bottom:.4rem}
 h3{font-size:1.03rem;font-weight:750;letter-spacing:-.01em}
@@ -101,6 +107,13 @@ button.chip.on{background:var(--accent);border-color:transparent;color:var(--on-
 button:disabled{opacity:.45;cursor:default}
 button:active{transform:scale(.955);transition:transform .08s ease}
 button.primary:active{filter:brightness(1.04)}
+/* Desktop / souris : légère élévation au survol des cartes cliquables */
+@media (hover:hover){
+  button.card{transition:transform .22s var(--ease),box-shadow .22s var(--ease),filter .15s ease}
+  button.card:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+  button.card:active{transform:scale(.985)}
+  .chip:hover{filter:brightness(1.08)}
+}
 :focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 
 input,select,textarea{font:inherit;color:var(--ink);background:var(--surface-2);border:1px solid transparent;border-radius:var(--radius-sm);padding:13px 14px;width:100%;min-height:var(--tap)}
@@ -188,7 +201,7 @@ label.f>span{display:block;font-size:.8rem;font-weight:750;color:var(--ink-soft)
 .need{display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:8px 12px;font-size:.85rem;font-weight:600}
 .need .ic{font-size:1.2rem;line-height:1}
 
-.exline{display:flex;gap:12px;align-items:center;padding:13px 0;border-bottom:1px solid var(--line)}
+.exline{display:flex;gap:12px;align-items:center;padding:13px 0;border-bottom:1px solid var(--line);content-visibility:auto;contain-intrinsic-size:auto 60px}
 .exline:last-child{border-bottom:none}
 .exline .idx{width:28px;height:28px;border-radius:9px;background:var(--grad);color:var(--on-accent);display:grid;place-items:center;font-weight:850;font-size:.8rem;flex:0 0 auto}
 .exline .meta{flex:1;min-width:0}
@@ -398,7 +411,7 @@ nav.tabs button.on .ico{filter:drop-shadow(0 0 8px color-mix(in srgb,var(--accen
 
 /* Calendrier d'assiduité */
 .cal-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
-.cal-head button{min-height:38px;padding:7px 13px}
+.cal-head button{min-width:44px;min-height:44px;padding:7px 13px;display:grid;place-items:center}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
 .cal-dow{text-align:center;font-size:.7rem;color:var(--ink-soft);font-weight:800;padding-bottom:2px;text-transform:uppercase;letter-spacing:.05em}
 .cal-cell{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:var(--radius-sm);background:var(--surface-2);font-size:.8rem;font-weight:650;position:relative}

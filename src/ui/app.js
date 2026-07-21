@@ -120,15 +120,23 @@ function nav(t, remplace = false) {
   const etat = { tab: t };
   if (remplace) history.replaceState(etat, ""); else history.pushState(etat, "");
 }
-$("#tabs").querySelectorAll("button[data-tab]").forEach((b) => b.addEventListener("click", () => nav(b.dataset.tab)));
+$("#tabs").querySelectorAll("button[data-tab]").forEach((b) => b.addEventListener("click", () => { if (b.dataset.tab !== TAB) { try { navigator.vibrate?.(12); } catch (e) {} } nav(b.dataset.tab); }));
 $("#plusBtn")?.addEventListener("click", ouvrirPlus);
+let LAST_RENDER_KEY = null;
 function render() {
   view.innerHTML = "";
   (Etat.data.profil ? TABS[TAB] : vOnboarding)(view);
-  // Motion : reveal en cascade des sections (retiré après l'animation pour ne
-  // pas gêner les mises à jour en direct, ex. barre de progression de séance).
-  view.classList.remove("reveal"); void view.offsetWidth; view.classList.add("reveal");
-  setTimeout(() => view.classList.remove("reveal"), 950);
+  // Motion : ne rejouer l'entrée en cascade que lorsque la VUE change vraiment
+  // (onglet, ouverture d'un aperçu, démarrage d'une séance, onboarding). Les
+  // simples mises à jour dans le même écran (+1 verre d'eau, bascule RIR, mois
+  // du calendrier…) ne ré-animent pas toute la page : impression de fluidité et
+  // moins de repaints inutiles.
+  const key = Etat.data.profil ? `${TAB}|${APERCU || ""}|${LIVE ? LIVE.seanceId : ""}` : "onb";
+  if (key !== LAST_RENDER_KEY) {
+    LAST_RENDER_KEY = key;
+    view.classList.remove("reveal"); void view.offsetWidth; view.classList.add("reveal");
+    setTimeout(() => view.classList.remove("reveal"), 950);
+  }
 }
 
 /* ---------- bouton retour (feuilles modales + onglets) ---------- */
