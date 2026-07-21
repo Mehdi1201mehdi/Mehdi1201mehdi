@@ -270,7 +270,7 @@ details[open] summary::after{content:"–"}
 .profstats>div{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:14px 6px;text-align:center}
 .profstats b{display:block;font-size:1.12rem;font-weight:850;letter-spacing:-.02em}
 .profstats span{display:block;font-size:.64rem;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;margin-top:4px;font-weight:800}
-button.linklike{background:transparent;border:none;min-height:auto;padding:0;color:var(--accent-ink);font-weight:750;font-size:.9rem}
+button.linklike{background:transparent;border:none;min-height:44px;display:inline-flex;align-items:center;padding:0 2px;margin:-4px 0;color:var(--accent-ink);font-weight:750;font-size:.9rem}
 /* Records personnels (grille) */
 .recgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .reccard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:14px;min-width:0}
