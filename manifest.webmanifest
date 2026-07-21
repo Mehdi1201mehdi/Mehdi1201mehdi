@@ -1,4 +1,5 @@
 {
+  "id": "/Mehdi1201mehdi/",
   "name": "Coach Perso — Musculation",
   "short_name": "Coach Perso",
   "description": "Programmes de musculation, séances guidées, suivi et progression. Personnel et hors ligne.",
@@ -6,11 +7,20 @@
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0B0D10",
-  "theme_color": "#0B0D10",
+  "background_color": "#07090C",
+  "theme_color": "#07090C",
   "lang": "fr",
+  "dir": "ltr",
+  "categories": ["health", "fitness", "sports", "lifestyle"],
   "icons": [
-    { "src": "assets/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "assets/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "assets/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "Commencer une séance", "short_name": "Séance", "url": "./index.html?vue=train", "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Nutrition du jour", "short_name": "Nutrition", "url": "./index.html?vue=food", "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Mes progrès", "short_name": "Progrès", "url": "./index.html?vue=stats", "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] }
   ]
 }

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Coach Perso">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#6366F1"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#g)"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" transform="translate(256 256) scale(0.82) translate(-256 -256)">
+    <path d="M150 256 h212"/>
+    <path d="M150 198 v116 M114 220 v72"/>
+    <path d="M362 198 v116 M398 220 v72"/>
+  </g>
+</svg>

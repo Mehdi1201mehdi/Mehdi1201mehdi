@@ -2082,8 +2082,12 @@ function vSet(v) {
 async function amorcerApp() {
   await Etat.init();
   appliquerTheme();
-  if (Etat.data.profil) { $("#tabs").hidden = false; nav("dash", true); }
-  else { history.replaceState({ tab: null }, ""); render(); }
+  if (Etat.data.profil) {
+    $("#tabs").hidden = false;
+    // Raccourcis d'app (appui long sur l'icône) : ?vue=train / ?vue=food …
+    const vue = new URLSearchParams(location.search).get("vue");
+    nav(TABS[vue] ? vue : "dash", true);
+  } else { history.replaceState({ tab: null }, ""); render(); }
   // Masque le splash de démarrage une fois l'app prête.
   const sp = document.getElementById("splash");
   if (sp) { setTimeout(() => { sp.classList.add("hidden"); setTimeout(() => sp.remove(), 500); }, 350); }
