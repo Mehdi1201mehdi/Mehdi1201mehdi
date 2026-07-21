@@ -539,9 +539,11 @@ function vProg(v) {
       const s = cell.s, col = COULEURS[cell.i % COULEURS.length];
       const muscles = (s.groupesCibles || []).map((m) => MUSCLE_LABELS[m] || m).slice(0, 3).join(" · ");
       const meta = `${muscles}${muscles ? " · " : ""}${s.exercices.length} exos · ${s.dureeEstimeeMin || 0} min`;
-      const d = h(`<details class="daycard${wd === auj ? " today" : ""}"></details>`);
+      // Ouvert par défaut : les exercices (cartes visuelles avec vignette) sont
+      // visibles d'emblée, sans clic. La séance reste repliable si on le souhaite.
+      const d = h(`<details class="daycard${wd === auj ? " today" : ""}" open></details>`);
       d.append(h(`<summary><span class="dc-ic" style="background:${col}26;color:${col}">🏋️</span><span class="dc-main"><span class="dc-day">${JOURS[wd - 1]}${wd === auj ? " · Aujourd'hui" : ""}</span><b class="dc-name">${esc(s.nom)}</b><span class="muted small">${esc(meta)}</span></span></summary>`));
-      s.exercices.forEach((e, i) => d.append(ligneExo(e, i)));
+      s.exercices.forEach((e, i) => d.append(carteExoApercu(e, i + 1)));
       if (wd === auj) {
         const b = h(`<button class="primary big" style="margin-top:11px">▶  Commencer la séance</button>`);
         b.addEventListener("click", () => { LIVE = null; APERCU = s.id; nav("train"); });
@@ -682,22 +684,6 @@ function dupliquerSeancePassee() {
   document.body.append(sheet);
 }
 function splitLabel(s) { return ({ full_body: "Corps entier", haut_bas: "Haut / Bas", push_pull_legs: "Push · Pull · Legs", mobilite: "Mobilité" }[s] || s); }
-function ligneExo(e, i) {
-  const exo = getExercise(e.exerciceId);
-  const t = e.series.find((s) => s.type === "travail") || e.series[0];
-  const cible = t?.dureeSec ? `${t.dureeSec} s` : t?.repsCible ? `${t.repsCible[0]}–${t.repsCible[1]} reps` : "";
-  const nb = e.series.filter((s) => s.type !== "echauffement").length;
-  const nom = exo ? exo.nom : e.exerciceId;
-  const row = h(`<div class="exline">
-    <div class="idx">${i + 1}</div>
-    <div class="meta"><div class="nm">${esc(nom)}</div>
-      <div class="muted small">${nb} × ${cible} · repos ${t?.reposSec || 60}s · ${esc(e.role || "")}</div>
-      ${e.justification ? `<div class="muted small">${esc(e.justification)}</div>` : ""}</div>
-    ${exo ? `<button class="chip" aria-label="Détails">ℹ️</button>` : ""}</div>`);
-  const btn = row.querySelector("button");
-  if (btn) btn.addEventListener("click", () => ouvrirDetail(exo));
-  return row;
-}
 const DIFF_LABEL = ["", "Grand débutant", "Débutant", "Intermédiaire", "Avancé"];
 function estRealisable(exo) {
   const eq = new Set(Etat.data.profil.equipements);
@@ -1057,13 +1043,19 @@ function musclesSeance(s) {
   return [...set];
 }
 /** Carte d'exercice (style Anatoly) pour l'aperçu d'une séance : vignette + séries/reps + repos. */
+/** Repos lisible : « 45 s », « 1 min », « 1 min 45 » (jamais « 1.8 min »). */
+function formatRepos(sec) {
+  if (sec < 60) return `${sec} s`;
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return s ? `${m} min ${String(s).padStart(2, "0")}` : `${m} min`;
+}
 function carteExoApercu(e, num) {
   const exo = getExercise(e.exerciceId);
   const gif = GIFS[e.exerciceId];
   const t = e.series.find((s) => s.type === "travail") || e.series[0];
   const nb = e.series.filter((s) => s.type !== "echauffement").length || e.series.length;
   const reps = t?.dureeSec ? `${t.dureeSec} s` : t?.repsCible ? `${t.repsCible[0]}–${t.repsCible[1]}` : "—";
-  const repos = t?.reposSec ? (t.reposSec >= 60 ? `${Math.round(t.reposSec / 60 * 10) / 10} min` : `${t.reposSec} s`) : "—";
+  const repos = t?.reposSec ? formatRepos(t.reposSec) : "—";
   const nom = exo ? exo.nom : e.exerciceId;
   const c = h(`<div class="card anat-ex${exo ? " tap" : ""}"></div>`);
   const top = h(`<div class="anat-ex-top"></div>`);
