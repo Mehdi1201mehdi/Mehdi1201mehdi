@@ -1126,7 +1126,7 @@ function vTrain(v) {
   const pr = progressionSeance(seance);
   const nbExos = seance.exercices.length;
   const head = h(`<div class="card trainhead stack"></div>`);
-  head.append(h(`<div class="spread"><div style="min-width:0"><h1 style="margin:0;font-size:1.3rem">${esc(seance.nom)}</h1><span class="num" style="color:var(--accent-ink);font-weight:800;font-size:1.05rem" id="seanceTimer">00:00</span></div><button class="chip danger" id="abandon">Abandonner</button></div>`));
+  head.append(h(`<div class="spread"><div style="min-width:0"><h1 style="margin:0;font-size:1.3rem">${esc(seance.nom)}</h1><span class="livetimer"><span class="livedot" aria-hidden="true"></span><span class="num" id="seanceTimer">00:00</span></span></div><button class="chip danger" id="abandon">Abandonner</button></div>`));
   head.append(h(`<div class="bar"><div id="seanceProgBar" style="width:${Math.round(pr.pct * 100)}%"></div></div>`));
   head.append(h(`<div class="muted small" id="seanceProgTxt">${pr.faits}/${pr.tot} séries · ${nbExos} exercices · sauvegarde auto 💾</div>`));
   v.append(head);
@@ -1203,14 +1203,22 @@ function carteExoLive(e) {
     const col2El = st.showRir
       ? `<input inputmode="numeric" placeholder="2" value="${s.rir}" data-f="rir" aria-label="RIR série ${i + 1}">`
       : `<span class="prev muted">${prev}</span>`;
-    const row = h(`<div class="setrow">
+    const row = h(`<div class="setrow${s.done ? " vdone" : ""}">
       <span class="serie">${i + 1}</span>
       ${col2El}
       <input inputmode="decimal" placeholder="${sug.chargeKg || "—"}" value="${s.charge}" data-f="charge" aria-label="Charge série ${i + 1}">
       <input inputmode="numeric" placeholder="${enTemps ? s.dureeSec : plage[0]}" value="${enTemps ? s.dureeSec : s.reps}" data-f="${enTemps ? "dureeSec" : "reps"}" aria-label="${enTemps ? "Durée" : "Répétitions"} série ${i + 1}">
       <button class="done ${s.done ? "on" : ""}" aria-label="Valider la série ${i + 1}">✓</button></div>`);
     on(row, "input", "input", (ev) => { const f = ev.target.dataset.f; s[f] = ev.target.value; persistLive(); });
-    row.querySelector(".done").addEventListener("click", (ev) => { s.done = !s.done; ev.currentTarget.classList.toggle("on", s.done); persistLive(); majProgressionSeance(); if (s.done) startTimer(t?.reposSec || 60, `${exo.nom} · série ${i + 1}`); });
+    row.querySelector(".done").addEventListener("click", (ev) => {
+      s.done = !s.done;
+      const btn = ev.currentTarget;
+      btn.classList.toggle("on", s.done);
+      row.classList.toggle("vdone", s.done);
+      if (s.done) { btn.classList.remove("pop"); void btn.offsetWidth; btn.classList.add("pop"); try { navigator.vibrate?.(20); } catch (e) {} }
+      persistLive(); majProgressionSeance();
+      if (s.done) startTimer(t?.reposSec || 60, `${exo.nom} · série ${i + 1}`);
+    });
     c.append(row);
   });
   // Ajouter / retirer une série pendant la séance.
@@ -1394,17 +1402,22 @@ let CAL_VIEW = null; // {annee, mois} du calendrier d'assiduité affiché (Progr
 function startTimer(sec, label = "") {
   const ov = $("#overlay"); ov.classList.add("show");
   const sub = $("#ovSub"); if (sub) sub.textContent = label;
+  const ring = $("#overlay .ring");
   let total = sec, left = sec;
-  const draw = () => { $("#ovTxt").textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`; $("#ringFg").style.strokeDashoffset = String(653 * (1 - left / total)); };
+  const draw = () => {
+    $("#ovTxt").textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+    $("#ringFg").style.strokeDashoffset = String(653 * (1 - left / total));
+    if (ring) ring.classList.toggle("urgent", left <= 10);
+  };
   draw(); clearInterval(TMR);
-  TMR = setInterval(() => { left--; if (left <= 0) { stopTimer(); try { navigator.vibrate?.(200); } catch (e) {} return; } draw(); }, 1000);
+  TMR = setInterval(() => { left--; if (left <= 0) { stopTimer(); try { navigator.vibrate?.([120, 60, 120]); } catch (e) {} return; } draw(); }, 1000);
   $("#ovPlus").onclick = () => { left += 15; total = Math.max(total, left); draw(); };
   $("#ovMinus").onclick = () => { left = Math.max(1, left - 15); draw(); };
   $("#ovSkip").onclick = stopTimer;
   // Un tap sur le fond ferme le minuteur (pour revenir à « Terminer » facilement).
   ov.onclick = (e) => { if (e.target === ov) stopTimer(); };
 }
-function stopTimer() { clearInterval(TMR); $("#overlay").classList.remove("show"); }
+function stopTimer() { clearInterval(TMR); $("#overlay").classList.remove("show"); $("#overlay .ring")?.classList.remove("urgent"); }
 
 /* ======================================================================
    NUTRITION (Open Food Facts + base locale)

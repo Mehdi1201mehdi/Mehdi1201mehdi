@@ -156,6 +156,11 @@ label.f>span{display:block;font-size:.8rem;font-weight:750;color:var(--ink-soft)
 .wcard.today{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent),var(--shadow)}
 /* Séance en cours : bandeau de progression */
 .trainhead{margin-bottom:6px}
+.livetimer{display:inline-flex;align-items:center;gap:7px;margin-top:2px}
+.livetimer .num{color:var(--accent-ink);font-weight:850;font-size:1.15rem;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.livedot{width:8px;height:8px;border-radius:999px;background:var(--danger);box-shadow:0 0 0 0 color-mix(in srgb,var(--danger) 70%,transparent);animation:livePulse 1.8s var(--ease) infinite}
+@keyframes livePulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--danger) 60%,transparent)}70%{box-shadow:0 0 0 8px transparent}100%{box-shadow:0 0 0 0 transparent}}
+@media (prefers-reduced-motion: reduce){.livedot{animation:none}}
 .exo-done{opacity:.66}
 .exo-done .setrow input{opacity:.9}
 /* Nutrition : barres de macros colorées */
@@ -268,12 +273,18 @@ button.linklike{background:transparent;border:none;min-height:auto;padding:0;col
 .optcard .opt-lab{font-weight:750;font-size:.92rem;line-height:1.2}
 
 /* Saisie de séance */
-.setrow{display:grid;grid-template-columns:38px 1.05fr 1fr 1fr 50px;gap:8px;align-items:center;margin:8px 0}
-.setrow input{text-align:center;padding:13px 4px;font-weight:800;font-size:1.05rem}
-.setrow .serie{text-align:center;font-weight:850;font-variant-numeric:tabular-nums;color:var(--ink-soft)}
+.setrow{display:grid;grid-template-columns:38px 1.05fr 1fr 1fr 50px;gap:8px;align-items:center;margin:8px 0;border-radius:12px;transition:background .35s var(--ease)}
+.setrow input{text-align:center;padding:13px 4px;font-weight:800;font-size:1.05rem;transition:border-color .2s var(--ease),box-shadow .2s var(--ease),background .2s var(--ease)}
+.setrow input:focus{box-shadow:0 0 0 3px var(--accent-soft)}
+.setrow .serie{text-align:center;font-weight:850;font-variant-numeric:tabular-nums;color:var(--ink-soft);transition:color .3s var(--ease)}
 .setrow .prev{text-align:center;font-size:.9rem;font-weight:700;font-variant-numeric:tabular-nums}
-.setrow .done{min-height:46px;padding:0;font-size:1.2rem;background:var(--surface-2);border-color:transparent;color:var(--ink-soft)}
+.setrow .done{min-height:46px;padding:0;font-size:1.2rem;background:var(--surface-2);border-color:transparent;color:var(--ink-soft);transition:background .25s var(--ease),color .25s var(--ease)}
 .setrow .done.on{background:var(--ok);color:#fff}
+.setrow .done.pop{animation:checkPop .42s var(--ease)}
+@keyframes checkPop{0%{transform:scale(1)}35%{transform:scale(1.32)}60%{transform:scale(.94)}100%{transform:scale(1)}}
+/* Série validée : liseré vert doux, sans décaler la grille */
+.setrow.vdone{background:linear-gradient(90deg,color-mix(in srgb,var(--ok) 15%,transparent),transparent 62%)}
+.setrow.vdone .serie{color:var(--ok)}
 .setrow .head{color:var(--ink-soft);font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;text-align:center;font-weight:800}
 
 nav.tabs{position:fixed;bottom:0;left:0;right:0;z-index:30;background:transparent;border:none;pointer-events:none;padding:0 12px}
@@ -300,9 +311,17 @@ nav.tabs button.on .ico{filter:drop-shadow(0 0 8px color-mix(in srgb,var(--accen
 #overlay.show{display:flex;animation:fadeIn .3s var(--ease) both}
 #overlay.show .ring{animation:popIn .5s var(--ease) both}
 #overlay.show .ovhead,#overlay.show .ovsub,#overlay.show .row,#overlay.show>button{animation:revealUp .5s var(--ease) both;animation-delay:.08s}
-.ring{width:240px;height:240px;position:relative;display:grid;place-items:center;filter:drop-shadow(0 0 30px color-mix(in srgb,var(--accent) 30%,transparent))}
+.ring{width:240px;height:240px;position:relative;display:grid;place-items:center;filter:drop-shadow(0 0 30px color-mix(in srgb,var(--accent) 30%,transparent));transition:filter .4s var(--ease)}
 .ring svg{position:absolute;inset:0;transform:rotate(-90deg)}
-.ring .t{font-size:4.1rem;font-weight:850;font-variant-numeric:tabular-nums;letter-spacing:-.03em}
+.ring .t{font-size:4.1rem;font-weight:850;font-variant-numeric:tabular-nums;letter-spacing:-.03em;transition:color .3s var(--ease)}
+/* Le repos s'écoule en continu : l'anneau balaie au lieu de sauter chaque seconde */
+#ringFg{transition:stroke-dashoffset 1s linear,stroke .4s var(--ease)}
+/* Derniers 10 s : passage en alerte (couleur + pulsation) */
+.ring.urgent{filter:drop-shadow(0 0 36px color-mix(in srgb,var(--danger) 48%,transparent))}
+.ring.urgent #ringFg{stroke:var(--danger)}
+.ring.urgent .t{color:var(--danger);animation:pulseT .9s var(--ease) infinite}
+@keyframes pulseT{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+@media (prefers-reduced-motion: reduce){#ringFg{transition:stroke .4s}.ring.urgent .t{animation:none}}
 .ovhead{text-align:center}
 .ovsub{margin-top:-8px}
 
