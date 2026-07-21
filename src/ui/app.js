@@ -87,8 +87,17 @@ let TAB = "dash";
 const TABS = { dash: vDash, prog: vProg, cat: vCatalogue, train: vTrain, food: vNutrition, stats: vStats, set: vSet, anatoly: vAnatoly };
 const TABS_PLUS = ["food", "set", "anatoly", "cat"]; // rubriques regroupées dans « Plus »
 function majTabs() {
-  $("#tabs").querySelectorAll("button[data-tab]").forEach((b) => b.classList.toggle("on", b.dataset.tab === TAB));
-  const plus = $("#plusBtn"); if (plus) plus.classList.toggle("on", TABS_PLUS.includes(TAB));
+  $("#tabs").querySelectorAll("button[data-tab]").forEach((b) => {
+    const on = b.dataset.tab === TAB;
+    b.classList.toggle("on", on);
+    if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); // lecteurs d'écran : onglet actif
+  });
+  const plus = $("#plusBtn");
+  if (plus) {
+    const on = TABS_PLUS.includes(TAB);
+    plus.classList.toggle("on", on);
+    if (on) plus.setAttribute("aria-current", "page"); else plus.removeAttribute("aria-current");
+  }
 }
 /** Menu « Plus » : Nutrition, Programme Anatoly, Profil (garde toutes les fonctions). */
 function ouvrirPlus() {
@@ -1431,6 +1440,7 @@ let CAL_VIEW = null; // {annee, mois} du calendrier d'assiduité affiché (Progr
 function startTimer(sec, label = "") {
   const ov = $("#overlay"); ov.classList.add("show");
   const sub = $("#ovSub"); if (sub) sub.textContent = label;
+  const ann = $("#ovAnnonce"); if (ann) ann.textContent = `Temps de repos ${sec} secondes${label ? ", " + label : ""}`; // annonce lecteurs d'écran
   const ring = $("#overlay .ring");
   let total = sec, left = sec;
   const draw = () => {
@@ -1439,7 +1449,7 @@ function startTimer(sec, label = "") {
     if (ring) ring.classList.toggle("urgent", left <= 10);
   };
   draw(); clearInterval(TMR);
-  TMR = setInterval(() => { left--; if (left <= 0) { stopTimer(); try { navigator.vibrate?.([120, 60, 120]); } catch (e) {} return; } draw(); }, 1000);
+  TMR = setInterval(() => { left--; if (left <= 0) { if (ann) ann.textContent = "Repos terminé, série suivante"; stopTimer(); try { navigator.vibrate?.([120, 60, 120]); } catch (e) {} return; } draw(); }, 1000);
   $("#ovPlus").onclick = () => { left += 15; total = Math.max(total, left); draw(); };
   $("#ovMinus").onclick = () => { left = Math.max(1, left - 15); draw(); };
   $("#ovSkip").onclick = stopTimer;
