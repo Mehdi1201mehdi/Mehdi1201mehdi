@@ -1916,7 +1916,7 @@ function vSet(v) {
 
   // Démonstrations
   const cwx = h(`<div class="card stack"><h2 style="margin:0">Démonstrations</h2>
-    <div class="hint">Les visuels des exercices viennent du dataset GitHub <b>hasaneyldrm/exercises-dataset</b> (référencés par URL, avec attribution), avec repli sur ExerciseDB open-source. Aucune clé requise.</div></div>`);
+    <div class="hint">Les visuels des exercices viennent du dataset GitHub <b>hasaneyldrm/exercises-dataset</b> (référencés par URL, avec attribution), avec repli sur ExerciseDB open-source. La carte musculaire est un SVG intégré adapté de <b>react-muscle-highlighter</b> (licence MIT). Aucune clé requise.</div></div>`);
   v.append(cwx);
 
   const don = h(`<div class="card stack"><h2 style="margin:0">Mes données</h2>

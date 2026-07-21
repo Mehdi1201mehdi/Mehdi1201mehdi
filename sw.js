@@ -1,13 +1,13 @@
 /* Service worker — stratégie RÉSEAU D'ABORD pour l'app (toujours la dernière
    version en ligne), cache en secours hors ligne. Les médias de démonstration
    (cross-origin) restent en cache d'abord pour l'usage hors ligne. */
-const CACHE = "coachperso-ia-v47";
+const CACHE = "coachperso-ia-v48";
 const MEDIA_CACHE = "coachperso-media-v1";
 const MEDIA_HOSTS = ["exercisedb.dev", "exercisedb.p.rapidapi.com", "wger.de", "githubusercontent.com", "cloudfront.net"];
 const ASSETS = [
   "./", "./index.html", "./boot.js", "./style.css", "./manifest.webmanifest", "./assets/icons/icon.svg",
   "./src/ui/app.js", "./src/ui/anatomy.js", "./src/models.js",
-  "./src/data/exercises.js", "./src/data/exercises-extra.js", "./src/data/foods.js", "./src/data/gifs.js", "./src/data/anatoly.js",
+  "./src/data/exercises.js", "./src/data/exercises-extra.js", "./src/data/foods.js", "./src/data/gifs.js", "./src/data/anatoly.js", "./src/data/anatomy-paths.js",
   "./src/engine/index.js", "./src/engine/constraints.js", "./src/engine/generator.js",
   "./src/engine/progression.js", "./src/engine/replacement.js", "./src/engine/review.js",
   "./src/engine/nutrition.js", "./src/engine/calendar.js", "./src/engine/export.js", "./src/engine/liveSession.js", "./src/engine/routines.js",

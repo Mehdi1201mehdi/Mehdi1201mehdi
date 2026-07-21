@@ -318,7 +318,7 @@ nav.tabs button.on .ico{filter:drop-shadow(0 0 6px color-mix(in srgb,var(--accen
 .anview .body path,.anview .body rect,.anview .body circle,.anview .body ellipse{stroke-linejoin:round}
 /* Fond clair fixe : les planches wger sont des dessins à traits sombres,
    illisibles sur le thème sombre → fond clair dans les deux thèmes. */
-.anview{flex:1;position:relative;aspect-ratio:12/25;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.anview{flex:1;position:relative;aspect-ratio:1/2;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
 .anview img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
 .anview .lab{position:absolute;bottom:5px;left:0;right:0;text-align:center;font-size:.7rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)}
 .leg{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:8px}
