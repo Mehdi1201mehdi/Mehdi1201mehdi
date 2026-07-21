@@ -103,6 +103,14 @@ header.top .wrap{display:flex;align-items:center;justify-content:space-between;p
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 @media(max-width:520px){.grid2{grid-template-columns:1fr}}
 .stack>*+*{margin-top:11px}
+/* Tablette / desktop : colonne un peu plus large (confort de lecture), toujours
+   centrée. Tout le contenu est déjà fluide → header, contenu, barre d'onglets et
+   feuilles restent alignés. */
+@media (min-width:768px){
+  .wrap{max-width:560px}
+  nav.tabs .wrap{max-width:560px}
+  .sheet .inner{max-width:560px}
+}
 
 .badge{display:inline-block;padding:4px 11px;border-radius:999px;font-size:.71rem;font-weight:800;letter-spacing:.01em}
 .badge.accent{background:var(--accent-soft);color:var(--accent-ink)}
