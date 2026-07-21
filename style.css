@@ -242,6 +242,12 @@ button.linklike{background:transparent;border:none;min-height:auto;padding:0;col
 .plusitem .pm-ic{flex:0 0 auto;width:46px;height:46px;border-radius:13px;display:grid;place-items:center;font-size:1.4rem;background:var(--surface-2)}
 .plusitem .pm-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .plusitem .pm-main b{font-size:1rem;font-weight:800}
+/* Choix en cartes (onboarding) */
+.optgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.optcard{display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-height:auto;padding:15px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-2);text-align:left}
+.optcard.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--surface-2))}
+.optcard .opt-ic{font-size:1.5rem;line-height:1}
+.optcard .opt-lab{font-weight:750;font-size:.92rem;line-height:1.2}
 
 /* Saisie de séance */
 .setrow{display:grid;grid-template-columns:38px 1.05fr 1fr 1fr 50px;gap:8px;align-items:center;margin:8px 0}

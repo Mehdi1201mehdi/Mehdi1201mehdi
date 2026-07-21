@@ -270,6 +270,18 @@ function chips(container, options, getSel, toggle) {
   }
   container.append(box);
 }
+const GOAL_ICONS = { prise_muscle: "💪", perte_graisse: "🔥", recomposition: "⚖️", force: "🏋️", endurance: "🫀", remise_forme: "✨", mobilite: "🤸", prepa_physique: "🎯" };
+const LEVEL_ICONS = { grand_debutant: "🌱", debutant: "🙂", intermediaire: "📈", avance: "🥇" };
+/** Choix sous forme de cartes à icône (grille 2 colonnes) — onboarding premium. */
+function cardsChoix(container, options, getSel, toggle, icons = {}) {
+  const box = h(`<div class="optgrid"></div>`);
+  for (const [val, lab] of options) {
+    const b = h(`<button class="optcard${getSel(val) ? " on" : ""}"><span class="opt-ic" aria-hidden="true">${icons[val] || "•"}</span><span class="opt-lab">${esc(lab)}</span></button>`);
+    b.addEventListener("click", () => { toggle(val); render(); });
+    box.append(b);
+  }
+  container.append(box);
+}
 function field(container, label, inputEl, hint) {
   const l = h(`<label class="f"><span>${esc(label)}</span></label>`);
   l.append(inputEl); if (hint) l.append(h(`<div class="hint">${esc(hint)}</div>`));
@@ -287,8 +299,8 @@ function renderStepIdentite(c) {
   [["Âge", age], ["Taille (cm)", taille], ["Poids (kg)", poids]].forEach(([lab, inp]) => { const l = h(`<label class="f"><span>${lab}</span></label>`); l.append(inp); g.append(l); });
   c.append(g);
 }
-function renderStepObjectif(c) { chips(c, GOALS.map((g) => [g, GOAL_LABELS[g]]), (v) => DRAFT.objectif === v, (v) => DRAFT.objectif = v); }
-function renderStepNiveau(c) { chips(c, LEVELS.map((l) => [l, LEVEL_LABELS[l]]), (v) => DRAFT.niveau === v, (v) => DRAFT.niveau = v); }
+function renderStepObjectif(c) { cardsChoix(c, GOALS.map((g) => [g, GOAL_LABELS[g]]), (v) => DRAFT.objectif === v, (v) => DRAFT.objectif = v, GOAL_ICONS); }
+function renderStepNiveau(c) { cardsChoix(c, LEVELS.map((l) => [l, LEVEL_LABELS[l]]), (v) => DRAFT.niveau === v, (v) => DRAFT.niveau = v, LEVEL_ICONS); }
 function renderStepDispo(c) {
   field(c, "Jours par semaine", chipsInline([1, 2, 3, 4, 5, 6].map((n) => [n, `${n} j`]), (v) => DRAFT.joursParSemaine === v, (v) => DRAFT.joursParSemaine = v), "Pour une reprise, 3 jours est idéal.");
   field(c, "Durée d'une séance", chipsInline([30, 45, 60, 75].map((n) => [n, `${n} min`]), (v) => DRAFT.dureeSeanceMin === v, (v) => DRAFT.dureeSeanceMin = v));
