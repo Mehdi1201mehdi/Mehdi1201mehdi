@@ -145,7 +145,29 @@ function render() {
     LAST_RENDER_KEY = key;
     view.classList.remove("reveal"); void view.offsetWidth; view.classList.add("reveal");
     setTimeout(() => view.classList.remove("reveal"), 950);
+    animerStats(view); // compteurs qui montent (grands chiffres), au vrai changement de vue
   }
+}
+/** Anime les grands chiffres entiers (stats/KPI) de 0 → valeur à l'ouverture d'un
+ *  écran. Ne touche qu'aux entiers purs (avec séparateurs) ; restaure le format
+ *  exact d'origine à la fin. Désactivé si l'utilisateur réduit les animations. */
+function animerStats(root) {
+  try { if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return; } catch (e) { return; }
+  root.querySelectorAll(".stat b.num, .kpi b.num").forEach((el) => {
+    const raw = el.textContent.trim();
+    if (!/^[\d\s ]+$/.test(raw)) return;                 // entier pur uniquement
+    const cible = parseInt(raw.replace(/\D/g, ""), 10);
+    if (!Number.isFinite(cible) || cible <= 0 || cible > 1e7) return;
+    const dur = 650, t0 = performance.now();
+    el.textContent = "0";
+    const pas = (t) => {
+      if (!el.isConnected) return;
+      const p = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - p, 3); // easeOutCubic
+      el.textContent = Math.round(cible * e).toLocaleString("fr-FR");
+      if (p < 1) requestAnimationFrame(pas); else el.textContent = raw; // restaure le format exact
+    };
+    requestAnimationFrame(pas);
+  });
 }
 
 /* ---------- bouton retour (feuilles modales + onglets) ---------- */
