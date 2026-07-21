@@ -122,7 +122,14 @@ function nav(t, remplace = false) {
 }
 $("#tabs").querySelectorAll("button[data-tab]").forEach((b) => b.addEventListener("click", () => nav(b.dataset.tab)));
 $("#plusBtn")?.addEventListener("click", ouvrirPlus);
-function render() { view.innerHTML = ""; (Etat.data.profil ? TABS[TAB] : vOnboarding)(view); }
+function render() {
+  view.innerHTML = "";
+  (Etat.data.profil ? TABS[TAB] : vOnboarding)(view);
+  // Motion : reveal en cascade des sections (retiré après l'animation pour ne
+  // pas gêner les mises à jour en direct, ex. barre de progression de séance).
+  view.classList.remove("reveal"); void view.offsetWidth; view.classList.add("reveal");
+  setTimeout(() => view.classList.remove("reveal"), 950);
+}
 
 /* ---------- bouton retour (feuilles modales + onglets) ---------- */
 window.addEventListener("popstate", (e) => {
