@@ -475,6 +475,11 @@ function anneauSVG(pct, taille = 76, texte = "") {
 function statCard(icone, valeur, label) {
   return h(`<div class="stat"><div class="ic" aria-hidden="true">${icone}</div><b class="num">${esc(valeur)}</b><span class="lab">${esc(label)}</span></div>`);
 }
+/** État vide soigné (icône + titre + sous-titre). Renvoie une chaîne HTML. */
+function etatVide(icone, titre, sousTitre = "") {
+  return `<div class="emptystate"><div class="emptystate-ic" aria-hidden="true">${icone}</div><b>${esc(titre)}</b>`
+    + (sousTitre ? `<span class="muted small">${esc(sousTitre)}</span>` : "") + `</div>`;
+}
 /** Emoji illustratif par type de matériel (rangée « Matériel requis »). */
 const EQUIPMENT_ICONS = {
   poids_du_corps: "🧍", halteres: "🏋️", barre: "🏋️", barre_ez: "🏋️", kettlebell: "🔔",
@@ -1239,6 +1244,22 @@ function carteExoLive(e) {
     bMoins.addEventListener("click", () => { retirerDerniereSerie(st); persistLive(true); render(); });
     serieActs.append(bMoins);
   }
+  // Remplissage rapide : un tap pré-remplit les séries vides avec la dernière
+  // fois (ou la charge conseillée) → beaucoup moins de saisie à la salle.
+  const peutRemplir = !enTemps && (derniere || sug.chargeKg) && st.series.some((s) => !s.charge || !s.reps);
+  if (peutRemplir) {
+    const bFill = h(`<button class="chip">⤵ Reprendre</button>`);
+    bFill.title = "Pré-remplir avec la dernière fois / le conseil";
+    bFill.addEventListener("click", () => {
+      st.series.forEach((s, i) => {
+        const dp = derniere && derniere.series[i];
+        if (!s.charge && (dp?.chargeKg != null || sug.chargeKg != null)) s.charge = String(dp?.chargeKg ?? sug.chargeKg);
+        if (!s.reps && (dp?.reps != null || plage?.[0] != null)) s.reps = String(dp?.reps ?? plage[0]);
+      });
+      persistLive(true); toast("Séries pré-remplies — ajuste puis valide ✓"); render();
+    });
+    serieActs.append(bFill);
+  }
   c.append(serieActs);
   const acts = h(`<div class="row"></div>`);
   const bDouleur = h(`<button class="chip ${st.douleur ? "danger" : ""}">${st.douleur ? "⚠️ Douleur signalée" : "Signaler une douleur"}</button>`);
@@ -1715,7 +1736,7 @@ function carteMuscleHeatmap(v) {
 }
 
 function svgLine(points, label = "") {
-  if (points.length < 2) return `<div class="muted small">Pas encore assez de données (2 points minimum).</div>`;
+  if (points.length < 2) return etatVide("📈", "Ta courbe arrive bientôt", "Enregistre au moins 2 séances pour voir ta tendance se dessiner.");
   const W = 600, H = 150, pad = 30;
   const ys = points.map((p) => p.v), ymin = Math.min(...ys), ymax = Math.max(...ys), yr = (ymax - ymin) || 1;
   const X = (i) => pad + (W - 2 * pad) * i / (points.length - 1), Y = (val) => H - pad - (H - 2 * pad) * (val - ymin) / yr;
@@ -1764,7 +1785,7 @@ function gaugeIMC(imc, taille = 96) {
     <text x="50%" y="64%" text-anchor="middle" dominant-baseline="central" font-size="10" font-weight="700" fill="var(--ink-soft)">IMC</text></svg>`;
 }
 function svgBars(bars, label = "") {
-  if (!bars.length) return `<div class="muted small">Aucune donnée.</div>`;
+  if (!bars.length) return etatVide("📊", "Rien à afficher pour l'instant", "Tes volumes apparaîtront ici après ta première séance.");
   const W = 600, H = 155, pad = 30, n = bars.length, gap = (W - 2 * pad) / n, bw = gap * 0.6;
   const vmax = Math.max(...bars.map((b) => b.v), 1);
   const rects = bars.map((b, i) => {

@@ -43,7 +43,6 @@
 *{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%;accent-color:var(--accent)}
-@media (prefers-reduced-motion: no-preference){html{scroll-behavior:smooth}}
 ::selection{background:color-mix(in srgb,var(--accent) 82%,#000);color:#fff}
 body{
   background:
@@ -405,6 +404,12 @@ nav.tabs button.on .ico{filter:drop-shadow(0 0 8px color-mix(in srgb,var(--accen
 .anview img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
 .anview .lab{position:absolute;bottom:5px;left:0;right:0;text-align:center;font-size:.7rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)}
 .leg{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:8px}
+/* État vide soigné (graphiques, listes sans données). Nom dédié pour éviter
+   toute collision avec .cal-cell.empty (cases vides du calendrier). */
+.emptystate{display:flex;flex-direction:column;align-items:center;gap:9px;text-align:center;padding:26px 16px}
+.emptystate-ic{width:56px;height:56px;border-radius:17px;display:grid;place-items:center;font-size:1.7rem;background:var(--accent-soft);box-shadow:var(--shadow);animation:popIn .5s var(--ease) both}
+.emptystate b{font-weight:800;letter-spacing:-.01em}
+.emptystate .small{max-width:32ch;line-height:1.45}
 
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 /* Accessibilité : « Réduire la transparence » (iOS/macOS) → surfaces opaques
@@ -420,7 +425,7 @@ nav.tabs button.on .ico{filter:drop-shadow(0 0 8px color-mix(in srgb,var(--accen
 
 /* Calendrier d'assiduité */
 .cal-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
-.cal-head button{min-width:44px;min-height:44px;padding:7px 13px;display:grid;place-items:center}
+.cal-head button{width:44px;height:44px;min-height:44px;padding:0;flex:0 0 auto;display:flex;align-items:center;justify-content:center}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
 .cal-dow{text-align:center;font-size:.7rem;color:var(--ink-soft);font-weight:800;padding-bottom:2px;text-transform:uppercase;letter-spacing:.05em}
 .cal-cell{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:var(--radius-sm);background:var(--surface-2);font-size:.8rem;font-weight:650;position:relative}
