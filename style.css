@@ -13,7 +13,7 @@
   --radius:18px; --radius-sm:12px;
   --shadow:0 6px 20px rgba(0,0,0,.45); --shadow-lg:0 20px 52px rgba(0,0,0,.60);
   --grad:linear-gradient(135deg,var(--accent),var(--accent-2));
-  --tap:48px; font-size:16px;
+  --tap:50px; font-size:16px;
 }
 :root[data-theme="dark"]{
   --bg:#0B0D10; --surface:#181C22; --surface-2:#20252D; --elevated:#121517;
@@ -48,7 +48,7 @@ h2{font-size:1.24rem;font-weight:800;letter-spacing:-.02em;margin-bottom:.4rem}
 h3{font-size:1.03rem;font-weight:750;letter-spacing:-.01em}
 .eyebrow{font-size:.68rem;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-ink)}
 .muted{color:var(--ink-soft)} .small{font-size:.82rem} .num{font-variant-numeric:tabular-nums;letter-spacing:-.01em}
-.wrap{max-width:720px;margin:0 auto;padding:18px 16px}
+.wrap{max-width:480px;margin:0 auto;padding:18px 16px}
 a{color:var(--accent-ink);text-underline-offset:2px}
 
 header.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
@@ -81,7 +81,7 @@ button.tertiary{background:transparent;border:1px solid var(--line);color:var(--
 button.big{width:100%;padding:16px;font-size:1.04rem;letter-spacing:-.01em}
 button.ghost{background:transparent}
 button.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 45%,var(--line));background:transparent}
-button.chip{min-height:40px;padding:9px 14px;border-radius:999px;font-size:.85rem;font-weight:700;background:var(--surface-2);border-color:transparent}
+button.chip{min-height:44px;padding:10px 15px;border-radius:999px;font-size:.85rem;font-weight:700;background:var(--surface-2);border-color:transparent}
 button.chip.on{background:var(--accent);border-color:transparent;color:var(--on-accent)}
 button:disabled{opacity:.45;cursor:default}
 button:active{transform:translateY(1px) scale(.99)}
@@ -109,7 +109,7 @@ label.f>span{display:block;font-size:.8rem;font-weight:750;color:var(--ink-soft)
 .avatar{flex:0 0 auto;width:64px;height:64px;border-radius:20px;display:grid;place-items:center;font-size:1.7rem;font-weight:850;color:#fff;background:var(--grad);box-shadow:var(--shadow-lg)}
 /* Grille de cartes statistiques */
 .statgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
-@media(min-width:600px){.statgrid{grid-template-columns:repeat(4,1fr)}}
+/* L'app est une colonne centrée ≤480px : la grille de stats reste sur 2 colonnes. */
 .stat{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:14px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:7px;min-width:0}
 .stat .ic{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:var(--accent-soft);font-size:1.15rem}
 .stat b{font-size:1.5rem;font-weight:850;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis}
@@ -236,6 +236,12 @@ button.linklike{background:transparent;border:none;min-height:auto;padding:0;col
 .anat-num{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:7px;background:var(--surface-2);color:var(--ink-soft);font-size:.74rem;font-weight:850;margin-right:8px;vertical-align:middle}
 .anat-meta{display:flex;align-items:center;gap:10px;margin-top:7px;flex-wrap:wrap}
 .anat-rest{font-size:.78rem;color:var(--ink-soft);font-weight:700}
+/* Menu « Plus » */
+.plusmenu .inner{display:flex;flex-direction:column;gap:10px}
+.plusitem{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:15px}
+.plusitem .pm-ic{flex:0 0 auto;width:46px;height:46px;border-radius:13px;display:grid;place-items:center;font-size:1.4rem;background:var(--surface-2)}
+.plusitem .pm-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.plusitem .pm-main b{font-size:1rem;font-weight:800}
 
 /* Saisie de séance */
 .setrow{display:grid;grid-template-columns:38px 1.05fr 1fr 1fr 50px;gap:8px;align-items:center;margin:8px 0}
@@ -248,7 +254,7 @@ button.linklike{background:transparent;border:none;min-height:auto;padding:0;col
 
 nav.tabs{position:fixed;bottom:0;left:0;right:0;z-index:30;background:color-mix(in srgb,var(--surface) 88%,transparent);backdrop-filter:blur(16px);border-top:1px solid var(--line)}
 nav.tabs .wrap{display:flex;gap:2px;padding:8px 8px calc(8px + env(safe-area-inset-bottom))}
-nav.tabs button{flex:1;border:none;background:none;min-height:0;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:.64rem;font-weight:750;color:var(--ink-soft);padding:8px 2px;border-radius:14px;transition:color .15s,background .15s}
+nav.tabs button{flex:1;border:none;background:none;min-height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:.7rem;font-weight:750;color:var(--ink-soft);padding:7px 2px;border-radius:14px;transition:color .15s,background .15s}
 nav.tabs button.on{color:var(--accent-ink);background:var(--accent-soft)}
 nav.tabs .ico{width:24px;height:24px;display:block}
 nav.tabs button.on .ico{filter:drop-shadow(0 0 6px color-mix(in srgb,var(--accent) 55%,transparent))}
@@ -267,7 +273,7 @@ nav.tabs button.on .ico{filter:drop-shadow(0 0 6px color-mix(in srgb,var(--accen
 
 /* ---- Fiche démonstration premium ---- */
 .sheet{position:fixed;inset:0;z-index:55;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch}
-.sheet .inner{max-width:720px;margin:0 auto;padding:14px 16px calc(30px + env(safe-area-inset-bottom))}
+.sheet .inner{max-width:480px;margin:0 auto;padding:14px 16px calc(30px + env(safe-area-inset-bottom))}
 /* Dialogue modal centré (remplace prompt/alert/confirm) */
 .sheet.dlg{display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(4,6,12,.55);backdrop-filter:blur(3px)}
 .sheet.dlg .inner{max-width:420px;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
@@ -276,7 +282,7 @@ nav.tabs button.on .ico{filter:drop-shadow(0 0 6px color-mix(in srgb,var(--accen
 .toast{position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom));transform:translate(-50%,16px);z-index:80;background:var(--surface-2);color:var(--ink);border:1px solid var(--line);border-radius:16px;padding:10px 16px;font-weight:650;font-size:.9rem;box-shadow:0 10px 34px rgba(0,0,0,.4);opacity:0;transition:opacity .25s,transform .25s;max-width:90vw;text-align:center;white-space:pre-line}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 .sheet-top{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0 12px;background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:blur(12px)}
-.media{position:relative;width:100%;aspect-ratio:1/1;max-height:58vh;background:radial-gradient(circle at 50% 35%,var(--surface-2),var(--surface));border:1px solid var(--line);border-radius:20px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.media{position:relative;width:100%;aspect-ratio:4/5;max-height:62vh;background:radial-gradient(circle at 50% 35%,var(--surface-2),var(--surface));border:1px solid var(--line);border-radius:20px;overflow:hidden;display:flex;align-items:center;justify-content:center}
 .media img,.media video{width:100%;height:100%;object-fit:contain;display:block}
 .media .spin{position:absolute;width:40px;height:40px;border-radius:50%;border:4px solid var(--line);border-top-color:var(--accent);animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}

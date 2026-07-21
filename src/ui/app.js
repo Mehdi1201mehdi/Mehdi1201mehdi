@@ -85,8 +85,31 @@ $("#themeBtn").addEventListener("click", () => {
 /* ---------- navigation ---------- */
 let TAB = "dash";
 const TABS = { dash: vDash, prog: vProg, cat: vCatalogue, train: vTrain, food: vNutrition, stats: vStats, set: vSet, anatoly: vAnatoly };
+const TABS_PLUS = ["food", "set", "anatoly", "cat"]; // rubriques regroupées dans « Plus »
 function majTabs() {
-  $("#tabs").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.tab === TAB));
+  $("#tabs").querySelectorAll("button[data-tab]").forEach((b) => b.classList.toggle("on", b.dataset.tab === TAB));
+  const plus = $("#plusBtn"); if (plus) plus.classList.toggle("on", TABS_PLUS.includes(TAB));
+}
+/** Menu « Plus » : Nutrition, Programme Anatoly, Profil (garde toutes les fonctions). */
+function ouvrirPlus() {
+  const items = [
+    { tab: "food", icone: "🍎", label: "Nutrition", desc: "Calories, macros, hydratation" },
+    { tab: "anatoly", icone: "🏋️", label: "Programme Anatoly", desc: "Powerbuilding · 8 semaines" },
+    { tab: "cat", icone: "🔎", label: "Catalogue d'exercices", desc: "Rechercher et filtrer" },
+    { tab: "set", icone: "👤", label: "Profil & réglages", desc: "Compte, thème, sauvegarde" },
+  ];
+  const sheet = h(`<div class="sheet plusmenu"><div class="inner"></div></div>`);
+  const inner = sheet.querySelector(".inner");
+  const fermer = () => sheet.remove();
+  inner.append(h(`<div class="sheet-top"><h2 style="margin:0">Plus</h2><button class="chip" id="x">✕ Fermer</button></div>`));
+  items.forEach((it) => {
+    const b = h(`<button class="card plusitem"><span class="pm-ic" aria-hidden="true">${it.icone}</span><span class="pm-main"><b>${esc(it.label)}</b><span class="muted small">${esc(it.desc)}</span></span><span class="chev" aria-hidden="true">›</span></button>`);
+    b.addEventListener("click", () => { sheet.remove(); nav(it.tab); });
+    inner.append(b);
+  });
+  sheet.querySelector("#x").addEventListener("click", fermer);
+  sheet.addEventListener("click", (e) => { if (e.target === sheet) fermer(); });
+  document.body.append(sheet);
 }
 /** Change d'onglet + entrée d'historique (le bouton retour renavigue). */
 function nav(t, remplace = false) {
@@ -97,7 +120,8 @@ function nav(t, remplace = false) {
   const etat = { tab: t };
   if (remplace) history.replaceState(etat, ""); else history.pushState(etat, "");
 }
-$("#tabs").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => nav(b.dataset.tab)));
+$("#tabs").querySelectorAll("button[data-tab]").forEach((b) => b.addEventListener("click", () => nav(b.dataset.tab)));
+$("#plusBtn")?.addEventListener("click", ouvrirPlus);
 function render() { view.innerHTML = ""; (Etat.data.profil ? TABS[TAB] : vOnboarding)(view); }
 
 /* ---------- bouton retour (feuilles modales + onglets) ---------- */
