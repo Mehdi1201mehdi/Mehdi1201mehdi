@@ -10,6 +10,7 @@
   --accent-ink:#7DA9FF; --accent-soft:#16233F; --glow:rgba(59,130,246,.16);
   --lime:#6366F1; --amber:#F59E0B; --amber-soft:#2A2113; --danger:#EF4444; --danger-soft:#2A1618;
   --ok:#22C55E; --ok-soft:#122A1C;
+  --anat-body:#232A33; --anat-line:#313B47; --anat-muscle:#3E4A59;
   --radius:18px; --radius-sm:12px;
   --shadow:0 6px 20px rgba(0,0,0,.45); --shadow-lg:0 20px 52px rgba(0,0,0,.60);
   --grad:linear-gradient(135deg,var(--accent),var(--accent-2));
@@ -22,6 +23,7 @@
   --accent-ink:#7DA9FF; --accent-soft:#16233F; --glow:rgba(59,130,246,.16);
   --lime:#6366F1; --amber:#F59E0B; --amber-soft:#2A2113; --danger:#EF4444; --danger-soft:#2A1618;
   --ok:#22C55E; --ok-soft:#122A1C;
+  --anat-body:#232A33; --anat-line:#313B47; --anat-muscle:#3E4A59;
   --shadow:0 6px 20px rgba(0,0,0,.45); --shadow-lg:0 20px 52px rgba(0,0,0,.60);
 }
 :root[data-theme="light"]{
@@ -31,6 +33,7 @@
   --accent-ink:#1257C8; --accent-soft:#E5EDFF; --glow:rgba(59,130,246,.10);
   --lime:#6366F1; --amber:#B5730B; --amber-soft:#FBEFD8; --danger:#D63B4A; --danger-soft:#FBE6E8;
   --ok:#128A5A; --ok-soft:#E1F3EA;
+  --anat-body:#E7ECF6; --anat-line:#CBD5E8; --anat-muscle:#B0BDD6;
   --shadow:0 4px 16px rgba(20,28,60,.08); --shadow-lg:0 16px 42px rgba(20,28,60,.16);
 }
 
@@ -311,11 +314,13 @@ nav.tabs button.on .ico{filter:drop-shadow(0 0 6px color-mix(in srgb,var(--accen
 .breath .out{background:var(--amber-soft);color:var(--amber)}
 .altcard{border:1px solid var(--line);border-radius:14px;padding:12px 13px;margin:7px 0;background:var(--surface)}
 .anat2{display:flex;gap:10px;width:100%}
+.bodysvg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.anview .body path,.anview .body rect,.anview .body circle,.anview .body ellipse{stroke-linejoin:round}
 /* Fond clair fixe : les planches wger sont des dessins à traits sombres,
    illisibles sur le thème sombre → fond clair dans les deux thèmes. */
-.anview{flex:1;position:relative;aspect-ratio:1/2.3;background:#eef1f8;border:1px solid #d7deec;border-radius:14px;overflow:hidden}
+.anview{flex:1;position:relative;aspect-ratio:12/25;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
 .anview img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
-.anview .lab{position:absolute;bottom:5px;left:0;right:0;text-align:center;font-size:.7rem;font-weight:750;color:#5a6480}
+.anview .lab{position:absolute;bottom:5px;left:0;right:0;text-align:center;font-size:.7rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)}
 .leg{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:8px}
 
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
