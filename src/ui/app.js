@@ -927,10 +927,35 @@ let ANATOLY_SEM = 1; // semaine sélectionnée
 function reposAnat(nom) {
   return /squat|développé couché|soulevé de terre/i.test(nom) ? "4 min" : "2 min";
 }
+/* Résolution de média par nom de mouvement (réutilise la bibliothèque existante,
+   incluant les 250 exercices wger) pour couvrir les mouvements du programme
+   Anatoly qui n'ont pas de réf directe. Ordre = priorité. */
+const ANAT_MEDIA = [
+  [/prise invers|reverse/i, "wger-dd6e8753-reverse-grip-barbell-curls"],
+  [/curl barre/i, "wger-42227131-biceps-curls-with-sz-bar"],
+  [/barre au front|skull|french press|extension.*triceps.*(halt|inclin)/i, "wger-893c07ea-skullcrusher-dumbbells"],
+  [/ciseaux|scissor|flutter/i, "wger-fdc550b6-flutter-kicks"],
+  [/t-barre|t-bar/i, "wger-1eeccede-t-bar-row"],
+  [/hyperext/i, "wger-50a8f1f6-lower-back-extensions"],
+  [/pull-?over/i, "wger-6e00afb6-cross-bench-dumbbell-pullovers"],
+  [/frontales|front raise/i, "wger-68e0dbba-front-raises-with-plates"],
+  [/militaire|overhead press/i, "wger-f4467e9a-overhead-press"],
+  [/rowing.*(poulie|horizontal)|rowing assis|cable row/i, "wger-4b7cb037-row"],
+  [/shrug|haussement/i, "wger-270e108d-shrugs-barbells"],
+  [/fentes? march/i, "wger-2f1a2707-dumbbell-lunges-standing"],
+  [/saut/i, "wger-002c6a4f-box-jumps"],
+];
+/** Meilleure réf média pour un exercice Anatoly : réf directe animée, sinon repli par nom. */
+function refAnat(ex) {
+  if (ex.ref && GIFS[ex.ref]) return ex.ref;
+  for (const [re, id] of ANAT_MEDIA) if (re.test(ex.nom)) return id;
+  return ex.ref || null;
+}
 /** Carte d'un exercice du programme Anatoly (média réutilisé si disponible). */
 function carteAnatoly(ex, num) {
-  const exo = ex.ref ? getExercise(ex.ref) : null;
-  const gif = ex.ref ? GIFS[ex.ref] : null;
+  const ref = refAnat(ex);
+  const exo = ref ? getExercise(ref) : null;
+  const gif = ref ? GIFS[ref] : null;
   const c = h(`<div class="card anat-ex${exo ? " tap" : ""}"></div>`);
   const top = h(`<div class="anat-ex-top"></div>`);
   if (gif) top.append(h(`<img class="anat-thumb" src="${esc(gif)}" alt="" loading="lazy" decoding="async">`));
