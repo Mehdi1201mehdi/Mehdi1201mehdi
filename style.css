@@ -185,6 +185,9 @@ label.f>span{display:block;font-size:.8rem;font-weight:750;color:var(--ink-soft)
 .mi{display:inline-flex;width:17px;height:17px;vertical-align:-3px;margin-right:4px}
 .mi svg{width:100%;height:100%;display:block}
 .mi-orange{color:#F97316}.mi-blue{color:var(--accent)}.mi-green{color:var(--ok)}.mi-indigo{color:var(--accent-2)}.mi-muted{color:var(--ink-soft)}
+/* Icône dans une puce (chip) */
+.cic{display:inline-flex;width:15px;height:15px;vertical-align:-2px;margin-right:5px}
+.cic svg{width:100%;height:100%;display:block}
 .wk-stats{display:flex;gap:6px;justify-content:space-between;text-align:center;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 .wk-stats>div{flex:1;min-width:0}
 .wk-stats b{display:block;font-size:1.3rem;font-weight:850;letter-spacing:-.02em;line-height:1}
@@ -230,6 +233,8 @@ label.f>span{display:block;font-size:.8rem;font-weight:750;color:var(--ink-soft)
 .tgt{display:flex;align-items:center;gap:12px}
 .tgt+.tgt{margin-top:12px}
 .tgt .ic{font-size:1.25rem;width:38px;height:38px;display:grid;place-items:center;background:var(--surface-2);border-radius:12px;flex:0 0 auto}
+.tgt .ic svg{width:19px;height:19px;display:block}
+.tgt .ic.mi-blue,.tgt .ic.mi-orange{background:color-mix(in srgb,currentColor 14%,transparent)}
 .bar.mt{margin-top:5px}
 .bar.mt>div{background:var(--grad)}
 .tap{cursor:pointer;transition:transform .08s ease,border-color .15s ease}
@@ -320,6 +325,8 @@ button.linklike{background:transparent;border:none;min-height:44px;display:inlin
 .plusmenu .inner{display:flex;flex-direction:column;gap:10px}
 .plusitem{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:15px}
 .plusitem .pm-ic{flex:0 0 auto;width:46px;height:46px;border-radius:13px;display:grid;place-items:center;font-size:1.4rem;background:var(--surface-2)}
+.plusitem .pm-ic svg{width:23px;height:23px;display:block}
+.plusitem .pm-ic.mi-green,.plusitem .pm-ic.mi-blue,.plusitem .pm-ic.mi-indigo,.plusitem .pm-ic.mi-orange{background:color-mix(in srgb,currentColor 15%,transparent)}
 .plusitem .pm-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .plusitem .pm-main b{font-size:1rem;font-weight:800}
 /* Choix en cartes (onboarding) */

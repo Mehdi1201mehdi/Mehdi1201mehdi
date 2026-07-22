@@ -102,17 +102,17 @@ function majTabs() {
 /** Menu « Plus » : Nutrition, Programme Anatoly, Profil (garde toutes les fonctions). */
 function ouvrirPlus() {
   const items = [
-    { tab: "food", icone: "🍎", label: "Nutrition", desc: "Calories, macros, hydratation" },
-    { tab: "anatoly", icone: "🏋️", label: "Programme Anatoly", desc: "Powerbuilding · 8 semaines" },
-    { tab: "cat", icone: "🔎", label: "Catalogue d'exercices", desc: "Rechercher et filtrer" },
-    { tab: "set", icone: "👤", label: "Profil & réglages", desc: "Compte, thème, sauvegarde" },
+    { tab: "food", icone: IC.apple, tint: "mi-green", label: "Nutrition", desc: "Calories, macros, hydratation" },
+    { tab: "anatoly", icone: IC.dumbbell, tint: "mi-blue", label: "Programme Anatoly", desc: "Powerbuilding · 8 semaines" },
+    { tab: "cat", icone: IC.search, tint: "mi-indigo", label: "Catalogue d'exercices", desc: "Rechercher et filtrer" },
+    { tab: "set", icone: IC.user, tint: "mi-orange", label: "Profil & réglages", desc: "Compte, thème, sauvegarde" },
   ];
   const sheet = h(`<div class="sheet plusmenu"><div class="inner"></div></div>`);
   const inner = sheet.querySelector(".inner");
   const fermer = () => sheet.remove();
   inner.append(h(`<div class="sheet-top"><h2 style="margin:0">Plus</h2><button class="chip" id="x">✕ Fermer</button></div>`));
   items.forEach((it) => {
-    const b = h(`<button class="card plusitem"><span class="pm-ic" aria-hidden="true">${it.icone}</span><span class="pm-main"><b>${esc(it.label)}</b><span class="muted small">${esc(it.desc)}</span></span><span class="chev" aria-hidden="true">›</span></button>`);
+    const b = h(`<button class="card plusitem"><span class="pm-ic ${it.tint}" aria-hidden="true">${it.icone}</span><span class="pm-main"><b>${esc(it.label)}</b><span class="muted small">${esc(it.desc)}</span></span><span class="chev" aria-hidden="true">›</span></button>`);
     b.addEventListener("click", () => { sheet.remove(); nav(it.tab); });
     inner.append(b);
   });
@@ -435,6 +435,19 @@ const IC = {
   plate: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11h18M5 11V8a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3M5 11l1 8h12l1-8"/></svg>`,
   fork: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7a4 4 0 0 0 8 0V2M7 2v20"/></svg>`,
   droplet: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2s7 8 7 13a7 7 0 0 1-14 0c0-5 7-13 7-13z"/></svg>`,
+  clock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`,
+  trophy: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M6 4h12v4a6 6 0 0 1-12 0zM6 4H3v2a3 3 0 0 0 3 3M18 4h3v2a3 3 0 0 1-3 3"/></svg>`,
+  activity: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>`,
+  repeat: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"/></svg>`,
+  trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>`,
+  plus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>`,
+  alert: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/></svg>`,
+  search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>`,
+  user: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>`,
+  swap: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3l4 4-4 4M20 7H8M8 21l-4-4 4-4M4 17h12"/></svg>`,
+  info: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>`,
+  cornerDown: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 10l5 5-5 5M20 15H9a5 5 0 0 1-5-5V4"/></svg>`,
+  calendar: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>`,
 };
 /** Petite icône SVG en ligne (repas, etc.), teintée par classe. */
 const mi = (svg, cls) => `<span class="mi ${cls}">${svg}</span>`;
@@ -498,9 +511,9 @@ function vDash(v) {
   const tc = h(`<div class="card stack tap"></div>`);
   const tcHead = h(`<div class="spread" style="margin-bottom:2px"><div class="eyebrow">Objectif du jour</div><span class="chev">Nutrition ›</span></div>`);
   tc.append(tcHead);
-  tc.append(targetLigne("🏋️", "Séance", seanceFaite ? "Faite ✓" : (sj ? "À faire" : "Repos"), seanceFaite ? 1 : (sj ? 0 : 1)));
-  tc.append(targetLigne("🔥", "Calories", `${Math.round(foodT)} / ${besoins.kcal} kcal`, foodT / (besoins.kcal || 1)));
-  tc.append(targetLigne("💧", "Hydratation", `${(eauT / 1000).toFixed(1)} / ${besoins.eau} L`, eauT / eauCibleMl));
+  tc.append(targetLigne(IC.dumbbell, "Séance", seanceFaite ? "Faite ✓" : (sj ? "À faire" : "Repos"), seanceFaite ? 1 : (sj ? 0 : 1), "mi-blue"));
+  tc.append(targetLigne(IC.flame, "Calories", `${Math.round(foodT)} / ${besoins.kcal} kcal`, foodT / (besoins.kcal || 1), "mi-orange"));
+  tc.append(targetLigne(IC.droplet, "Hydratation", `${(eauT / 1000).toFixed(1)} / ${besoins.eau} L`, eauT / eauCibleMl, "mi-blue"));
   tc.addEventListener("click", () => nav("food"));
   v.append(tc);
 
@@ -537,9 +550,9 @@ const EQUIPMENT_ICONS = {
   velo: "🚴", rameur: "🚣",
 };
 /** Ligne d'objectif du jour (icône + libellé + valeur + mini-jauge). */
-function targetLigne(icone, label, val, pct) {
+function targetLigne(icone, label, val, pct, tint = "") {
   const p = Math.round(Math.max(0, Math.min(1, pct || 0)) * 100);
-  return h(`<div class="tgt"><span class="ic" aria-hidden="true">${icone}</span><div style="flex:1;min-width:0"><div class="spread small"><span>${esc(label)}</span><span class="num muted">${esc(val)}</span></div><div class="bar mt"><div style="width:${p}%"></div></div></div></div>`);
+  return h(`<div class="tgt"><span class="ic ${tint}" aria-hidden="true">${icone}</span><div style="flex:1;min-width:0"><div class="spread small"><span>${esc(label)}</span><span class="num muted">${esc(val)}</span></div><div class="bar mt"><div style="width:${p}%"></div></div></div></div>`);
 }
 /** Barre de macro (libellé + valeur/cible + jauge colorée). Composant réutilisable. */
 function macroBar(label, valeur, cible, unite, cls) {
@@ -584,13 +597,13 @@ function vProg(v) {
       d.append(h(`<summary><span class="dc-ic" style="background:${col}26;color:${col}">🏋️</span><span class="dc-main"><span class="dc-day">${JOURS[wd - 1]}${wd === auj ? " · Aujourd'hui" : ""}</span><b class="dc-name">${esc(s.nom)}</b><span class="muted small">${esc(meta)}</span></span></summary>`));
       s.exercices.forEach((e, i) => d.append(carteExoApercu(e, i + 1)));
       if (wd === auj) {
-        const b = h(`<button class="primary big" style="margin-top:11px">▶  Commencer la séance</button>`);
+        const b = h(`<button class="primary big" style="margin-top:11px"><span class="btn-ico">${IC.play}</span>Commencer la séance</button>`);
         b.addEventListener("click", () => { LIVE = null; APERCU = s.id; nav("train"); });
         d.append(b);
       }
       v.append(d);
     } else {
-      v.append(h(`<div class="daycard rest"><span class="dc-ic" style="background:var(--surface-2);color:var(--ink-soft)">😴</span><span class="dc-main"><span class="dc-day">${JOURS[wd - 1]}</span><b class="dc-name">Repos</b><span class="muted small">Récupération</span></span></div>`));
+      v.append(h(`<div class="daycard rest"><span class="dc-ic" style="background:var(--surface-2);color:var(--ink-soft)">${IC.moon}</span><span class="dc-main"><span class="dc-day">${JOURS[wd - 1]}</span><b class="dc-name">Repos</b><span class="muted small">Récupération</span></span></div>`));
     }
   }
 
@@ -641,7 +654,7 @@ function vRoutineEditor(v, routineId) {
   $("#ren", v).addEventListener("click", async () => { const n = await demanderTexte("Nom de la routine", r.nom); if (n !== null) { renommer(r, n); Etat.sauver(); render(); } });
   if (!r.seances.length) v.append(h(`<div class="muted small">Aucune séance. Ajoute-en une pour commencer.</div>`));
   r.seances.forEach((s) => v.append(carteSeanceEditor(r, s)));
-  const bAddS = h(`<button class="primary" style="margin-top:10px">➕ Ajouter une séance</button>`);
+  const bAddS = h(`<button class="primary" style="margin-top:10px"><span class="btn-ico">${IC.plus}</span>Ajouter une séance</button>`);
   bAddS.addEventListener("click", async () => { const n = await demanderTexte("Nom de la séance", `Séance ${r.seances.length + 1}`, { ok: "Ajouter" }); if (n === null) return; ajouterSeance(r, n); Etat.sauver(); render(); });
   v.append(bAddS);
 }
@@ -830,10 +843,10 @@ function ouvrirDetail(exo) {
       if (!hh.nbSeances) return h(`<div class="muted small">Aucune donnée pour l'instant. Réalise cet exercice en séance pour suivre ta progression ici.</div>`);
       const f = h(`<div class="stack"></div>`);
       const g = h(`<div class="statgrid"></div>`);
-      g.append(statCard("🏋️", `${hh.maxCharge} kg`, "Charge max"));
-      g.append(statCard("📈", `${hh.best1rm} kg`, "1RM estimé"));
-      g.append(statCard("🔁", `${hh.totalSeries}`, "Séries totales"));
-      g.append(statCard("📅", `${hh.nbSeances}`, "Séances"));
+      g.append(statCard(IC.dumbbell, `${hh.maxCharge} kg`, "Charge max"));
+      g.append(statCard(IC.activity, `${hh.best1rm} kg`, "1RM estimé"));
+      g.append(statCard(IC.repeat, `${hh.totalSeries}`, "Séries totales"));
+      g.append(statCard(IC.calendar, `${hh.nbSeances}`, "Séances"));
       f.append(g);
       f.append(h(`<div class="eyebrow" style="margin-top:10px">Dernières séances</div>`));
       hh.seances.slice(0, 8).forEach((s) => {
@@ -1123,7 +1136,7 @@ function vApercuSeance(v, seanceId) {
     muscles.slice(0, 6).forEach((m) => mc.append(h(`<span class="pill">${esc(MUSCLE_LABELS[m] || m)}</span>`)));
     v.append(mc);
   }
-  const start = h(`<button class="primary big" style="margin:6px 0 14px">▶  Commencer la séance</button>`);
+  const start = h(`<button class="primary big" style="margin:6px 0 14px"><span class="btn-ico">${IC.play}</span>Commencer la séance</button>`);
   start.addEventListener("click", () => { APERCU = null; demarrer(s); });
   v.append(start);
   s.exercices.forEach((e, i) => v.append(carteExoApercu(e, i + 1)));
@@ -1185,7 +1198,7 @@ function vTrain(v) {
   v.append(head);
   arreterChrono(); majChrono(); SESSION_TMR = setInterval(majChrono, 1000);
   seance.exercices.forEach((e) => v.append(carteExoLive(e)));
-  const bAdd = h(`<button class="chip" style="margin-top:8px">➕ Ajouter un exercice</button>`);
+  const bAdd = h(`<button class="chip" style="margin-top:8px"><span class="cic">${IC.plus}</span>Ajouter un exercice</button>`);
   bAdd.addEventListener("click", () => ajouterExerciceLive(seance));
   v.append(bAdd);
   const fin = h(`<button class="primary big" style="margin-top:12px">Terminer et enregistrer</button>`);
@@ -1288,7 +1301,7 @@ function carteExoLive(e) {
   // fois (ou la charge conseillée) → beaucoup moins de saisie à la salle.
   const peutRemplir = !enTemps && (derniere || sug.chargeKg) && st.series.some((s) => !s.charge || !s.reps);
   if (peutRemplir) {
-    const bFill = h(`<button class="chip">⤵ Reprendre</button>`);
+    const bFill = h(`<button class="chip"><span class="cic">${IC.cornerDown}</span>Reprendre</button>`);
     bFill.title = "Pré-remplir avec la dernière fois / le conseil";
     bFill.addEventListener("click", () => {
       st.series.forEach((s, i) => {
@@ -1302,15 +1315,15 @@ function carteExoLive(e) {
   }
   c.append(serieActs);
   const acts = h(`<div class="row"></div>`);
-  const bDouleur = h(`<button class="chip ${st.douleur ? "danger" : ""}">${st.douleur ? "⚠️ Douleur signalée" : "Signaler une douleur"}</button>`);
+  const bDouleur = h(`<button class="chip ${st.douleur ? "danger" : ""}"><span class="cic">${IC.alert}</span>${st.douleur ? "Douleur signalée" : "Signaler une douleur"}</button>`);
   bDouleur.addEventListener("click", () => { st.douleur = !st.douleur; persistLive(true); if (st.douleur) info("Douleur vive, articulaire ou inhabituelle : arrête cet exercice aujourd'hui. Si elle persiste, consulte un professionnel de santé.", { titre: "⚠️ Douleur signalée" }); render(); });
-  const bDemo = h(`<button class="chip">▶ Démo</button>`);
+  const bDemo = h(`<button class="chip"><span class="cic">${IC.play}</span>Démo</button>`);
   bDemo.addEventListener("click", () => ouvrirDetail(exo));
   const bRir = h(`<button class="chip ${st.showRir ? "on" : ""}" title="Afficher la colonne RIR (reps en réserve)">RIR</button>`);
   bRir.addEventListener("click", () => { st.showRir = !st.showRir; persistLive(true); render(); });
-  const bRempl = h(`<button class="chip">🔄 Remplacer</button>`);
+  const bRempl = h(`<button class="chip"><span class="cic">${IC.swap}</span>Remplacer</button>`);
   bRempl.addEventListener("click", () => remplacer(e.exerciceId));
-  const bRetirer = h(`<button class="chip">🗑️ Retirer</button>`);
+  const bRetirer = h(`<button class="chip"><span class="cic">${IC.trash}</span>Retirer</button>`);
   bRetirer.addEventListener("click", async () => { if (await confirmer(`Retirer « ${exo.nom} » de la séance ?`, { danger: true, ok: "Retirer" })) retirerExerciceLive(e.exerciceId); });
   acts.append(bDemo, bRir, bDouleur, bRempl, bRetirer);
   c.append(acts);
@@ -1437,12 +1450,12 @@ function ecranFinSeance(log, prs) {
   const inner = sheet.querySelector(".inner");
   inner.append(h(`<div class="fin-head"><div class="fin-check">✓</div><h1 style="margin:16px 0 4px">Séance terminée 🎉</h1><div class="muted">Excellent travail, continue comme ça !</div></div>`));
   const g = h(`<div class="statgrid" style="margin-top:20px"></div>`);
-  g.append(statCard("⏱️", dureeTxt, "Durée"));
-  g.append(statCard("🏋️", `${(log.exercices || []).length}`, "Exercices"));
-  g.append(statCard("🔁", `${nbSeries}`, "Séries"));
-  g.append(statCard("📊", volume.toLocaleString("fr-FR"), "Volume kg"));
-  g.append(statCard("🔥", `${kcal}`, "Calories"));
-  g.append(statCard("🏆", `${prs.length}`, prs.length > 1 ? "Records" : "Record"));
+  g.append(statCard(IC.clock, dureeTxt, "Durée"));
+  g.append(statCard(IC.dumbbell, `${(log.exercices || []).length}`, "Exercices"));
+  g.append(statCard(IC.repeat, `${nbSeries}`, "Séries"));
+  g.append(statCard(IC.bars, volume.toLocaleString("fr-FR"), "Volume kg"));
+  g.append(statCard(IC.flame, `${kcal}`, "Calories"));
+  g.append(statCard(IC.trophy, `${prs.length}`, prs.length > 1 ? "Records" : "Record"));
   inner.append(g);
   if (prs.length) {
     const rc = h(`<div class="card stack" style="margin-top:14px"><b>🏆 ${prs.length > 1 ? "Nouveaux records" : "Nouveau record"} !</b></div>`);
@@ -1901,10 +1914,10 @@ function vStats(v) {
   const volP = Math.round(lp.reduce((a, l) => a + volumeLog(l), 0));
   const dureeP = Math.round(lp.reduce((a, l) => a + (l.dureeSec || 0), 0) / 60);
   const g = h(`<div class="statgrid"></div>`);
-  g.append(statCard("🏋️", `${lp.length}`, "Séances"));
-  g.append(statCard("⏱️", `${Math.floor(dureeP / 60)}h${String(dureeP % 60).padStart(2, "0")}`, "Temps total"));
-  g.append(statCard("📊", volP.toLocaleString("fr-FR"), "Volume kg"));
-  g.append(statCard("🔥", (dureeP * 8).toLocaleString("fr-FR"), "Calories"));
+  g.append(statCard(IC.dumbbell, `${lp.length}`, "Séances"));
+  g.append(statCard(IC.clock, `${Math.floor(dureeP / 60)}h${String(dureeP % 60).padStart(2, "0")}`, "Temps total"));
+  g.append(statCard(IC.bars, volP.toLocaleString("fr-FR"), "Volume kg"));
+  g.append(statCard(IC.flame, (dureeP * 8).toLocaleString("fr-FR"), "Calories"));
   v.append(g);
 
   carteCalendrier(v, logs);
