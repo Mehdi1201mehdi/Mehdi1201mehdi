@@ -517,7 +517,7 @@ function vDash(v) {
   tc.addEventListener("click", () => nav("food"));
   v.append(tc);
 
-  v.append(h(`<div class="warn small">⚕️ Douleur vive, articulaire ou inhabituelle = on arrête le mouvement. Cette app ne pose aucun diagnostic médical.</div>`));
+  v.append(h(`<div class="disclaimer">En cas de douleur vive ou inhabituelle, arrête le mouvement. Cette app ne pose aucun diagnostic médical.</div>`));
 }
 function kpi(lab, val) { return h(`<div class="card kpi"><span class="lab">${esc(lab)}</span><b class="num">${esc(val)}</b></div>`); }
 /** Anneau de progression SVG (0..1) avec texte central. Composant réutilisable. */

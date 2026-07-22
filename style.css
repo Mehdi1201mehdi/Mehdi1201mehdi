@@ -173,9 +173,15 @@ label.f>span{display:block;font-size:.8rem;font-weight:750;color:var(--ink-soft)
 .stat .lab{font-size:.68rem;color:var(--ink-soft);font-weight:800;text-transform:uppercase;letter-spacing:.06em}
 .stat.sm b{font-size:1.12rem;font-weight:800;letter-spacing:-.01em;line-height:1.1}
 /* Carte « Entraînement du jour » (accueil) — traitement héro (bord + lueur d'accent) */
-.wkcard{position:relative;overflow:hidden;border-color:color-mix(in srgb,var(--accent) 24%,var(--line))}
-.wkcard::after{content:"";position:absolute;top:-45px;right:-35px;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--accent) 22%,transparent),transparent 70%);pointer-events:none}
-.wkcard>*{position:relative}
+.wkcard{position:relative;overflow:hidden;border-color:color-mix(in srgb,var(--accent) 32%,var(--line));box-shadow:var(--shadow-lg),0 0 40px -12px color-mix(in srgb,var(--accent) 40%,transparent);
+  background:
+    radial-gradient(135% 95% at 106% -14%, color-mix(in srgb,var(--accent) 30%,transparent), transparent 50%),
+    linear-gradient(158deg, color-mix(in srgb,var(--accent) 12%,var(--surface)), var(--surface) 60%);}
+/* Grande haltère fantôme + balayage lumineux : le héros "app de sport" */
+.wkcard::after{content:"";position:absolute;right:-26px;bottom:-34px;width:200px;height:200px;opacity:.07;pointer-events:none;z-index:0;
+  background:center/contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 7v10M18 7v10M4 9v6M20 9v6M6 12h12'/%3E%3C/svg%3E")}
+.wkcard::before{background:linear-gradient(135deg,rgba(255,255,255,.14),transparent 42%)}
+.wkcard>*{position:relative;z-index:1}
 .wkcard .wk-ic{width:44px;height:44px;display:grid;place-items:center;background:var(--accent-soft);border-radius:13px;color:var(--accent)}
 .wkcard .wk-ic svg{width:22px;height:22px;display:block}
 .wkcard .wk-ic-rest{background:var(--surface-2);color:var(--ink-soft)}
@@ -251,6 +257,8 @@ label.f>span{display:block;font-size:.8rem;font-weight:750;color:var(--ink-soft)
 .exline .meta{flex:1;min-width:0}
 .exline .meta .nm{font-weight:750}
 .warn{background:var(--amber-soft);border:1px solid color-mix(in srgb,var(--amber) 40%,transparent);border-radius:var(--radius-sm);padding:12px 14px;font-size:.86rem;margin:12px 0}
+/* Mention légère (non intrusive) — remplace le gros bandeau d'avertissement */
+.disclaimer{font-size:.72rem;line-height:1.45;color:var(--ink-soft);opacity:.62;text-align:center;margin:22px 10px 6px;max-width:40ch;margin-left:auto;margin-right:auto}
 .notice{background:var(--accent-soft);border-radius:var(--radius-sm);padding:12px 14px;font-size:.86rem;margin:10px 0;color:var(--accent-ink)}
 
 details{border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 15px;margin:9px 0;background:var(--surface)}
