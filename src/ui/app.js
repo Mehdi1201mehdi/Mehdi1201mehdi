@@ -421,6 +421,15 @@ function semaineStrip(logs) {
   return box;
 }
 
+/* Icônes SVG (style Lucide, trait cohérent) — remplacent les emoji sur les
+   éléments clés pour un rendu « app pro », d'après la maquette Claude Design. */
+const IC = {
+  dumbbell: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7v10M18 7v10M4 9v6M20 9v6M6 12h12"/></svg>`,
+  flame: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1.5 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3.5 2.5-5 .5 2.5 2.5 2.5 2.5 2.5 0-3.5-2.5-4.5-2-7.5z"/></svg>`,
+  bars: `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg>`,
+  play: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 4v16l14-8z"/></svg>`,
+  moon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg>`,
+};
 function vDash(v) {
   const p = Etat.data.profil, prog = Etat.data.programme;
   const sj = seanceDuJour(prog);
@@ -438,8 +447,8 @@ function vDash(v) {
 
   // Deux cartes : série (streak) + niveau
   const duo = h(`<div class="statgrid" style="margin-top:15px"></div>`);
-  duo.append(h(`<div class="stat"><div class="ic">🔥</div><b class="num">${serieJours(logs)} j</b><span class="lab">Série actuelle</span></div>`));
-  duo.append(h(`<div class="stat sm"><div class="ic">📊</div><b>${esc(LEVEL_LABELS[p.niveau] || p.niveau)}</b><span class="lab">Niveau</span></div>`));
+  duo.append(h(`<div class="stat"><div class="ic ic-orange">${IC.flame}</div><b class="num">${serieJours(logs)} j</b><span class="lab">Série actuelle</span></div>`));
+  duo.append(h(`<div class="stat sm"><div class="ic ic-blue">${IC.bars}</div><b>${esc(LEVEL_LABELS[p.niveau] || p.niveau)}</b><span class="lab">Niveau</span></div>`));
   v.append(duo);
 
   // Entraînement du jour (grande carte)
@@ -450,7 +459,7 @@ function vDash(v) {
     const muscles = (sj.groupesCibles || []).map((m) => MUSCLE_LABELS[m] || m).slice(0, 3).join(" · ");
     let pct = seanceFaite ? 1 : 0;
     if (LIVE && LIVE.seanceId === sj.id) pct = progressionSeance(sj).pct;
-    wc.append(h(`<div class="spread"><h2 style="margin:0;font-size:1.5rem">${esc(sj.nom)}</h2><span class="wk-ic">🏋️</span></div>`));
+    wc.append(h(`<div class="spread"><h2 style="margin:0;font-size:1.5rem">${esc(sj.nom)}</h2><span class="wk-ic">${IC.dumbbell}</span></div>`));
     if (muscles) wc.append(h(`<div class="muted small" style="margin:3px 0 13px">${esc(muscles)}</div>`));
     const st = h(`<div class="wk-stats"></div>`);
     st.append(h(`<div><b>${sj.exercices.length}</b><span>Exercices</span></div>`));
@@ -461,11 +470,11 @@ function vDash(v) {
     wc.append(st);
     wc.append(h(`<div class="spread small" style="margin:15px 0 6px"><span class="muted">Progression séance</span><span class="num" style="color:var(--accent-ink);font-weight:800">${Math.round(pct * 100)}%</span></div>`));
     wc.append(h(`<div class="bar"><div style="width:${Math.round(pct * 100)}%"></div></div>`));
-    const b = h(`<button class="primary big" style="margin-top:15px">${seanceFaite ? "✓  Séance faite — revoir" : "▶  Commencer la séance"}</button>`);
+    const b = h(`<button class="primary big" style="margin-top:15px">${seanceFaite ? "✓ Séance faite — revoir" : `<span class="btn-ico">${IC.play}</span>Commencer la séance`}</button>`);
     b.addEventListener("click", () => { LIVE = null; APERCU = sj.id; nav("train"); });
     wc.append(b);
   } else {
-    wc.append(h(`<div class="spread"><h2 style="margin:0">Jour de repos</h2><span class="wk-ic">😴</span></div>`));
+    wc.append(h(`<div class="spread"><h2 style="margin:0">Jour de repos</h2><span class="wk-ic wk-ic-rest">${IC.moon}</span></div>`));
     wc.append(h(`<div class="muted small" style="margin-top:5px">Marche, mobilité ou récupération active. Reviens demain 💪</div>`));
   }
   v.append(wc);

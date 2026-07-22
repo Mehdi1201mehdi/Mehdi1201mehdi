@@ -124,7 +124,7 @@ button.primary::after{content:"";position:absolute;inset:0;border-radius:inherit
 button.primary:hover{filter:brightness(1.06)}
 button.secondary{background:var(--surface-2);border-color:transparent;color:var(--ink)}
 button.tertiary{background:transparent;border:1px solid var(--line);color:var(--ink)}
-button.big{width:100%;padding:16px;font-size:1.04rem;letter-spacing:-.01em}
+button.big{width:100%;padding:16px;font-size:1.04rem;letter-spacing:-.01em;display:flex;align-items:center;justify-content:center;gap:8px}
 button.ghost{background:transparent}
 button.danger{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 45%,var(--line));background:transparent}
 button.chip{min-height:44px;padding:10px 15px;border-radius:999px;font-size:.85rem;font-weight:700;background:var(--surface-2);border-color:transparent}
@@ -166,11 +166,21 @@ label.f>span{display:block;font-size:.8rem;font-weight:750;color:var(--ink-soft)
 /* L'app est une colonne centrée ≤480px : la grille de stats reste sur 2 colonnes. */
 .stat{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:14px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:7px;min-width:0}
 .stat .ic{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:var(--accent-soft);font-size:1.15rem}
+.stat .ic svg{width:20px;height:20px;display:block}
+.stat .ic.ic-orange{background:rgba(249,115,22,.14);color:#F97316}
+.stat .ic.ic-blue{background:var(--accent-soft);color:var(--accent)}
 .stat b{font-size:1.5rem;font-weight:850;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis}
 .stat .lab{font-size:.68rem;color:var(--ink-soft);font-weight:800;text-transform:uppercase;letter-spacing:.06em}
 .stat.sm b{font-size:1.12rem;font-weight:800;letter-spacing:-.01em;line-height:1.1}
-/* Carte « Entraînement du jour » (accueil) */
-.wkcard .wk-ic{font-size:1.5rem;width:44px;height:44px;display:grid;place-items:center;background:var(--accent-soft);border-radius:13px}
+/* Carte « Entraînement du jour » (accueil) — traitement héro (bord + lueur d'accent) */
+.wkcard{position:relative;overflow:hidden;border-color:color-mix(in srgb,var(--accent) 24%,var(--line))}
+.wkcard::after{content:"";position:absolute;top:-45px;right:-35px;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--accent) 22%,transparent),transparent 70%);pointer-events:none}
+.wkcard>*{position:relative}
+.wkcard .wk-ic{width:44px;height:44px;display:grid;place-items:center;background:var(--accent-soft);border-radius:13px;color:var(--accent)}
+.wkcard .wk-ic svg{width:22px;height:22px;display:block}
+.wkcard .wk-ic-rest{background:var(--surface-2);color:var(--ink-soft)}
+.btn-ico{display:inline-flex;width:18px;height:18px;flex:0 0 auto}
+.btn-ico svg{width:100%;height:100%;display:block}
 .wk-stats{display:flex;gap:6px;justify-content:space-between;text-align:center;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 .wk-stats>div{flex:1;min-width:0}
 .wk-stats b{display:block;font-size:1.3rem;font-weight:850;letter-spacing:-.02em;line-height:1}
