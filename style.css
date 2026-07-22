@@ -265,6 +265,7 @@ details[open] summary::after{content:"–"}
 .daycard.today{border-color:color-mix(in srgb,var(--accent) 55%,transparent);background:color-mix(in srgb,var(--accent) 8%,var(--surface))}
 .daycard.rest{display:flex;align-items:center;gap:13px;opacity:.62}
 .dc-ic{flex:0 0 auto;width:46px;height:46px;border-radius:13px;display:grid;place-items:center;font-size:1.35rem}
+.dc-ic svg{width:23px;height:23px;display:block}
 .dc-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
 .dc-day{font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft)}
 .dc-name{font-size:1.05rem;font-weight:800;letter-spacing:-.01em}

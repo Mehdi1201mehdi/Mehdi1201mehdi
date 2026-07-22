@@ -594,7 +594,7 @@ function vProg(v) {
       // Ouvert par défaut : les exercices (cartes visuelles avec vignette) sont
       // visibles d'emblée, sans clic. La séance reste repliable si on le souhaite.
       const d = h(`<details class="daycard${wd === auj ? " today" : ""}" open></details>`);
-      d.append(h(`<summary><span class="dc-ic" style="background:${col}26;color:${col}">🏋️</span><span class="dc-main"><span class="dc-day">${JOURS[wd - 1]}${wd === auj ? " · Aujourd'hui" : ""}</span><b class="dc-name">${esc(s.nom)}</b><span class="muted small">${esc(meta)}</span></span></summary>`));
+      d.append(h(`<summary><span class="dc-ic" style="background:${col}26;color:${col}">${IC.dumbbell}</span><span class="dc-main"><span class="dc-day">${JOURS[wd - 1]}${wd === auj ? " · Aujourd'hui" : ""}</span><b class="dc-name">${esc(s.nom)}</b><span class="muted small">${esc(meta)}</span></span></summary>`));
       s.exercices.forEach((e, i) => d.append(carteExoApercu(e, i + 1)));
       if (wd === auj) {
         const b = h(`<button class="primary big" style="margin-top:11px"><span class="btn-ico">${IC.play}</span>Commencer la séance</button>`);
