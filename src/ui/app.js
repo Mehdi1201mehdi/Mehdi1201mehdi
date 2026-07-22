@@ -429,7 +429,15 @@ const IC = {
   bars: `<svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg>`,
   play: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 4v16l14-8z"/></svg>`,
   moon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg>`,
+  coffee: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4zM6 1v2M10 1v2M14 1v2"/></svg>`,
+  utensils: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7a4 4 0 0 0 8 0V2M7 2v20M21 15V2a5 5 0 0 0-3 5v6a2 2 0 0 0 2 2h1z"/></svg>`,
+  apple: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7c1-3 4-4 6-3 0 3-2 4-4 4M12 7c-1.5-2-4-2.5-6-1-1 3 1 13 6 13s7-10 6-13c-2-1.5-4.5-1-6 1z"/></svg>`,
+  plate: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11h18M5 11V8a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3M5 11l1 8h12l1-8"/></svg>`,
+  fork: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7a4 4 0 0 0 8 0V2M7 2v20"/></svg>`,
+  droplet: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2s7 8 7 13a7 7 0 0 1-14 0c0-5 7-13 7-13z"/></svg>`,
 };
+/** Petite icône SVG en ligne (repas, etc.), teintée par classe. */
+const mi = (svg, cls) => `<span class="mi ${cls}">${svg}</span>`;
 function vDash(v) {
   const p = Etat.data.profil, prog = Etat.data.programme;
   const sj = seanceDuJour(prog);
@@ -1485,7 +1493,12 @@ function stopTimer() { clearInterval(TMR); $("#overlay").classList.remove("show"
    NUTRITION (Open Food Facts + base locale)
    ====================================================================== */
 const VERRE_ML = 250; // un verre standard
-const REPAS = [["petit_dej", "Petit déjeuner", "🌅"], ["dejeuner", "Déjeuner", "🍽️"], ["collation", "Collation", "🍎"], ["diner", "Dîner", "🌙"]];
+const REPAS = [
+  ["petit_dej", "Petit déjeuner", mi(IC.coffee, "mi-orange")],
+  ["dejeuner", "Déjeuner", mi(IC.utensils, "mi-blue")],
+  ["collation", "Collation", mi(IC.apple, "mi-green")],
+  ["diner", "Dîner", mi(IC.plate, "mi-indigo")],
+];
 let CUR_REPAS = null; // repas cible pour les ajouts (défaut : selon l'heure)
 /** Carte d'hydratation interactive : verres bus vs objectif du jour. */
 function carteEau(v, b, jour) {
@@ -1500,7 +1513,7 @@ function carteEau(v, b, jour) {
     Etat.sauver(); render();
   };
   const c = h(`<div class="card stack"></div>`);
-  c.append(h(`<div class="spread"><h2 style="margin:0">💧 Hydratation</h2><span class="num muted">${(bus / 1000).toFixed(2)} / ${b.eau} L</span></div>`));
+  c.append(h(`<div class="spread"><h2 style="margin:0"><span class="mi mi-blue" style="width:20px;height:20px;vertical-align:-4px">${IC.droplet}</span> Hydratation</h2><span class="num muted">${(bus / 1000).toFixed(2)} / ${b.eau} L</span></div>`));
   c.append(h(`<div class="bar mw"><div style="width:${pct}%"></div></div>`));
   // Rangée de verres (remplis / vides)
   const verres = h(`<div class="glasses"></div>`);
@@ -1583,7 +1596,7 @@ function vNutrition(v) {
     const lg = Etat.data.foodlog[jour] || [];
     logBox.innerHTML = "";
     if (!lg.length) { logBox.append(h(`<div class="muted small">Rien d'enregistré aujourd'hui.</div>`)); return; }
-    const groupes = [...REPAS, ["autre", "Autres", "🍴"]];
+    const groupes = [...REPAS, ["autre", "Autres", mi(IC.fork, "mi-muted")]];
     const cle = (f) => (REPAS.some((r) => r[0] === f.repas) ? f.repas : "autre");
     groupes.forEach(([k, lab, ic]) => {
       const items = lg.map((f, i) => ({ f, i })).filter(({ f }) => cle(f) === k);
