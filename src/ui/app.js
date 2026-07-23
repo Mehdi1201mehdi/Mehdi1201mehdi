@@ -8,7 +8,7 @@ import {
   GOALS, GOAL_LABELS, LEVELS, LEVEL_LABELS, EQUIPMENTS, EQUIPMENT_LABELS,
   MUSCLES, MUSCLE_LABELS,
 } from "../models.js";
-import { getExercise, chercherCatalogue, CATALOGUE } from "../data/exercises.js";
+import { getExercise, chercherCatalogue, CATALOGUE, catalogueEtenduCharge, chargerCatalogueEtendu } from "../data/exercises.js";
 import { GIFS } from "../data/gifs.js";
 import { ANATOLY_INFO, ANATOLY_SEMAINES } from "../data/anatoly.js";
 import { genererProgramme } from "../engine/generator.js";
@@ -40,6 +40,9 @@ import {
 
 /** Nom lisible d'un exercice (pour records/stats). */
 const nomExo = (id) => (getExercise(id) ? getExercise(id).nom : id);
+/** Libellé court du niveau (évite la troncature dans les tuiles stat étroites). */
+const NIVEAU_COURT = { debutant: "Débutant", intermediaire: "Inter.", avance: "Avancé" };
+const niveauCourt = (niv) => NIVEAU_COURT[niv] || LEVEL_LABELS[niv] || niv;
 
 /** Toutes les séances jouables : programme généré + routines perso. */
 function toutesSeances() {
@@ -86,6 +89,17 @@ $("#themeBtn").addEventListener("click", () => {
 let TAB = "dash";
 const TABS = { dash: vDash, prog: vProg, cat: vCatalogue, train: vTrain, food: vNutrition, stats: vStats, set: vSet, anatoly: vAnatoly };
 const TABS_PLUS = ["food", "set", "anatoly", "cat"]; // rubriques regroupées dans « Plus »
+/** Titre affiché dans l'en-tête compact des écrans autres que l'Accueil. */
+const TITRES_ECRAN = { prog: "Programme", train: "Séance", stats: "Progrès", food: "Nutrition", cat: "Catalogue", anatoly: "Anatoly", set: "Profil" };
+/** En-tête contextuel : la marque complète ne s'affiche que sur l'Accueil ;
+ *  ailleurs, le titre de l'écran remplace l'eyebrow « Musculation » répété
+ *  (évite la redondance avec la nav basse et libère de la hauteur). */
+function majHeader() {
+  const brand = $("#brand"), titre = $("#hdTitle");
+  if (!brand || !titre) return;
+  if (TAB === "dash") { brand.classList.remove("compact"); titre.textContent = "Coach Perso"; }
+  else { brand.classList.add("compact"); titre.textContent = TITRES_ECRAN[TAB] || "Coach Perso"; }
+}
 function majTabs() {
   $("#tabs").querySelectorAll("button[data-tab]").forEach((b) => {
     const on = b.dataset.tab === TAB;
@@ -125,6 +139,7 @@ function nav(t, remplace = false) {
   if (t !== "train") { arreterChrono(); APERCU = null; }
   TAB = t;
   majTabs();
+  majHeader();
   render(); window.scrollTo(0, 0);
   const etat = { tab: t };
   if (remplace) history.replaceState(etat, ""); else history.pushState(etat, "");
@@ -183,7 +198,7 @@ window.addEventListener("popstate", (e) => {
     return;
   }
   // 2) Sinon, retour = changement d'onglet.
-  if (Etat.data.profil) { TAB = (e.state && e.state.tab) || "dash"; majTabs(); render(); window.scrollTo(0, 0); }
+  if (Etat.data.profil) { TAB = (e.state && e.state.tab) || "dash"; majTabs(); majHeader(); render(); window.scrollTo(0, 0); }
 });
 
 /* ---------- dialogues internes (remplacent prompt / alert / confirm) ---------- */
@@ -372,7 +387,7 @@ function renderStepPrefs(c) {
   const LIMS = [["dos", "Dos"], ["epaule", "Épaule"], ["genou", "Genou"], ["poignet", "Poignet"], ["cheville", "Cheville"], ["coude", "Coude"], ["hanche", "Hanche"]];
   chips(c, LIMS, (v) => DRAFT.limitations.includes(v),
     (v) => DRAFT.limitations = DRAFT.limitations.includes(v) ? DRAFT.limitations.filter((x) => x !== v) : [...DRAFT.limitations, v]);
-  c.append(h(`<div class="warn small" style="margin-top:12px">⚕️ Cette app ne remplace pas un professionnel de santé. En cas de douleur, blessure ou maladie, demande un avis médical avant de continuer.</div>`));
+  c.append(h(`<div class="warn small" style="margin-top:12px">${mi(IC.cross, "mi-amber")}Cette app ne remplace pas un professionnel de santé. En cas de douleur, blessure ou maladie, demande un avis médical avant de continuer.</div>`));
 }
 function renderStepRecup(c) {
   field(c, "Qualité de récupération", chipsInline([1, 2, 3, 4, 5].map((n) => [n, `${n}`]), (v) => DRAFT.recuperation === v, (v) => DRAFT.recuperation = v), "1 = épuisé en permanence, 5 = toujours frais.");
@@ -448,6 +463,8 @@ const IC = {
   info: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>`,
   cornerDown: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 10l5 5-5 5M20 15H9a5 5 0 0 1-5-5V4"/></svg>`,
   calendar: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>`,
+  cross: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v8M8 12h8"/><circle cx="12" cy="12" r="9"/></svg>`,
+  map: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/></svg>`,
 };
 /** Petite icône SVG en ligne (repas, etc.), teintée par classe. */
 const mi = (svg, cls) => `<span class="mi ${cls}">${svg}</span>`;
@@ -469,7 +486,7 @@ function vDash(v) {
   // Deux cartes : série (streak) + niveau
   const duo = h(`<div class="statgrid" style="margin-top:15px"></div>`);
   duo.append(h(`<div class="stat"><div class="ic ic-orange">${IC.flame}</div><b class="num">${serieJours(logs)} j</b><span class="lab">Série actuelle</span></div>`));
-  duo.append(h(`<div class="stat sm"><div class="ic ic-blue">${IC.bars}</div><b>${esc(LEVEL_LABELS[p.niveau] || p.niveau)}</b><span class="lab">Niveau</span></div>`));
+  duo.append(h(`<div class="stat sm"><div class="ic ic-blue">${IC.bars}</div><b>${esc(niveauCourt(p.niveau))}</b><span class="lab">Niveau</span></div>`));
   v.append(duo);
 
   // Entraînement du jour (grande carte)
@@ -486,8 +503,7 @@ function vDash(v) {
     st.append(h(`<div><b>${sj.exercices.length}</b><span>Exercices</span></div>`));
     st.append(h(`<div><b>${sj.dureeEstimeeMin}</b><span>min</span></div>`));
     st.append(h(`<div><b>${kcal}</b><span>kcal env.</span></div>`));
-    const nivCourt = { debutant: "Débutant", intermediaire: "Inter.", avance: "Avancé" }[p.niveau] || (LEVEL_LABELS[p.niveau] || "—");
-    st.append(h(`<div><b class="lvl">${esc(nivCourt)}</b><span>Niveau</span></div>`));
+    st.append(h(`<div><b class="lvl">${esc(niveauCourt(p.niveau))}</b><span>Niveau</span></div>`));
     wc.append(st);
     wc.append(h(`<div class="spread small" style="margin:15px 0 6px"><span class="muted">Progression séance</span><span class="num" style="color:var(--accent-ink);font-weight:800">${Math.round(pct * 100)}%</span></div>`));
     wc.append(h(`<div class="bar"><div style="width:${Math.round(pct * 100)}%"></div></div>`));
@@ -503,6 +519,10 @@ function vDash(v) {
   // Ma semaine
   v.append(h(`<div class="eyebrow" style="margin:20px 0 9px">Ma semaine</div>`));
   v.append(semaineStrip(logs));
+
+  // Carte musculaire : aperçu des zones sollicitées (élément différenciant,
+  // repris depuis Progrès — vide silencieusement si aucun historique).
+  carteMuscleHeatmap(v);
 
   // Objectif du jour (façon « Today Target ») : séance, calories, hydratation
   const foodT = (Etat.data.foodlog[jour] || []).reduce((a, f) => a + (f.kcal || 0), 0);
@@ -565,6 +585,7 @@ function macroBar(label, valeur, cible, unite, cls) {
    PROGRAMME
    ====================================================================== */
 let EDIT_ROUTINE = null; // id de la routine en cours d'édition (onglet Programme)
+let PROG_JOUR_SEL = null; // jour ISO (1=lundi) sélectionné dans le ruban de l'onglet Programme
 
 function vProg(v) {
   if (EDIT_ROUTINE) { vRoutineEditor(v, EDIT_ROUTINE); return; }
@@ -578,34 +599,47 @@ function vProg(v) {
   head.append(bEdit);
   v.append(head);
 
-  // Semaine du programme : une carte par jour (Lun→Dim), jours de repos grisés
+  // Semaine du programme : sélecteur de jour en ruban + un seul jour déployé
+  // (remplace l'ancien empilement des 7 jours, qui produisait un long
+  // enchaînement de cartes quasi identiques).
   const COULEURS = ["#3B82F6", "#6366F1", "#22C55E", "#F59E0B", "#EF4444", "#06B6D4", "#8B5CF6"];
   const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+  const JOURS_COURTS = ["L", "M", "M", "J", "V", "S", "D"];
   const planning = planningJours(prog.seances.length);
   const parJour = {};
   prog.seances.forEach((s, i) => { if (planning[i]) parJour[planning[i]] = { s, i }; });
   const auj = ((new Date().getDay() + 6) % 7) + 1;
+  if (PROG_JOUR_SEL == null) PROG_JOUR_SEL = auj;
+
+  const strip = h(`<div class="daystrip" role="tablist" aria-label="Jour de la semaine"></div>`);
   for (let wd = 1; wd <= 7; wd++) {
     const cell = parJour[wd];
-    if (cell) {
-      const s = cell.s, col = COULEURS[cell.i % COULEURS.length];
-      const muscles = (s.groupesCibles || []).map((m) => MUSCLE_LABELS[m] || m).slice(0, 3).join(" · ");
-      const meta = `${muscles}${muscles ? " · " : ""}${s.exercices.length} exos · ${s.dureeEstimeeMin || 0} min`;
-      // Ouvert par défaut : les exercices (cartes visuelles avec vignette) sont
-      // visibles d'emblée, sans clic. La séance reste repliable si on le souhaite.
-      const d = h(`<details class="daycard${wd === auj ? " today" : ""}" open></details>`);
-      d.append(h(`<summary><span class="dc-ic" style="background:${col}26;color:${col}">${IC.dumbbell}</span><span class="dc-main"><span class="dc-day">${JOURS[wd - 1]}${wd === auj ? " · Aujourd'hui" : ""}</span><b class="dc-name">${esc(s.nom)}</b><span class="muted small">${esc(meta)}</span></span></summary>`));
-      s.exercices.forEach((e, i) => d.append(carteExoApercu(e, i + 1)));
-      if (wd === auj) {
-        const b = h(`<button class="primary big" style="margin-top:11px"><span class="btn-ico">${IC.play}</span>Commencer la séance</button>`);
-        b.addEventListener("click", () => { LIVE = null; APERCU = s.id; nav("train"); });
-        d.append(b);
-      }
-      v.append(d);
-    } else {
-      v.append(h(`<div class="daycard rest"><span class="dc-ic" style="background:var(--surface-2);color:var(--ink-soft)">${IC.moon}</span><span class="dc-main"><span class="dc-day">${JOURS[wd - 1]}</span><b class="dc-name">Repos</b><span class="muted small">Récupération</span></span></div>`));
-    }
+    const col = cell ? COULEURS[cell.i % COULEURS.length] : null;
+    const btn = h(`<button class="daypill${wd === PROG_JOUR_SEL ? " on" : ""}${wd === auj ? " today" : ""}" role="tab" aria-selected="${wd === PROG_JOUR_SEL}" aria-label="${esc(JOURS[wd - 1])}${wd === auj ? " (aujourd'hui)" : ""}"><span class="dp-d">${JOURS_COURTS[wd - 1]}</span><span class="dp-dot" style="${col ? `background:${col}` : ""}"></span></button>`);
+    btn.addEventListener("click", () => { if (PROG_JOUR_SEL !== wd) { PROG_JOUR_SEL = wd; render(); } });
+    strip.append(btn);
   }
+  v.append(strip);
+
+  const wd = PROG_JOUR_SEL, cell = parJour[wd];
+  const panel = h(`<div class="daypanel"></div>`);
+  if (cell) {
+    const s = cell.s, col = COULEURS[cell.i % COULEURS.length];
+    const muscles = (s.groupesCibles || []).map((m) => MUSCLE_LABELS[m] || m).slice(0, 3).join(" · ");
+    const meta = `${muscles}${muscles ? " · " : ""}${s.exercices.length} exos · ${s.dureeEstimeeMin || 0} min`;
+    const d = h(`<div class="daycard${wd === auj ? " today" : ""}"></div>`);
+    d.append(h(`<div class="row" style="align-items:center;gap:13px"><span class="dc-ic" style="background:${col}26;color:${col}">${IC.dumbbell}</span><span class="dc-main"><span class="dc-day">${JOURS[wd - 1]}${wd === auj ? " · Aujourd'hui" : ""}</span><b class="dc-name">${esc(s.nom)}</b><span class="muted small">${esc(meta)}</span></span></div>`));
+    s.exercices.forEach((e, i) => d.append(carteExoApercu(e, i + 1)));
+    if (wd === auj) {
+      const b = h(`<button class="primary big" style="margin-top:11px"><span class="btn-ico">${IC.play}</span>Commencer la séance</button>`);
+      b.addEventListener("click", () => { LIVE = null; APERCU = s.id; nav("train"); });
+      d.append(b);
+    }
+    panel.append(d);
+  } else {
+    panel.append(h(`<div class="daycard rest"><span class="dc-ic" style="background:var(--surface-2);color:var(--ink-soft)">${IC.moon}</span><span class="dc-main"><span class="dc-day">${JOURS[wd - 1]}</span><b class="dc-name">Repos</b><span class="muted small">Récupération</span></span></div>`));
+  }
+  v.append(panel);
 
   v.append(h(`<div class="hint" style="margin:12px 0 6px">${esc(prog.justificationGlobale)}</div>`));
   const bCat = h(`<button class="chip" style="margin:2px 0 10px">🔎 Catalogue d'exercices</button>`);
@@ -943,6 +977,7 @@ function controlesMedia(media, el, estVideo) {
    ====================================================================== */
 let CAT_FILTRE = { q: "", muscle: "", equip: "" };
 function vCatalogue(v) {
+  if (!catalogueEtenduCharge()) chargerCatalogueEtendu().then(() => render());
   v.append(h(`<div class="spread"><h1>Exercices</h1><span class="pill">${CATALOGUE.length} au total</span></div>`));
   const inp = h(`<input id="catQ" placeholder="Rechercher (ex : rowing, squat, gainage…)" value="${esc(CAT_FILTRE.q)}">`);
   v.append(inp);
@@ -1078,7 +1113,7 @@ function vAnatoly(v) {
   extra.append(cons);
   v.append(extra);
 
-  v.append(h(`<div class="warn small" style="margin-top:12px">⚕️ Programme intense. Adapte les charges à ton niveau, respecte la technique et arrête en cas de douleur. Ceci n'est pas un avis médical.</div>`));
+  v.append(h(`<div class="warn small" style="margin-top:12px">${mi(IC.cross, "mi-amber")}Programme intense. Adapte les charges à ton niveau, respecte la technique et arrête en cas de douleur. Ceci n'est pas un avis médical.</div>`));
 }
 
 /* ======================================================================
@@ -1534,7 +1569,7 @@ function carteEau(v, b, jour) {
   c.append(verres);
   const row = h(`<div class="row"></div>`);
   const bMoins = h(`<button aria-label="Retirer un verre" ${bus <= 0 ? "disabled" : ""}>−</button>`);
-  const bVerre = h(`<button class="primary" style="flex:1">+ Un verre (25 cl)</button>`);
+  const bVerre = h(`<button class="primary" style="flex:1" aria-label="Ajouter un verre de 25 cl">+ 25 cl</button>`);
   const bBout = h(`<button aria-label="Ajouter une bouteille de 50 cl">+ 50 cl</button>`);
   bMoins.addEventListener("click", () => majEau(-VERRE_ML));
   bVerre.addEventListener("click", () => majEau(VERRE_ML));
@@ -1641,7 +1676,7 @@ function vNutrition(v) {
     if (!prod) res.innerHTML = `<div class="notice small">Produit introuvable ou hors ligne : utilise la recherche par nom (base locale).</div>`;
   });
 
-  v.append(h(`<div class="warn small">⚕️ Repères nutritionnels généraux, pas un régime médical. En cas de pathologie, trouble alimentaire ou doute, consulte un professionnel de santé ou un diététicien.</div>`));
+  v.append(h(`<div class="warn small">${mi(IC.cross, "mi-amber")}Repères nutritionnels généraux, pas un régime médical. En cas de pathologie, trouble alimentaire ou doute, consulte un professionnel de santé ou un diététicien.</div>`));
 }
 
 /* ======================================================================
@@ -1781,7 +1816,7 @@ function carteMuscleHeatmap(v) {
   const max = Math.max(...vm.map((x) => x.v), 1);
   const intensites = {};
   for (const x of vm) intensites[x.muscle] = x.v / max;
-  const card = h(`<div class="card stack"><h2 style="margin:0">🗺️ Carte musculaire</h2><div class="small muted">Zones travaillées ${recents.length ? "(30 derniers jours)" : "(tout l'historique)"} · plus c'est vif, plus c'est sollicité</div></div>`);
+  const card = h(`<div class="card stack"><h2 class="row" style="margin:0;gap:8px">${mi(IC.map, "mi-blue")}Carte musculaire</h2><div class="small muted">Zones travaillées ${recents.length ? "(30 derniers jours)" : "(tout l'historique)"} · plus c'est vif, plus c'est sollicité</div></div>`);
   const wrap = h(`<div>${muscleHeatmap(intensites)}</div>`);
   let repli = false;
   wrap.querySelectorAll("img.base").forEach((img) => img.addEventListener("error", () => {

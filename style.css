@@ -90,9 +90,14 @@ a{color:var(--accent-ink);text-underline-offset:2px}
 header.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 62%,transparent);backdrop-filter:blur(20px) saturate(1.4);-webkit-backdrop-filter:blur(20px) saturate(1.4);border-bottom:1px solid color-mix(in srgb,var(--line) 70%,transparent);box-shadow:0 1px 0 rgba(255,255,255,.04) inset}
 header.top .wrap{display:flex;align-items:center;justify-content:space-between;padding:12px 16px}
 .brand{display:flex;align-items:center;gap:11px}
-.brand .logo{width:32px;height:32px;border-radius:9px;box-shadow:var(--shadow)}
-.brand .eyebrow{color:var(--ink-soft)}
+.brand .logo{width:32px;height:32px;border-radius:9px;box-shadow:var(--shadow);transition:opacity .2s var(--ease)}
+.brand .eyebrow{color:var(--ink-soft);transition:opacity .15s var(--ease)}
 .brand b{font-weight:850;letter-spacing:-.02em;font-size:1.02rem}
+/* En-tête contextuel : sur les écrans autres que l'Accueil, le nom d'app cède
+   la place au titre de l'écran (évite la répétition « Coach Perso » partout). */
+.brand.compact .eyebrow{display:none}
+.brand.compact .logo{width:26px;height:26px;border-radius:7px}
+.brand.compact b{font-size:1.06rem}
 
 .card{position:relative;background:linear-gradient(180deg,color-mix(in srgb,var(--surface) 92%,#fff 3%),var(--surface));border:1px solid var(--line);border-radius:var(--radius);padding:17px;margin:13px 0;box-shadow:var(--shadow)}
 .card::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;background:linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,0) 40%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;opacity:.6}
@@ -190,7 +195,7 @@ label.f>span{display:block;font-size:.8rem;font-weight:750;color:var(--ink-soft)
 /* Petites icônes SVG en ligne (repas, hydratation) */
 .mi{display:inline-flex;width:17px;height:17px;vertical-align:-3px;margin-right:4px}
 .mi svg{width:100%;height:100%;display:block}
-.mi-orange{color:#F97316}.mi-blue{color:var(--accent)}.mi-green{color:var(--ok)}.mi-indigo{color:var(--accent-2)}.mi-muted{color:var(--ink-soft)}
+.mi-orange{color:#F97316}.mi-blue{color:var(--accent)}.mi-green{color:var(--ok)}.mi-indigo{color:var(--accent-2)}.mi-muted{color:var(--ink-soft)}.mi-amber{color:var(--amber)}
 /* Icône dans une puce (chip) */
 .cic{display:inline-flex;width:15px;height:15px;vertical-align:-2px;margin-right:5px}
 .cic svg{width:100%;height:100%;display:block}
@@ -265,6 +270,16 @@ details{border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px
 summary{cursor:pointer;font-weight:750;list-style:none;display:flex;justify-content:space-between;gap:8px;align-items:center}
 summary::after{content:"+";color:var(--accent-ink);font-weight:800;font-size:1.1rem}
 details[open] summary::after{content:"–"}
+/* Sélecteur de jour en ruban (Programme) — remplace l'empilement des 7 jours */
+.daystrip{display:flex;gap:6px;margin:2px 0 16px}
+.daypill{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:9px 2px;border-radius:14px}
+.daypill .dp-d{font-size:.7rem;font-weight:800;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.02em}
+.daypill .dp-dot{width:7px;height:7px;border-radius:999px;background:var(--surface-2)}
+.daypill.today .dp-d{color:var(--accent-ink)}
+.daypill.on{background:var(--surface-2);border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.daypill.on .dp-d{color:var(--ink)}
+.daypanel{animation:revealUp .4s var(--ease) both}
+@media (prefers-reduced-motion: reduce){.daypanel{animation:none}}
 /* Cartes-jours (programme hebdo) */
 .daycard{display:block;border:1px solid var(--line);border-radius:var(--radius-sm);padding:13px 14px;margin:9px 0;background:var(--surface)}
 .daycard>summary{display:flex;align-items:center;gap:13px}
