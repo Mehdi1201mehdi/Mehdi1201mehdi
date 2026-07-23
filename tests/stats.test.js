@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   lundiDe, volumeLog, volumeTotal, volumeParSemaine, dureeMoyenneMin,
-  volumeParMuscle, statsSemaine, serieExercice, serieCorps, filtrerDepuis,
+  volumeParMuscle, recuperationParMuscle, statsSemaine, serieExercice, serieCorps, filtrerDepuis,
 } from "../src/engine/stats.js";
 
 test("lundiDe : renvoie le lundi de la semaine", () => {
@@ -56,6 +56,30 @@ test("volumeParMuscle : répartit sur les muscles principaux", () => {
   assert.equal(map.pectoraux, 20);
   // trié décroissant
   assert.ok(parMuscle[0].v >= parMuscle[parMuscle.length - 1].v);
+});
+
+test("recuperationParMuscle : % basé sur le temps écoulé depuis la dernière séance", () => {
+  const cat = {
+    squat: { musclesPrincipaux: ["quadriceps"], musclesSecondaires: ["fessiers"] },
+    dev: { musclesPrincipaux: ["pectoraux"] },
+  };
+  const get = (id) => cat[id];
+  const now = Date.parse("2026-07-20T00:00:00Z");
+  const jour = 864e5;
+  const logs = [
+    { date: "2026-07-19T00:00:00Z", exercices: [{ exerciceId: "squat", series: [{ chargeKg: 100, reps: 5 }] }] }, // il y a 1 j
+    { date: "2026-07-17T00:00:00Z", exercices: [{ exerciceId: "dev", series: [{ chargeKg: 60, reps: 8 }] }] },    // il y a 3 j
+  ];
+  const rec = recuperationParMuscle(logs, get, now, 3); // fenêtre de récup = 3 jours
+  const map = Object.fromEntries(rec.map((r) => [r.muscle, r.pct]));
+  // quadriceps + fessiers entraînés il y a 1 j → 1/3 ≈ 33 %
+  assert.equal(map.quadriceps, 33);
+  assert.equal(map.fessiers, 33); // muscle secondaire compté aussi
+  // pectoraux il y a 3 j → 100 % (plafonné)
+  assert.equal(map.pectoraux, 100);
+  // trié du plus récupéré au moins récupéré
+  assert.ok(rec[0].pct >= rec[rec.length - 1].pct);
+  assert.equal(Math.round(rec.find((r) => r.muscle === "quadriceps").jours), 1);
 });
 
 test("serieExercice : un point par séance, selon la métrique", () => {

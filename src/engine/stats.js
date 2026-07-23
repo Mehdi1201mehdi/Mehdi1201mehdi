@@ -75,6 +75,33 @@ export function volumeParMuscle(logs, getExercise) {
     .sort((a, b) => b.v - a.v);
 }
 
+/**
+ * Récupération musculaire estimée par groupe. Uniquement à partir des vraies
+ * séances : on relève, pour chaque muscle sollicité (principal OU secondaire),
+ * la date la plus récente, puis on convertit « temps écoulé » → « % de
+ * récupération » (récupération complète ≈ `joursRecup` jours). Aucune donnée
+ * inventée : c'est une simple lecture du temps écoulé depuis la dernière fois.
+ * @returns {{muscle:string, pct:number, jours:number}[]} trié du plus frais au plus fatigué
+ */
+export function recuperationParMuscle(logs, getExercise, now = Date.now(), joursRecup = 3) {
+  const dernier = new Map(); // muscle -> timestamp le plus récent
+  for (const l of logs || []) {
+    const t = Date.parse(l.date);
+    if (!Number.isFinite(t)) continue;
+    for (const e of l.exercices || []) {
+      const exo = getExercise(e.exerciceId);
+      if (!exo) continue;
+      const muscles = [...(exo.musclesPrincipaux || []), ...(exo.musclesSecondaires || [])];
+      for (const m of muscles) if (!dernier.has(m) || t > dernier.get(m)) dernier.set(m, t);
+    }
+  }
+  const fenetre = Math.max(1, joursRecup) * 864e5;
+  return [...dernier.entries()].map(([muscle, t]) => {
+    const depuis = Math.max(0, now - t);
+    return { muscle, pct: Math.max(0, Math.min(100, Math.round((depuis / fenetre) * 100))), jours: depuis / 864e5 };
+  }).sort((a, b) => b.pct - a.pct);
+}
+
 /** Métriques disponibles pour un exercice dans les graphiques. */
 export const METRIQUES_EXO = /** @type {const} */ ([
   { cle: "1rm", label: "1RM estimé (kg)" },

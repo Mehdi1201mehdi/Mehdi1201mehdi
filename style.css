@@ -236,6 +236,18 @@ label.f>span{display:block;font-size:.8rem;font-weight:750;color:var(--ink-soft)
 .wcard .chev{color:var(--ink-soft);font-size:1.35rem;flex:0 0 auto}
 .wcard.sil{align-items:center;padding:12px 14px}
 .wcard .mini-silhouette{width:38px;height:76px;flex:0 0 auto;border-radius:10px;background:color-mix(in srgb,var(--accent) 8%,var(--surface-2))}
+/* Muscles ciblés illustrés (aperçu de séance) — une silhouette par groupe */
+.musc-row{display:flex;gap:10px;margin:12px 0 4px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.musc-row::-webkit-scrollbar{display:none}
+.musc-cell{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:5px;width:66px}
+.musc-cell .mini-silhouette{display:block;width:44px;height:74px;background:var(--surface-2);border:1px solid var(--hair);border-radius:12px;padding:4px}
+.musc-cell span{font-size:.66rem;font-weight:700;color:var(--ink-soft);text-align:center;line-height:1.2}
+/* Récupération musculaire (Progrès) */
+.recup-list{display:flex;flex-direction:column;gap:13px;margin-top:4px}
+.recup-row{display:flex;align-items:center;gap:12px}
+.recup-sil .mini-silhouette{display:block;width:30px;height:56px;flex:0 0 auto;background:var(--surface-2);border-radius:9px;padding:3px}
+.recup-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.recup-main .bar{height:7px}
 .wcard.today{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent),var(--shadow)}
 /* Séance en cours : bandeau de progression */
 .trainhead{margin-bottom:6px}

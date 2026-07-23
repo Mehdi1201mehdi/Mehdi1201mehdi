@@ -34,7 +34,7 @@ import { FORMULE_1RM, classementRecords, detecterRecords } from "../engine/recor
 import { construireExport, validerImport, appliquerImport, nomFichierBackup } from "../engine/backup.js";
 import { FORMULES_1RM, estimer1RM, tablePourcentages, disquesParCote } from "../engine/powerlifting.js";
 import {
-  volumeLog, volumeParSemaine, dureeMoyenneMin, volumeParMuscle, statsSemaine,
+  volumeLog, volumeParSemaine, dureeMoyenneMin, volumeParMuscle, recuperationParMuscle, statsSemaine,
   METRIQUES_EXO, serieExercice, serieCorps, filtrerDepuis,
 } from "../engine/stats.js";
 
@@ -1179,7 +1179,10 @@ function vApercuSeance(v, seanceId) {
   v.append(h(`<h1 style="margin:0 0 3px">${esc(s.nom)}</h1>`));
   v.append(h(`<div class="muted small">${s.exercices.length} exercices · ~${s.dureeEstimeeMin || 0} min</div>`));
   const muscles = musclesSeance(s);
-  if (muscles.length) {
+  // Muscles ciblés en illustrations (une silhouette surlignée par groupe)
+  const rangee = rangeeMuscles(muscles);
+  if (rangee) v.append(rangee);
+  else if (muscles.length) {
     const mc = h(`<div class="row" style="margin:10px 0"></div>`);
     muscles.slice(0, 6).forEach((m) => mc.append(h(`<span class="pill">${esc(MUSCLE_LABELS[m] || m)}</span>`)));
     v.append(mc);
@@ -1842,6 +1845,39 @@ function carteMuscleHeatmap(v) {
   v.append(card);
 }
 
+/** Carte « Récupération musculaire » : quels groupes sont frais vs récemment
+ *  travaillés, d'après tes vraies séances (aucune donnée inventée). */
+function carteRecup(v) {
+  const logs = Etat.data.logs || [];
+  if (!logs.length) return;
+  const recup = recuperationParMuscle(logs, getExercise).filter((r) => r.muscle !== "corps_entier");
+  if (!recup.length) return;
+  const card = h(`<div class="card stack"><h2 class="row" style="margin:0;gap:8px">${mi(IC.activity, "mi-green")}Récupération</h2><div class="small muted">D'après tes séances · 100 % = prêt à travailler, faible = récemment sollicité.</div></div>`);
+  const liste = h(`<div class="recup-list"></div>`);
+  recup.forEach((r) => {
+    const col = r.pct >= 80 ? "var(--ok)" : r.pct >= 40 ? "var(--amber)" : "var(--danger)";
+    const quand = r.jours < 1 ? "aujourd'hui" : `il y a ${Math.round(r.jours)} j`;
+    liste.append(h(`<div class="recup-row">
+      <span class="recup-sil">${miniSilhouette([r.muscle])}</span>
+      <div class="recup-main">
+        <div class="spread"><b>${esc(MUSCLE_LABELS[r.muscle] || r.muscle)}</b><span class="num" style="color:${col};font-weight:800">${r.pct}%</span></div>
+        <div class="bar"><div style="width:${r.pct}%;background:${col}"></div></div>
+        <span class="muted small">${quand}</span>
+      </div></div>`));
+  });
+  card.append(liste);
+  v.append(card);
+}
+
+/** Rangée de silhouettes des muscles ciblés (une par muscle, surlignée + label). */
+function rangeeMuscles(muscles) {
+  const list = (muscles || []).filter((m) => m !== "corps_entier").slice(0, 6);
+  if (!list.length) return null;
+  const row = h(`<div class="musc-row"></div>`);
+  list.forEach((m) => row.append(h(`<div class="musc-cell"><span class="musc-sil">${miniSilhouette([m])}</span><span>${esc(MUSCLE_LABELS[m] || m)}</span></div>`)));
+  return row;
+}
+
 function svgLine(points, label = "") {
   if (points.length < 2) return etatVide("📈", "Ta courbe arrive bientôt", "Enregistre au moins 2 séances pour voir ta tendance se dessiner.");
   const W = 600, H = 150, pad = 30;
@@ -1983,6 +2019,9 @@ function vStats(v) {
 
   // Carte de chaleur musculaire (visuel des zones travaillées)
   carteMuscleHeatmap(v);
+
+  // Récupération musculaire (frais vs récemment travaillé, d'après les séances)
+  carteRecup(v);
 
   // Records personnels (1RM estimé · Epley) — grille de cartes
   const prs = classementRecords(logs, nomExo, 8);
