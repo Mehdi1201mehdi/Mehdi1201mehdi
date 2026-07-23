@@ -88,7 +88,7 @@ $("#themeBtn").addEventListener("click", () => {
 /* ---------- navigation ---------- */
 let TAB = "dash";
 const TABS = { dash: vDash, prog: vProg, cat: vCatalogue, train: vTrain, food: vNutrition, stats: vStats, set: vSet, anatoly: vAnatoly };
-const TABS_PLUS = ["food", "set", "anatoly", "cat"]; // rubriques regroupées dans « Plus »
+const TABS_PLUS = ["food", "anatoly", "cat"]; // sous-écrans hors barre (accès via Accueil / Profil)
 /** Titre affiché dans l'en-tête compact des écrans autres que l'Accueil. */
 const TITRES_ECRAN = { prog: "Programme", train: "Séance", stats: "Progrès", food: "Nutrition", cat: "Catalogue", anatoly: "Anatoly", set: "Profil" };
 /** En-tête contextuel : la marque complète ne s'affiche que sur l'Accueil ;
@@ -483,10 +483,11 @@ function vDash(v) {
   v.append(h(`<h1 style="margin:0">${esc(p.prenom || "Athlète")} 👋</h1>`));
   v.append(h(`<div class="muted small" style="margin-top:3px">Prêt pour ton entraînement ?</div>`));
 
-  // Deux cartes : série (streak) + niveau
+  // Deux tuiles horizontales : série (streak) + niveau (façon maquette)
   const duo = h(`<div class="statgrid" style="margin-top:15px"></div>`);
-  duo.append(h(`<div class="stat"><div class="ic ic-orange">${IC.flame}</div><b class="num">${serieJours(logs)} j</b><span class="lab">Série actuelle</span></div>`));
-  duo.append(h(`<div class="stat sm"><div class="ic ic-blue">${IC.bars}</div><b>${esc(niveauCourt(p.niveau))}</b><span class="lab">Niveau</span></div>`));
+  const _serie = serieJours(logs);
+  duo.append(h(`<div class="mstat"><div class="ic ic-orange">${IC.flame}</div><div class="g"><span>Série actuelle</span><b class="num">${_serie} jour${_serie > 1 ? "s" : ""}</b></div></div>`));
+  duo.append(h(`<div class="mstat"><div class="ic ic-blue">${IC.bars}</div><div class="g"><span>Niveau</span><b>${esc(niveauCourt(p.niveau))}</b></div></div>`));
   v.append(duo);
 
   // Entraînement du jour (grande carte)
@@ -515,6 +516,18 @@ function vDash(v) {
     wc.append(h(`<div class="muted small" style="margin-top:5px">Marche, mobilité ou récupération active. Reviens demain 💪</div>`));
   }
   v.append(wc);
+
+  // Raccourcis rapides (façon maquette) : Exercices · Nutrition · Calendrier
+  const qrow = h(`<div class="qrow"></div>`);
+  const qbtn = (icone, cls, label, tab) => {
+    const b = h(`<button><span class="qi ${cls}">${icone}</span><span>${label}</span></button>`);
+    b.addEventListener("click", () => nav(tab));
+    return b;
+  };
+  qrow.append(qbtn(IC.search, "q-blue", "Exercices", "cat"));
+  qrow.append(qbtn(IC.apple, "q-green", "Nutrition", "food"));
+  qrow.append(qbtn(IC.calendar, "q-indigo", "Calendrier", "stats"));
+  v.append(qrow);
 
   // Ma semaine
   v.append(h(`<div class="eyebrow" style="margin:20px 0 9px">Ma semaine</div>`));
@@ -2099,6 +2112,18 @@ function vSet(v) {
   ligneI("Lieu", p.lieu);
   ligneI("Unité", p.unites === "imperial" ? "lb / in" : "kg / cm");
   v.append(info);
+
+  // Outils (accès aux rubriques hors barre de navigation)
+  const outils = h(`<div class="card" style="padding:6px 4px"></div>`);
+  const outil = (icone, cls, label, tab) => {
+    const b = h(`<button class="plusitem" data-tab="${tab}"><span class="pm-ic ${cls}">${icone}</span><span class="pm-main"><b>${label}</b></span><span class="chev">›</span></button>`);
+    b.addEventListener("click", () => nav(tab));
+    outils.append(b);
+  };
+  outil(IC.apple, "mi-green", "Nutrition", "food");
+  outil(IC.search, "mi-blue", "Catalogue d'exercices", "cat");
+  outil(IC.dumbbell, "mi-indigo", "Programme Anatoly", "anatoly");
+  v.append(outils);
 
   const prof = h(`<div class="card stack"><h2 style="margin:0">Programme</h2></div>`);
   const bReg = h(`<button>Régénérer le programme avec le profil actuel</button>`);
