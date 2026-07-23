@@ -88,10 +88,12 @@ optionnelle ultérieure sans doublons.
 - **Fonctionne** : génération de programme déterministe et testée, filtrage par
   matériel/limitations, progression (double progression) avec audit,
   remplacement d'exercice, mode séance avec minuteur, persistance locale, PWA
-  hors ligne, onboarding complet.
+  hors ligne, onboarding complet, catalogue d'exercices (~287, dont ~37 curés
+  en français utilisés par le moteur + 250 importés de wger.de, noms traduits
+  en français), icônes PNG haute résolution (192/512/maskable) déjà générées.
 - **Pas encore là** : coach IA conversationnel (Phase 2), synchro santé
-  (Phase 3), graphiques avancés, base complète 150+ (≈33 exercices pour l'instant),
-  icônes PNG haute résolution (icône SVG fournie).
+  (Phase 3), graphiques avancés, descriptions détaillées des 250 exercices
+  wger (encore en anglais, seuls les noms sont traduits).
 
 ## Reste à configurer manuellement
 

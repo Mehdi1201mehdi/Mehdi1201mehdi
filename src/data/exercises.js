@@ -469,17 +469,36 @@ export const EXERCISES = [
   }),
 ];
 
-import { EXTRA_EXERCISES } from "./exercises-extra.js";
-
 /**
- * CATALOGUE = cœur curé + exercices importés (wger).
+ * CATALOGUE = cœur curé + exercices importés (wger, chargés à la demande).
  * Le moteur (generator/replacement) travaille sur `EXERCISES` (cœur curé, de
  * qualité contrôlée) ; l'interface de recherche/détail travaille sur CATALOGUE.
+ * Les ~250 exercices wger (`exercises-extra.js`, gros fichier) ne sont importés
+ * qu'à l'ouverture de l'écran Catalogue, pas au démarrage de l'app.
  */
-export const CATALOGUE = [...EXERCISES, ...EXTRA_EXERCISES];
+export const CATALOGUE = [...EXERCISES];
 
-/** Index par id pour accès O(1) (sur tout le catalogue). */
+/** Index par id pour accès O(1) (sur le catalogue actuellement chargé). */
 export const EXERCISES_BY_ID = Object.fromEntries(CATALOGUE.map((e) => [e.id, e]));
+
+let extraCataloguePromise = null;
+let extraCatalogueCharge = false;
+
+/** L'extension wger (250 exercices) est-elle déjà fusionnée dans CATALOGUE ? */
+export function catalogueEtenduCharge() {
+  return extraCatalogueCharge;
+}
+
+/** Charge à la demande (idempotent) l'extension wger et la fusionne dans CATALOGUE/EXERCISES_BY_ID. */
+export function chargerCatalogueEtendu() {
+  if (!extraCataloguePromise) {
+    extraCataloguePromise = import("./exercises-extra.js").then(({ EXTRA_EXERCISES }) => {
+      for (const e of EXTRA_EXERCISES) { CATALOGUE.push(e); EXERCISES_BY_ID[e.id] = e; }
+      extraCatalogueCharge = true;
+    });
+  }
+  return extraCataloguePromise;
+}
 
 /** Renvoie un exercice par id (ou undefined). */
 export function getExercise(id) {

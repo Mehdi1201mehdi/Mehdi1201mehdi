@@ -8,8 +8,8 @@ import { e1rmEpley } from "./records.js";
 /** Lundi (YYYY-MM-DD) de la semaine ISO contenant `dateStr`. */
 export function lundiDe(dateStr) {
   const d = new Date(dateStr);
-  const iso = (d.getDay() + 6) % 7; // 0 = lundi
-  d.setDate(d.getDate() - iso);
+  const iso = (d.getUTCDay() + 6) % 7; // 0 = lundi
+  d.setUTCDate(d.getUTCDate() - iso);
   return d.toISOString().slice(0, 10);
 }
 
