@@ -187,6 +187,21 @@ label.f>span{display:block;font-size:.8rem;font-weight:750;color:var(--ink-soft)
 .mstat .g{min-width:0}
 .mstat .g span{display:block;font-size:.7rem;color:var(--ink-soft);font-weight:600}
 .mstat .g b{display:block;font-size:1.05rem;font-weight:800;letter-spacing:-.01em;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Carte Défis & régularité */
+.defis-top{display:flex;gap:10px;margin-bottom:2px}
+.defis-streak{flex:1;display:flex;align-items:center;gap:11px;padding:12px;border-radius:14px;background:var(--surface-2);border:1px solid var(--hair);min-width:0}
+.defis-streak .ic{flex:0 0 auto;width:38px;height:38px;border-radius:11px;display:grid;place-items:center}
+.defis-streak .ic svg{width:20px;height:20px;display:block}
+.defis-streak .ic-orange{background:rgba(249,115,22,.14);color:var(--orange)}
+.defis-streak .ic-indigo{background:color-mix(in srgb,var(--indigo) 16%,transparent);color:var(--indigo)}
+.defis-streak b{display:block;font-size:1.4rem;font-weight:850;line-height:1;letter-spacing:-.02em}
+.defis-streak span{display:block;font-size:.68rem;color:var(--ink-soft);font-weight:600;margin-top:2px}
+.defi-row{margin-top:2px}
+.defi-row .bar{margin-top:5px}
+.defi-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.defi-cell{aspect-ratio:1;border-radius:6px;background:var(--surface-2);border:1px solid var(--hair)}
+.defi-cell.on{background:var(--accent);border-color:transparent}
+.defi-cell.today{outline:2px solid var(--accent-ink);outline-offset:1px}
 /* Rangée de raccourcis (Accueil : Exercices / Nutrition / Calendrier) */
 .qrow{display:flex;gap:10px;margin:22px 0 4px}
 .qrow button{flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;padding:14px 6px;border-radius:14px;background:var(--surface);border:1px solid var(--hair);color:var(--ink);min-height:auto}
@@ -439,6 +454,83 @@ nav.tabs button.on .ico{transform:translateY(-1px)}
 @media (prefers-reduced-motion: reduce){#ringFg{transition:stroke .4s}.ring.urgent .t{animation:none}}
 .ovhead{text-align:center}
 .ovsub{margin-top:-8px}
+
+/* ---- Lecteur de séance guidé (plein écran, pas à pas) ---- */
+body.guide-open{overflow:hidden}
+.guide{position:fixed;inset:0;z-index:70;display:none;background:radial-gradient(120% 70% at 50% 0%,color-mix(in srgb,var(--accent) 13%,var(--bg)),var(--bg) 60%,var(--bg-deep))}
+.guide.show{display:block;animation:fadeIn .28s var(--ease) both}
+.guide-in{max-width:480px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;padding:calc(14px + env(safe-area-inset-top)) 18px calc(20px + env(safe-area-inset-bottom))}
+.guide-top{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.guide-top .guide-x{width:38px;height:38px;flex:0 0 auto;display:grid;place-items:center;padding:0;border-radius:999px;background:var(--surface-2);border:1px solid var(--hair);color:var(--ink)}
+.guide-top .guide-x svg{width:18px;height:18px}
+.guide-count{flex:1;font-size:.8rem;font-weight:700;color:var(--ink-soft)}
+.guide-progn{font-weight:800;color:var(--accent-ink);font-variant-numeric:tabular-nums}
+.guide-bar{margin-bottom:6px}
+.guide-body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;animation:revealUp .4s var(--ease) both}
+.guide-sil{width:120px;height:180px;background:var(--surface);border:1px solid var(--hair);border-radius:20px;padding:12px;display:grid;place-items:center}
+.guide-sil .mini-silhouette{width:100%;height:100%;display:block}
+.guide-nom{margin:6px 0 0;font-size:1.7rem;line-height:1.1;letter-spacing:-.02em}
+.guide-mus{font-size:.82rem;color:var(--ink-soft);font-weight:600}
+.guide-cible{font-size:1.05rem;font-weight:700;margin-top:2px}
+.guide-cible .num{color:var(--accent-ink);font-variant-numeric:tabular-nums}
+.guide-conseil{max-width:360px}
+.guide-inputs{display:flex;gap:12px;width:100%;max-width:340px;margin-top:6px}
+.guide-field{flex:1;display:flex;flex-direction:column;gap:5px;text-align:left}
+.guide-field span{font-size:.72rem;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em}
+.guide-field input{width:100%;font-size:1.5rem;font-weight:800;text-align:center;padding:12px 8px;border-radius:14px;background:var(--surface-2);border:1px solid var(--hair);color:var(--ink);font-variant-numeric:tabular-nums}
+.guide-field input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.guide-actions{display:flex;align-items:center;gap:10px;margin-top:16px}
+.guide-actions .guide-valider{flex:1}
+.guide-nav{width:52px;height:52px;flex:0 0 auto;display:grid;place-items:center;padding:0;border-radius:14px}
+.guide-nav .cic{margin:0;width:20px;height:20px}
+.guide-nav[disabled]{opacity:.35;pointer-events:none}
+/* écran de repos */
+.guide-rest{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;animation:revealUp .4s var(--ease) both}
+.guide-repos-t{margin:0;font-size:1.9rem}
+.guide-ring.urgent .gfg{stroke:var(--danger)}
+.guide-ring.urgent{filter:drop-shadow(0 0 36px color-mix(in srgb,var(--danger) 48%,transparent))}
+.guide-next{font-size:.95rem;color:var(--ink-soft)}
+.guide-next b{color:var(--ink)}
+/* séquence échauffement / étirement */
+.seq-sil{width:92px;height:138px;padding:9px}
+.seq-consigne{max-width:340px;line-height:1.45}
+.warm-cta{align-items:center;gap:12px}
+.warm-cta .mi{flex:0 0 auto;border-radius:12px;display:grid;place-items:center;background:var(--surface-2)}
+.warm-cta .g{flex:1;min-width:0}
+
+/* ---- Démonstration animée (SVG maison, hors ligne) ---- */
+.exdemo{position:relative;width:150px;aspect-ratio:3/4;margin:0 auto;border-radius:20px;overflow:hidden;
+  background:radial-gradient(120% 90% at 50% 12%,color-mix(in srgb,var(--accent) 12%,var(--surface)),var(--surface) 70%);border:1px solid var(--hair)}
+.exdemo.grand{width:190px}
+.exdemo-fig{position:absolute;inset:12px;display:grid;place-items:center}
+.exdemo-fig .mini-silhouette{width:100%;height:100%;display:block}
+.exdemo-load{position:absolute;left:50%;top:40%;width:30px;height:30px;margin:-15px 0 0 -15px;color:var(--accent);
+  filter:drop-shadow(0 3px 10px color-mix(in srgb,var(--accent) 45%,transparent));will-change:transform}
+.exdemo-load svg{width:100%;height:100%;display:block}
+.exdemo-tag{position:absolute;left:10px;bottom:8px;font-size:.62rem;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--accent-ink)}
+.guide-demo{display:block}
+/* mouvements par patron : position de départ de la charge + amplitude parcourue */
+.exdemo[data-p="squat"] .exdemo-load{top:22%;--amp:40px;animation:exdDown 1.9s var(--ease) infinite}
+.exdemo[data-p="fente"] .exdemo-load{top:30%;--amp:34px;animation:exdDown 1.9s var(--ease) infinite}
+.exdemo[data-p="charniere_hanche"] .exdemo-load{top:44%;--amp:30px;animation:exdDown 2s var(--ease) infinite}
+.exdemo[data-p="isolation_jambe"] .exdemo-load{top:70%;--amp:18px;animation:exdUp 1.6s var(--ease) infinite}
+.exdemo[data-p="poussee_horizontale"] .exdemo-load{top:34%;--amp:38px;animation:exdUp 1.7s var(--ease) infinite}
+.exdemo[data-p="poussee_verticale"] .exdemo-load{top:24%;--amp:46px;animation:exdUp 1.8s var(--ease) infinite}
+.exdemo[data-p="tirage_vertical"] .exdemo-load{top:12%;--amp:40px;animation:exdDown 1.8s var(--ease) infinite}
+.exdemo[data-p="tirage_horizontal"] .exdemo-load{top:40%;left:66%;--amp:38px;animation:exdLeft 1.7s var(--ease) infinite}
+.exdemo[data-p="flexion_bras"] .exdemo-load{top:52%;--amp:40px;animation:exdUp 1.6s var(--ease) infinite}
+.exdemo[data-p="extension_bras"] .exdemo-load{top:20%;--amp:32px;animation:exdUp 1.6s var(--ease) infinite}
+.exdemo[data-p="gainage"] .exdemo-load,.exdemo[data-p="cardio"] .exdemo-load{display:none}
+.exdemo[data-p="gainage"] .exdemo-fig{animation:exdPulse 2.4s var(--ease) infinite}
+.exdemo[data-p="cardio"] .exdemo-fig{animation:exdBounce 0.7s var(--ease) infinite}
+@keyframes exdDown{0%,100%{transform:translateY(0)}50%{transform:translateY(var(--amp,38px))}}
+@keyframes exdUp{0%,100%{transform:translateY(0)}50%{transform:translateY(calc(-1*var(--amp,38px)))}}
+@keyframes exdLeft{0%,100%{transform:translateX(0)}50%{transform:translateX(calc(-1*var(--amp,36px)))}}
+@keyframes exdPulse{0%,100%{opacity:.62;transform:scale(.95)}50%{opacity:1;transform:scale(1.03)}}
+@keyframes exdBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-11px)}}
+@media (prefers-reduced-motion: reduce){.exdemo-load,.exdemo-fig{animation:none!important}.exdemo[data-p] .exdemo-load{transform:translateY(calc(var(--amp,0px)*.5))}}
+@media (max-width:360px){.guide-sil{width:104px;height:156px}.guide-nom{font-size:1.45rem}}
+@media (prefers-reduced-motion: reduce){.guide.show,.guide-body,.guide-rest{animation:none!important}.guide-ring .gfg{transition:stroke .4s}}
 
 .wiz-dots{display:flex;gap:6px;justify-content:center;margin:8px 0 4px}
 .wiz-dots i{width:8px;height:8px;border-radius:999px;background:var(--line);transition:width .25s}

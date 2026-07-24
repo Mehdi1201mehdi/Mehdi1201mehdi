@@ -61,6 +61,8 @@ function trouverParentSeance(seanceId) {
   return f ? f.source : null;
 }
 import { seancesVersCSV, metriquesVersCSV, nomFichierExport } from "../engine/export.js";
+import { echauffementPour, ETIREMENTS, dureeSequence } from "../data/mobilite.js";
+import { serieActuelle, meilleureSerie, grilleJours, defis } from "../engine/defis.js";
 import { grilleMois, moisAdjacent, NOMS_JOURS_COURTS } from "../engine/calendar.js";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -435,6 +437,40 @@ function semaineStrip(logs) {
   }
   return box;
 }
+/**
+ * Carte « Défis & régularité » — série en cours, record, objectifs hebdo/mensuels
+ * et grille d'assiduité (28 jours). 100 % dérivé des vraies séances.
+ */
+function carteDefis(v) {
+  const logs = Etat.data.logs || [];
+  if (!logs.length) return; // rien à motiver tant qu'aucune séance
+  const serie = serieActuelle(logs);
+  const record = meilleureSerie(logs);
+  const liste = defis(logs, Etat.data.profil || {});
+  const grille = grilleJours(logs, 28);
+
+  v.append(h(`<div class="eyebrow" style="margin:20px 0 9px">Défis & régularité</div>`));
+  const c = h(`<div class="card stack defis"></div>`);
+  // Bandeau série + record
+  const top = h(`<div class="defis-top"></div>`);
+  top.append(h(`<div class="defis-streak"><span class="ic ic-orange">${IC.flame}</span><div><b class="num">${serie}</b><span>jour${serie > 1 ? "s" : ""} d'affilée</span></div></div>`));
+  top.append(h(`<div class="defis-streak"><span class="ic ic-indigo">${IC.trophy}</span><div><b class="num">${record}</b><span>record de série</span></div></div>`));
+  c.append(top);
+  // Objectifs (barres)
+  liste.forEach((d) => {
+    const atteint = d.pct >= 1;
+    const row = h(`<div class="defi-row"></div>`);
+    row.append(h(`<div class="spread small"><span><b>${esc(d.titre)}</b>${atteint ? ` <span class="badge accent">Atteint ✓</span>` : ""}</span><span class="muted">${esc(d.sousTitre)}</span></div>`));
+    row.append(h(`<div class="bar"><div style="width:${Math.round(d.pct * 100)}%${atteint ? ";background:var(--ok)" : ""}"></div></div>`));
+    c.append(row);
+  });
+  // Grille d'assiduité (4 semaines)
+  const grid = h(`<div class="defi-grid" aria-label="Assiduité des 28 derniers jours"></div>`);
+  grille.forEach((g) => grid.append(h(`<span class="defi-cell${g.done ? " on" : ""}${g.today ? " today" : ""}" title="${g.iso}${g.done ? " · entraîné" : ""}"></span>`)));
+  c.append(h(`<div class="muted small" style="margin-top:4px">28 derniers jours</div>`));
+  c.append(grid);
+  v.append(c);
+}
 
 /* Icônes SVG (style Lucide, trait cohérent) — remplacent les emoji sur les
    éléments clés pour un rendu « app pro », d'après la maquette Claude Design. */
@@ -465,9 +501,42 @@ const IC = {
   calendar: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18"/></svg>`,
   cross: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v8M8 12h8"/><circle cx="12" cy="12" r="9"/></svg>`,
   map: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/></svg>`,
+  check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>`,
+  x: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>`,
+  forward: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 4 10 8-10 8zM19 5v14"/></svg>`,
+  back: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 20-10-8 10-8zM5 5v14"/></svg>`,
+  layers: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg>`,
+  wind: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.6 4.6A2 2 0 1 1 11 8H2M12.6 19.4A2 2 0 1 0 14 16H2M17.7 7.8A2.5 2.5 0 1 1 19.5 12H2"/></svg>`,
 };
 /** Petite icône SVG en ligne (repas, etc.), teintée par classe. */
 const mi = (svg, cls) => `<span class="mi ${cls}">${svg}</span>`;
+
+/** Libellés des patrons de mouvement (champ `patron` du catalogue). */
+const PATRON_LABELS = {
+  squat: "Squat", charniere_hanche: "Charnière de hanche", fente: "Fente",
+  isolation_jambe: "Isolation jambe", poussee_horizontale: "Poussée horizontale",
+  poussee_verticale: "Poussée verticale", tirage_horizontal: "Tirage horizontal",
+  tirage_vertical: "Tirage vertical", flexion_bras: "Flexion des bras",
+  extension_bras: "Extension des bras", gainage: "Gainage", cardio: "Cardio",
+};
+/** Vue anatomique la plus lisible selon le patron. */
+const PATRON_VUE = { charniere_hanche: "back", tirage_horizontal: "back", tirage_vertical: "back" };
+/**
+ * Démonstration animée maison (SVG + CSS, 100 % hors ligne) : silhouette des
+ * muscles ciblés + charge qui parcourt l'amplitude du mouvement selon le patron.
+ * Déterministe, sans média distant. Repli propre si le patron est inconnu.
+ */
+function animDemo(exo, opts = {}) {
+  const p = (exo && exo.patron) || "";
+  const muscles = (exo && exo.musclesPrincipaux) || [];
+  const view = PATRON_VUE[p] || "front";
+  const tag = PATRON_LABELS[p] || "Mouvement";
+  return `<div class="exdemo${opts.grand ? " grand" : ""}" data-p="${esc(p)}" role="img" aria-label="Démonstration animée : ${esc(tag)}">
+    <div class="exdemo-fig">${muscles.length ? miniSilhouette(muscles, view) : ""}</div>
+    <span class="exdemo-load" aria-hidden="true">${IC.dumbbell}</span>
+    <span class="exdemo-tag">${esc(tag)}</span>
+  </div>`;
+}
 function vDash(v) {
   const p = Etat.data.profil, prog = Etat.data.programme;
   const sj = seanceDuJour(prog);
@@ -532,6 +601,9 @@ function vDash(v) {
   // Ma semaine
   v.append(h(`<div class="eyebrow" style="margin:20px 0 9px">Ma semaine</div>`));
   v.append(semaineStrip(logs));
+
+  // Défis & régularité (série, objectifs, assiduité) — dérivé des vraies séances
+  carteDefis(v);
 
   // Carte musculaire : aperçu des zones sollicitées (élément différenciant,
   // repris depuis Progrès — vide silencieusement si aucun historique).
@@ -928,6 +1000,7 @@ async function chargerMedia(exo, media) {
   const heroAnatomie = () => {
     media.style.aspectRatio = "auto"; media.innerHTML = "";
     const box = h(`<div style="padding:14px;width:100%"></div>`);
+    if (exo.patron) box.append(h(animDemo(exo, { grand: true })));
     box.append(diagrammeMuscles(exo));
     const btn = h(`<button class="chip" style="margin:10px auto 0;display:block">🔄 Recharger la démonstration</button>`);
     btn.addEventListener("click", () => {
@@ -1187,11 +1260,18 @@ function vApercuSeance(v, seanceId) {
     muscles.slice(0, 6).forEach((m) => mc.append(h(`<span class="pill">${esc(MUSCLE_LABELS[m] || m)}</span>`)));
     v.append(mc);
   }
-  const start = h(`<button class="primary big" style="margin:6px 0 14px"><span class="btn-ico">${IC.play}</span>Commencer la séance</button>`);
+  const start = h(`<button class="primary big" style="margin:6px 0 8px"><span class="btn-ico">${IC.play}</span>Commencer la séance</button>`);
   start.addEventListener("click", () => { APERCU = null; demarrer(s); });
   v.append(start);
+  const guide = h(`<button class="secondary big" style="margin:0 0 14px"><span class="btn-ico">${IC.forward}</span>Mode guidé (pas à pas)</button>`);
+  guide.addEventListener("click", () => { APERCU = null; demarrer(s); ouvrirGuide(); });
+  v.append(guide);
+  // Échauffement guidé, adapté aux muscles de la séance.
+  const echauf = echauffementPour(muscles);
+  const bEch = h(`<button class="card wcard sil warm-cta" style="width:100%;margin-top:8px;text-align:left"><span class="mi mi-orange" style="width:34px;height:34px">${IC.wind}</span><span class="g"><b>Échauffement guidé</b><br><span class="muted small">${echauf.length} mouvements · ~${Math.round(dureeSequence(echauf) / 60)} min · adapté à cette séance</span></span><span class="chev" aria-hidden="true">›</span></button>`);
+  bEch.addEventListener("click", () => ouvrirSequence("Échauffement", echauf));
+  v.append(bEch);
   s.exercices.forEach((e, i) => v.append(carteExoApercu(e, i + 1)));
-  v.append(h(`<div class="notice small" style="margin-top:12px">Échauffe-toi 5–10 min (cardio léger + mobilité) avant de commencer.</div>`));
 }
 /** Met à jour le chrono de séance (mm:ss) à partir de l'heure de début. */
 function majChrono() {
@@ -1246,6 +1326,9 @@ function vTrain(v) {
   head.append(h(`<div class="spread"><div style="min-width:0"><h1 style="margin:0;font-size:1.3rem">${esc(seance.nom)}</h1><span class="livetimer"><span class="livedot" aria-hidden="true"></span><span class="num" id="seanceTimer">00:00</span></span></div><button class="chip danger" id="abandon">Abandonner</button></div>`));
   head.append(h(`<div class="bar"><div id="seanceProgBar" style="width:${Math.round(pr.pct * 100)}%"></div></div>`));
   head.append(h(`<div class="muted small" id="seanceProgTxt">${pr.faits}/${pr.tot} séries · ${nbExos} exercices · sauvegarde auto 💾</div>`));
+  const bGuide = h(`<button class="secondary big" style="margin-top:10px"><span class="btn-ico">${IC.forward}</span>Mode guidé (pas à pas)</button>`);
+  bGuide.addEventListener("click", ouvrirGuide);
+  head.append(bGuide);
   v.append(head);
   arreterChrono(); majChrono(); SESSION_TMR = setInterval(majChrono, 1000);
   seance.exercices.forEach((e) => v.append(carteExoLive(e)));
@@ -1513,7 +1596,10 @@ function ecranFinSeance(log, prs) {
     prs.forEach((r) => rc.append(h(`<div class="small">• ${esc(r.nom)} : ${esc(etiquettePR(r))}</div>`)));
     inner.append(rc);
   }
-  const acts = h(`<div class="row" style="margin-top:20px"></div>`);
+  const bEtir = h(`<button class="card wcard sil warm-cta" style="width:100%;margin-top:16px;text-align:left"><span class="mi mi-indigo" style="width:34px;height:34px">${IC.wind}</span><span class="g"><b>Étirements guidés</b><br><span class="muted small">${ETIREMENTS.length} mouvements · ~${Math.round(dureeSequence(ETIREMENTS) / 60)} min · retour au calme</span></span><span class="chev" aria-hidden="true">›</span></button>`);
+  bEtir.addEventListener("click", () => ouvrirSequence("Étirements", ETIREMENTS, { onFin: () => {} }));
+  inner.append(bEtir);
+  const acts = h(`<div class="row" style="margin-top:16px"></div>`);
   const bVoir = h(`<button class="secondary big" style="flex:1">Voir la séance</button>`);
   bVoir.addEventListener("click", () => { sheet.remove(); nav("stats"); });
   const bFin = h(`<button class="primary big" style="flex:1">Terminer</button>`);
@@ -1552,6 +1638,283 @@ function startTimer(sec, label = "") {
   ov.onclick = (e) => { if (e.target === ov) stopTimer(); };
 }
 function stopTimer() { clearInterval(TMR); $("#overlay").classList.remove("show"); $("#overlay .ring")?.classList.remove("urgent"); }
+
+/* ======================================================================
+   LECTEUR DE SÉANCE GUIDÉ (plein écran, pas à pas)
+   S'appuie sur l'état LIVE existant : chaque écran = une série d'un exercice ;
+   après validation → écran de repos (décompte) → série/exercice suivant. Aucun
+   nouveau stockage : on écrit dans LIVE.data comme la vue classique, donc la
+   sauvegarde et la reprise fonctionnent à l'identique.
+   ====================================================================== */
+let GUIDE = null; // { ei, si, phase:'work'|'rest', tmr, left, total }
+
+/** Exercices de la séance présents dans l'état live, dans l'ordre. */
+function guideExos() {
+  const seance = LIVE && trouverSeance(LIVE.seanceId);
+  if (!seance) return [];
+  return seance.exercices.filter((e) => LIVE.data[e.exerciceId]).map((e) => ({ e, st: LIVE.data[e.exerciceId], exo: getExercise(e.exerciceId) }));
+}
+/** Total de séries et séries validées, tout l'entraînement confondu. */
+function guideProg() {
+  let tot = 0, done = 0;
+  for (const { st } of guideExos()) for (const s of st.series) { tot++; if (s.done) done++; }
+  return { tot, done, pct: tot ? done / tot : 0 };
+}
+/** Première étape non validée (pour reprendre au bon endroit). */
+function guidePremiereEtape() {
+  const exos = guideExos();
+  for (let ei = 0; ei < exos.length; ei++) {
+    const s = exos[ei].st.series;
+    for (let si = 0; si < s.length; si++) if (!s[si].done) return { ei, si };
+  }
+  return exos.length ? { ei: 0, si: 0 } : null;
+}
+function ouvrirGuide() {
+  if (!LIVE) return;
+  const dep = guidePremiereEtape();
+  if (!dep) { toast("Aucune série à guider."); return; }
+  GUIDE = { ...dep, phase: "work", tmr: null, left: 0, total: 0 };
+  let g = $("#guide");
+  if (!g) { g = h(`<div id="guide" class="guide" role="dialog" aria-label="Séance guidée"><div class="guide-in"></div></div>`); document.body.append(g); }
+  document.body.classList.add("guide-open");
+  g.classList.add("show");
+  guideRender();
+}
+function guideFermer() {
+  if (GUIDE?.tmr) clearInterval(GUIDE.tmr);
+  GUIDE = null;
+  $("#guide")?.classList.remove("show");
+  document.body.classList.remove("guide-open");
+  persistLive(true);
+  render();
+}
+/** Passe à l'étape suivante ; renvoie false s'il n'y en a plus (séance finie). */
+function guideAvancer() {
+  const exos = guideExos();
+  const cur = exos[GUIDE.ei];
+  if (!cur) return false;
+  if (GUIDE.si + 1 < cur.st.series.length) { GUIDE.si++; return true; }
+  if (GUIDE.ei + 1 < exos.length) { GUIDE.ei++; GUIDE.si = 0; return true; }
+  return false;
+}
+/** Enregistre la série courante, puis enchaîne repos → suivant (ou fin). */
+function guideValider(charge, valeur, enTemps) {
+  const exos = guideExos();
+  const cur = exos[GUIDE.ei];
+  if (!cur) return;
+  const s = cur.st.series[GUIDE.si];
+  if (charge !== "") s.charge = String(charge);
+  if (valeur !== "") { if (enTemps) s.dureeSec = +valeur; else s.reps = String(valeur); }
+  s.done = true;
+  persistLive(); majProgressionSeance();
+  try { navigator.vibrate?.(20); } catch (e) {}
+  const t = cur.e.series.find((x) => x.type === "travail") || cur.e.series[0];
+  const repos = (t && t.reposSec) || 60;
+  const encore = guideAvancer();
+  if (!encore) { guideFin(); return; }
+  guideRepos(repos);
+}
+/** Écran de repos avec décompte ; à 0 (ou « passer ») → série suivante. */
+function guideRepos(sec) {
+  GUIDE.phase = "rest"; GUIDE.total = sec; GUIDE.left = sec;
+  guideRender();
+}
+function guideFin() {
+  guideFermer();
+  terminer();
+}
+function guideRender() {
+  const g = $("#guide .guide-in");
+  if (!g || !GUIDE) return;
+  if (GUIDE.tmr) { clearInterval(GUIDE.tmr); GUIDE.tmr = null; }
+  const exos = guideExos();
+  const cur = exos[GUIDE.ei];
+  if (!cur) { guideFin(); return; }
+  const { pct, done, tot } = guideProg();
+  const barre = `<div class="guide-top">
+      <button class="guide-x" aria-label="Quitter le mode guidé">${IC.x}</button>
+      <div class="guide-count">Exercice ${GUIDE.ei + 1}/${exos.length} · série ${GUIDE.si + 1}/${cur.st.series.length}</div>
+      <div class="guide-progn num">${done}/${tot}</div>
+    </div>
+    <div class="bar guide-bar"><div style="width:${Math.round(pct * 100)}%"></div></div>`;
+  g.innerHTML = "";
+  g.append(h(barre));
+  $("#guide .guide-x").addEventListener("click", () => { if (confirm) guideFermer(); });
+
+  if (GUIDE.phase === "rest") { guideRenderRepos(g, cur); return; }
+  guideRenderWork(g, cur);
+}
+function guideRenderWork(g, cur) {
+  const { e, st, exo } = cur;
+  const nom = exo ? exo.nom : e.exerciceId;
+  const muscles = (exo && exo.musclesPrincipaux) || [];
+  const enTemps = !!st.series[GUIDE.si]?.dureeSec || !!st.series[0]?.dureeSec;
+  const t = e.series.find((x) => x.type === "travail") || e.series[0];
+  const plage = (t && t.repsCible) || (exo && exo.repsPertinent) || [8, 12];
+  const [derniere, avant] = exo ? Etat.perfs(st.exId) : [null, null];
+  const sug = exo ? recommander(st.exId, plage, derniere || null, avant || null) : { message: "", chargeKg: null };
+  const s = st.series[GUIDE.si];
+  const cibleTxt = enTemps ? `${s.dureeSec || t?.dureeSec || 40} s` : `${plage[0]}–${plage[1]} reps`;
+
+  const body = h(`<div class="guide-body"></div>`);
+  if (exo && exo.patron) body.append(h(`<div class="guide-demo">${animDemo(exo)}</div>`));
+  else body.append(h(`<div class="guide-sil">${muscles.length ? miniSilhouette(muscles) : ""}</div>`));
+  body.append(h(`<h1 class="guide-nom">${esc(nom)}</h1>`));
+  if (muscles.length) body.append(h(`<div class="guide-mus">${muscles.map((m) => esc(MUSCLE_LABELS[m] || m)).join(" · ")}</div>`));
+  body.append(h(`<div class="guide-cible"><span class="num">${esc(cibleTxt)}</span>${sug.chargeKg ? ` · conseil ~${sug.chargeKg} kg` : ""}</div>`));
+  if (sug.message) body.append(h(`<div class="notice small guide-conseil">${esc(sug.message)}</div>`));
+
+  const inp = h(`<div class="guide-inputs"></div>`);
+  const champCharge = h(`<label class="guide-field"><span>${enTemps ? "Charge (kg)" : "Charge (kg)"}</span><input inputmode="decimal" value="${s.charge || ""}" placeholder="${sug.chargeKg || "—"}" aria-label="Charge"></label>`);
+  const champVal = h(`<label class="guide-field"><span>${enTemps ? "Durée (s)" : "Répétitions"}</span><input inputmode="numeric" value="${enTemps ? (s.dureeSec || "") : (s.reps || "")}" placeholder="${enTemps ? (t?.dureeSec || 40) : plage[0]}" aria-label="${enTemps ? "Durée" : "Répétitions"}"></label>`);
+  inp.append(champCharge, champVal);
+  body.append(inp);
+  g.append(body);
+
+  const acts = h(`<div class="guide-actions"></div>`);
+  const bPrev = h(`<button class="chip guide-nav"${GUIDE.ei === 0 && GUIDE.si === 0 ? " disabled" : ""}><span class="cic">${IC.back}</span></button>`);
+  bPrev.addEventListener("click", () => { if (guideReculer()) guideRender(); });
+  const bOk = h(`<button class="primary big guide-valider"><span class="btn-ico">${IC.check}</span>${s.done ? "Série suivante" : "Valider la série"}</button>`);
+  bOk.addEventListener("click", () => {
+    const c = champCharge.querySelector("input").value.trim();
+    const val = champVal.querySelector("input").value.trim();
+    guideValider(c, val, enTemps);
+  });
+  const bSkip = h(`<button class="chip guide-nav" aria-label="Passer"><span class="cic">${IC.forward}</span></button>`);
+  bSkip.addEventListener("click", () => { if (!guideAvancer()) { guideFin(); return; } GUIDE.phase = "work"; guideRender(); });
+  acts.append(bPrev, bOk, bSkip);
+  g.append(acts);
+}
+/** Recule d'une étape (série précédente / exercice précédent). */
+function guideReculer() {
+  const exos = guideExos();
+  if (GUIDE.si > 0) { GUIDE.si--; return true; }
+  if (GUIDE.ei > 0) { GUIDE.ei--; GUIDE.si = Math.max(0, exos[GUIDE.ei].st.series.length - 1); return true; }
+  return false;
+}
+function guideRenderRepos(g, cur) {
+  const exos = guideExos();
+  const suiv = exos[GUIDE.ei];
+  const nomSuiv = suiv && (suiv.exo ? suiv.exo.nom : suiv.e.exerciceId);
+  const rest = h(`<div class="guide-rest">
+    <div class="eyebrow">Récupération</div>
+    <h1 class="guide-repos-t">Repos</h1>
+    <div class="ring guide-ring">
+      <svg viewBox="0 0 230 230"><circle cx="115" cy="115" r="104" fill="none" stroke="var(--surface-2)" stroke-width="12"/>
+      <circle class="gfg" cx="115" cy="115" r="104" fill="none" stroke="var(--accent)" stroke-width="12" stroke-linecap="round" stroke-dasharray="653" stroke-dashoffset="0"/></svg>
+      <div class="t num guide-count-t">0:00</div>
+    </div>
+    <div class="guide-next">À suivre : <b>${esc(nomSuiv || "")}</b> · série ${GUIDE.si + 1}</div>
+    <div class="row" style="justify-content:center">
+      <button class="chip" id="gMinus">−15 s</button>
+      <button class="chip" id="gPlus">+15 s</button>
+    </div>
+    <button class="primary big" id="gSkip" style="max-width:300px"><span class="btn-ico">${IC.forward}</span>Passer le repos</button>
+  </div>`);
+  g.append(rest);
+  const txt = rest.querySelector(".guide-count-t");
+  const fg = rest.querySelector(".gfg");
+  const ring = rest.querySelector(".guide-ring");
+  const draw = () => {
+    txt.textContent = `${Math.floor(GUIDE.left / 60)}:${String(GUIDE.left % 60).padStart(2, "0")}`;
+    fg.style.strokeDashoffset = String(653 * (1 - GUIDE.left / GUIDE.total));
+    ring.classList.toggle("urgent", GUIDE.left <= 10);
+  };
+  const fini = () => { if (GUIDE.tmr) clearInterval(GUIDE.tmr); GUIDE.tmr = null; GUIDE.phase = "work"; try { navigator.vibrate?.([120, 60, 120]); } catch (e) {} guideRender(); };
+  draw();
+  GUIDE.tmr = setInterval(() => { GUIDE.left--; if (GUIDE.left <= 0) { fini(); return; } draw(); }, 1000);
+  rest.querySelector("#gPlus").addEventListener("click", () => { GUIDE.left += 15; GUIDE.total = Math.max(GUIDE.total, GUIDE.left); draw(); });
+  rest.querySelector("#gMinus").addEventListener("click", () => { GUIDE.left = Math.max(1, GUIDE.left - 15); draw(); });
+  rest.querySelector("#gSkip").addEventListener("click", fini);
+}
+
+/* ======================================================================
+   SÉQUENCE GUIDÉE (échauffement / étirement) — minuteur auto par mouvement
+   Données déterministes (src/data/mobilite.js), aucune saisie, aucun stockage.
+   ====================================================================== */
+let SEQ = null; // { titre, items, idx, left, paused, tmr, fin }
+
+function ouvrirSequence(titre, items, opts = {}) {
+  if (!items || !items.length) return;
+  SEQ = { titre, items, idx: 0, left: items[0].dureeSec, paused: false, tmr: null, teinte: opts.teinte || "accent", onFin: opts.onFin };
+  let g = $("#seq");
+  if (!g) { g = h(`<div id="seq" class="guide seq" role="dialog" aria-label="Séquence guidée"><div class="guide-in"></div></div>`); document.body.append(g); }
+  document.body.classList.add("guide-open");
+  g.classList.add("show");
+  seqRender();
+}
+function seqFermer(fini = false) {
+  if (SEQ?.tmr) clearInterval(SEQ.tmr);
+  const cb = SEQ?.onFin;
+  SEQ = null;
+  $("#seq")?.classList.remove("show");
+  document.body.classList.remove("guide-open");
+  if (fini && cb) cb();
+}
+function seqAvancer(delta) {
+  if (SEQ.tmr) { clearInterval(SEQ.tmr); SEQ.tmr = null; }
+  const i = SEQ.idx + delta;
+  if (i >= SEQ.items.length) { seqFini(); return; }
+  SEQ.idx = Math.max(0, i);
+  SEQ.left = SEQ.items[SEQ.idx].dureeSec;
+  SEQ.paused = false;
+  seqRender();
+}
+function seqFini() {
+  const cb = SEQ?.onFin;
+  seqFermer(false);
+  try { navigator.vibrate?.([120, 60, 120]); } catch (e) {}
+  toast(cb ? "Étirements terminés — bien joué 🧘" : "Échauffement terminé — bonne séance 💪");
+  if (cb) cb();
+}
+function seqRender() {
+  const g = $("#seq .guide-in");
+  if (!g || !SEQ) return;
+  if (SEQ.tmr) { clearInterval(SEQ.tmr); SEQ.tmr = null; }
+  const it = SEQ.items[SEQ.idx];
+  const pct = SEQ.items.slice(0, SEQ.idx).reduce((a, x) => a + x.dureeSec, 0);
+  const tot = dureeSequence(SEQ.items);
+  const pctGlobal = tot ? (pct + (it.dureeSec - SEQ.left)) / tot : 0;
+  g.innerHTML = "";
+  g.append(h(`<div class="guide-top">
+      <button class="guide-x" aria-label="Quitter">${IC.x}</button>
+      <div class="guide-count">${esc(SEQ.titre)} · ${SEQ.idx + 1}/${SEQ.items.length}</div>
+      <div class="guide-progn num">${Math.round(pctGlobal * 100)}%</div>
+    </div>
+    <div class="bar guide-bar"><div style="width:${Math.round(pctGlobal * 100)}%"></div></div>`));
+  $("#seq .guide-x").addEventListener("click", () => seqFermer(false));
+
+  const body = h(`<div class="guide-rest"></div>`);
+  body.append(h(`<div class="guide-sil seq-sil">${it.muscles?.length ? miniSilhouette(it.muscles, it.view || "front") : ""}</div>`));
+  body.append(h(`<h1 class="guide-nom" style="margin:2px 0 0">${esc(it.nom)}</h1>`));
+  const ring = h(`<div class="ring guide-ring seq-ring">
+      <svg viewBox="0 0 230 230"><circle cx="115" cy="115" r="104" fill="none" stroke="var(--surface-2)" stroke-width="12"/>
+      <circle class="sfg" cx="115" cy="115" r="104" fill="none" stroke="var(--accent)" stroke-width="12" stroke-linecap="round" stroke-dasharray="653" stroke-dashoffset="0"/></svg>
+      <div class="t num seq-t">0:00</div></div>`);
+  body.append(ring);
+  if (it.consigne) body.append(h(`<div class="guide-next seq-consigne">${esc(it.consigne)}</div>`));
+  g.append(body);
+
+  const acts = h(`<div class="guide-actions"></div>`);
+  const bPrev = h(`<button class="chip guide-nav"${SEQ.idx === 0 ? " disabled" : ""} aria-label="Précédent"><span class="cic">${IC.back}</span></button>`);
+  bPrev.addEventListener("click", () => seqAvancer(-1));
+  const bPause = h(`<button class="primary big seq-pause">${SEQ.paused ? "Reprendre" : "Pause"}</button>`);
+  bPause.addEventListener("click", () => { SEQ.paused = !SEQ.paused; bPause.textContent = SEQ.paused ? "Reprendre" : "Pause"; });
+  const bNext = h(`<button class="chip guide-nav" aria-label="Suivant"><span class="cic">${IC.forward}</span></button>`);
+  bNext.addEventListener("click", () => seqAvancer(1));
+  acts.append(bPrev, bPause, bNext);
+  g.append(acts);
+
+  const txt = ring.querySelector(".seq-t");
+  const fg = ring.querySelector(".sfg");
+  const draw = () => {
+    txt.textContent = `${Math.floor(SEQ.left / 60)}:${String(SEQ.left % 60).padStart(2, "0")}`;
+    fg.style.strokeDashoffset = String(653 * (1 - SEQ.left / it.dureeSec));
+    ring.classList.toggle("urgent", SEQ.left <= 5);
+  };
+  draw();
+  SEQ.tmr = setInterval(() => { if (SEQ.paused) return; SEQ.left--; if (SEQ.left <= 0) { seqAvancer(1); return; } draw(); }, 1000);
+}
 
 /* ======================================================================
    NUTRITION (Open Food Facts + base locale)
