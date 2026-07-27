@@ -1271,28 +1271,41 @@ function vCatalogue(v) {
 
   const res = h(`<div id="catRes" style="margin-top:10px"></div>`);
   v.append(res);
+  // Affichage progressif : rendre les 343 exercices d'un coup produisait une
+  // page de 8 écrans et un DOM inutilement lourd.
+  const PAS = 20;
+  let montres = PAS;
   const dessine = () => {
-    const list = chercherCatalogue(CAT_FILTRE).slice(0, 80);
+    const tous = chercherCatalogue(CAT_FILTRE);
+    const list = tous.slice(0, montres);
     res.innerHTML = "";
-    if (!list.length) { res.append(h(`<div class="notice small">Aucun exercice ne correspond. Élargis les filtres.</div>`)); return; }
-    res.append(h(`<div class="muted small" style="margin-bottom:4px">${list.length} résultat(s)</div>`));
+    if (!tous.length) { res.append(h(`<div class="notice small">Aucun exercice ne correspond. Élargis les filtres.</div>`)); return; }
+    res.append(h(`<div class="muted small" style="margin-bottom:4px">${tous.length} résultat${tous.length > 1 ? "s" : ""}</div>`));
     for (const e of list) {
-      const row = h(`<div class="exline">
-        <div class="meta"><div class="nm">${esc(e.nom)}</div>
-          <div class="muted small">${e.musclesPrincipaux.map((m) => MUSCLE_LABELS[m] || m).join(", ")} · ${e.equipement.map((q) => EQUIPMENT_LABELS[q] || q).join(", ")}${e.source === "wger" ? ` · <span class="tag">wger</span>` : ""}</div></div>
-        <button class="chip">ℹ️</button></div>`);
-      row.querySelector("button").addEventListener("click", () => ouvrirDetail(e));
+      // Toute la ligne est cliquable : cible tactile bien plus large qu'un
+      // petit bouton en bout de ligne.
+      const row = h(`<button class="exline">
+        <span class="meta"><span class="nm">${esc(e.nom)}</span>
+          <span class="muted small">${e.musclesPrincipaux.map((m) => MUSCLE_LABELS[m] || m).join(", ")} · ${e.equipement.map((q) => EQUIPMENT_LABELS[q] || q).join(", ")}${e.source === "wger" ? ` · <span class="tag">wger</span>` : ""}</span></span>
+        <span class="chev" aria-hidden="true">›</span></button>`);
+      row.addEventListener("click", () => ouvrirDetail(e));
       res.append(row);
+    }
+    if (tous.length > montres) {
+      const plus = h(`<button class="secondary" style="width:100%;margin-top:10px">Voir ${Math.min(PAS, tous.length - montres)} exercices de plus</button>`);
+      plus.addEventListener("click", () => { montres += PAS; dessine(); });
+      res.append(plus);
     }
   };
   dessine();
-  inp.addEventListener("input", () => { CAT_FILTRE.q = inp.value; dessine(); });
+  inp.addEventListener("input", () => { CAT_FILTRE.q = inp.value; montres = PAS; dessine(); });
 }
 
 /* ======================================================================
    PROGRAMME ANATOLY (Powerbuilding 8 semaines — depuis le PDF fourni)
    ====================================================================== */
 let ANATOLY_SEM = 1; // semaine sélectionnée
+let ANATOLY_JOUR = 0; // jour affiché dans la semaine
 /** Temps de repos indicatif selon la règle du programme (base = squat/DC/SDT). */
 function reposAnat(nom) {
   return /squat|développé couché|soulevé de terre/i.test(nom) ? "4 min" : "2 min";
@@ -1341,7 +1354,7 @@ function carteAnatoly(ex, num) {
 }
 function vAnatoly(v) {
   const info = ANATOLY_INFO;
-  v.append(h(`<div class="eyebrow">🏋️ Programme Anatoly</div>`));
+  v.append(h(`<div class="eyebrow">Programme Anatoly</div>`));
   v.append(h(`<h1 style="margin:2px 0 2px">Powerbuilding</h1>`));
   v.append(h(`<div class="muted small" style="margin-bottom:13px">${info.nbSemaines} semaines · force &amp; esthétique</div>`));
 
@@ -1354,20 +1367,20 @@ function vAnatoly(v) {
   }
   v.append(sel);
 
-  // Navigation ← Semaine N →
-  const navrow = h(`<div class="spread" style="margin:14px 0 8px"></div>`);
-  const prev = h(`<button class="chip" aria-label="Semaine précédente" ${ANATOLY_SEM <= 1 ? "disabled" : ""}>←</button>`);
-  prev.addEventListener("click", () => { if (ANATOLY_SEM > 1) { ANATOLY_SEM--; render(); window.scrollTo(0, 0); } });
-  const next = h(`<button class="chip" aria-label="Semaine suivante" ${ANATOLY_SEM >= info.nbSemaines ? "disabled" : ""}>→</button>`);
-  next.addEventListener("click", () => { if (ANATOLY_SEM < info.nbSemaines) { ANATOLY_SEM++; render(); window.scrollTo(0, 0); } });
-  navrow.append(prev, h(`<b style="font-size:1.15rem">Semaine ${ANATOLY_SEM}</b>`), next);
-  v.append(navrow);
-
+  // La rangée « ← Semaine N → » faisait doublon avec le bandeau S1..S8 : retirée.
   const semaine = ANATOLY_SEMAINES.find((s) => s.n === ANATOLY_SEM) || ANATOLY_SEMAINES[0];
-  semaine.jours.forEach((j) => {
-    v.append(h(`<div class="anat-day"><span class="anat-jour">${esc(j.jour)}</span><span class="anat-grp">${esc(j.groupe)}</span></div>`));
-    j.exercices.forEach((ex, idx) => v.append(carteAnatoly(ex, idx + 1)));
+
+  // Un jour à la fois (les 4 jours empilés donnaient 24 cartes d'affilée).
+  if (ANATOLY_JOUR >= semaine.jours.length) ANATOLY_JOUR = 0;
+  const jours = h(`<div class="daytabs" role="tablist" aria-label="Jour de la semaine"></div>`);
+  semaine.jours.forEach((j, i) => {
+    const b = h(`<button class="daytab${i === ANATOLY_JOUR ? " on" : ""}" role="tab" aria-selected="${i === ANATOLY_JOUR}"><b>${esc(j.jour)}</b><span>${esc(j.groupe)}</span></button>`);
+    b.addEventListener("click", () => { ANATOLY_JOUR = i; render(); });
+    jours.append(b);
   });
+  v.append(jours);
+  const jour = semaine.jours[ANATOLY_JOUR];
+  if (jour) jour.exercices.forEach((ex, idx) => v.append(carteAnatoly(ex, idx + 1)));
 
   // Infos programme (repliable) : intro, échauffement, repos, abdos, consignes
   const extra = h(`<details class="card" style="margin-top:16px"><summary><b>Infos, échauffement &amp; abdos</b></summary></details>`);
