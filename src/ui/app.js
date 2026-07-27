@@ -64,6 +64,11 @@ import { seancesVersCSV, metriquesVersCSV, nomFichierExport } from "../engine/ex
 import { echauffementPour, ETIREMENTS, dureeSequence } from "../data/mobilite.js";
 import { serieActuelle, meilleureSerie, grilleJours, defis } from "../engine/defis.js";
 import { detecterIntention, trouverExoParNom } from "../engine/assistant.js";
+import {
+  fcMaxTheorique, tableZonesCardio, MORPHOTYPES, tableMorphotypes, dureeSeance,
+  maxDepuisSerie, grilleMax, composition, adipositeNavy, categorieAdiposite,
+  TESTS_VELO, testVeloParCle, comparerTestsVelo,
+} from "../engine/outils.js";
 import { PROGRAMMES } from "../data/programmes.js";
 import { PROGRAMMES_SALLE } from "../data/programmes-salle.js";
 import { grilleMois, moisAdjacent, NOMS_JOURS_COURTS } from "../engine/calendar.js";
@@ -2018,6 +2023,320 @@ function seqRender() {
 }
 
 /* ======================================================================
+   OUTILS DE CALCUL (FC cible, morphotype, durée de séance, max estimé,
+   composition corporelle, test cardio vélo). Tout est déterministe et local.
+   ====================================================================== */
+
+/** Champ numérique compact réutilisé par les outils. */
+function champNum(label, valeur, onChange, opts = {}) {
+  const w = h(`<label class="out-field"><span>${esc(label)}</span><input inputmode="${opts.decimal ? "decimal" : "numeric"}" value="${valeur ?? ""}" placeholder="${opts.ph ?? ""}" aria-label="${esc(label)}"></label>`);
+  w.querySelector("input").addEventListener("input", (e) => onChange(e.target.value));
+  return w;
+}
+
+/** Feuille « Outils » : une liste d'outils, chacun dépliable. */
+function ouvrirOutils(cleInitiale = null) {
+  const sheet = h(`<div class="sheet" id="outils"><div class="inner"></div></div>`);
+  const inner = sheet.querySelector(".inner");
+  inner.append(h(`<div class="sheet-top"><h2 style="margin:0">Outils</h2><button class="chip" id="outX">✕ Fermer</button></div>`));
+  inner.append(h(`<div class="muted small">Calculatrices d'entraînement, à partir de tes données. Tout est calculé sur ton téléphone.</div>`));
+
+  const OUTILS = [
+    { cle: "fc", nom: "Fréquence cardiaque cible", sous: "Zones d'effort selon ton âge et ton pouls de repos", ic: IC.activity, cls: "mi-red", vue: outilFC },
+    { cle: "morpho", nom: "Macros par morphotype", sous: "Protéines, glucides et lipides selon ta morphologie", ic: IC.apple, cls: "mi-green", vue: outilMorphotype },
+    { cle: "duree", nom: "Durée d'une séance", sous: "Estime le temps réel d'une séance avant de la faire", ic: IC.clock, cls: "mi-blue", vue: outilDuree },
+    { cle: "max", nom: "Estimation du maximum", sous: "Ton 1RM à partir d'une série réalisée", ic: IC.dumbbell, cls: "mi-indigo", vue: outilMax },
+    { cle: "compo", nom: "Composition corporelle", sous: "Masse grasse et masse maigre, avec ou sans balance", ic: IC.user, cls: "mi-orange", vue: outilComposition },
+    { cle: "velo", nom: "Test cardio vélo", sous: "Protocole à paliers, à refaire chaque mois", ic: IC.bars, cls: "mi-blue", vue: outilTestVelo },
+  ];
+
+  const liste = h(`<div class="stack" style="margin-top:12px"></div>`);
+  inner.append(liste);
+  const panneau = h(`<div id="outPanneau"></div>`);
+  inner.append(panneau);
+
+  const ouvrir = (o) => {
+    panneau.innerHTML = "";
+    liste.querySelectorAll(".out-item").forEach((b) => b.classList.toggle("on", b.dataset.k === o.cle));
+    const c = h(`<div class="card stack" style="margin-top:12px"></div>`);
+    c.append(h(`<h3 style="margin:0">${esc(o.nom)}</h3>`));
+    c.append(o.vue());
+    panneau.append(c);
+    panneau.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  };
+  OUTILS.forEach((o) => {
+    const b = h(`<button class="card wcard sil out-item" data-k="${o.cle}" style="width:100%;text-align:left"><span class="mi ${o.cls}" style="width:34px;height:34px">${o.ic}</span><span class="g"><b>${esc(o.nom)}</b><br><span class="muted small">${esc(o.sous)}</span></span><span class="chev">›</span></button>`);
+    b.addEventListener("click", () => ouvrir(o));
+    liste.append(b);
+  });
+
+  sheet.querySelector("#outX").addEventListener("click", () => sheet.remove());
+  document.body.append(sheet);
+  const dep = OUTILS.find((o) => o.cle === cleInitiale);
+  if (dep) ouvrir(dep);
+}
+
+/* ---------- 1. Fréquence cardiaque cible ---------- */
+function outilFC() {
+  const p = Etat.data.profil || {};
+  const st = { age: p.age || 30, repos: Etat.data.reglages.fcRepos || 60 };
+  const box = h(`<div class="stack"></div>`);
+  const res = h(`<div class="stack"></div>`);
+  const ligne = h(`<div class="out-row"></div>`);
+  const maj = () => {
+    const fcMax = fcMaxTheorique(st.age);
+    res.innerHTML = "";
+    res.append(h(`<div class="spread small"><span class="muted">FC maximale théorique</span><b class="num">${fcMax} bpm</b></div>`));
+    const zones = tableZonesCardio(fcMax, st.repos > 0 ? st.repos : null);
+    zones.forEach((z) => {
+      res.append(h(`<div class="zone-row"><div class="spread small"><b>${esc(z.nom)}</b><span class="num" style="color:var(--accent-ink)">${z.bpmMin}–${z.bpmMax} bpm</span></div><div class="muted small">${z.min}–${z.max} % · ${esc(z.effet)}</div></div>`));
+    });
+    res.append(h(`<div class="muted small" style="margin-top:6px">${st.repos > 0 ? "Calcul par la formule de Karvonen (tient compte de ton pouls de repos)." : "Renseigne ton pouls de repos pour un calcul plus précis (Karvonen)."}</div>`));
+  };
+  ligne.append(champNum("Âge", st.age, (v) => { st.age = +v || 0; maj(); }));
+  ligne.append(champNum("Pouls au repos", st.repos, (v) => {
+    st.repos = +v || 0; Etat.data.reglages.fcRepos = st.repos; Etat.sauver(); maj();
+  }, { ph: "60" }));
+  box.append(ligne);
+  box.append(h(`<div class="muted small">Mesure ton pouls de repos le matin au réveil, avant de te lever.</div>`));
+  box.append(res);
+  maj();
+  return box;
+}
+
+/* ---------- 2. Macros par morphotype ---------- */
+function outilMorphotype() {
+  const p = Etat.data.profil || {};
+  const st = { poids: p.poidsKg || 75, morpho: Etat.data.reglages.morphotype || "mesomorphe", objectif: "prise_masse" };
+  const box = h(`<div class="stack"></div>`);
+  const res = h(`<div class="stack"></div>`);
+  const maj = () => {
+    res.innerHTML = "";
+    const table = tableMorphotypes(st.poids, st.objectif);
+    table.forEach((m) => {
+      const actif = m.cle === st.morpho;
+      const c = h(`<div class="card ${actif ? "morpho-on" : ""}" style="padding:11px"></div>`);
+      c.append(h(`<div class="spread"><b>${esc(m.nom)}</b><span class="badge ${actif ? "accent" : ""}">${m.kcal} kcal</span></div>`));
+      c.append(h(`<div class="muted small" style="margin:2px 0 6px">${esc(m.desc)}</div>`));
+      c.append(h(`<div class="out-macros"><span><b>${m.prot} g</b><span>Protéines</span></span><span><b>${m.gluc} g</b><span>Glucides</span></span><span><b>${m.lip} g</b><span>Lipides</span></span></div>`));
+      c.addEventListener("click", () => { st.morpho = m.cle; Etat.data.reglages.morphotype = m.cle; Etat.sauver(); maj(); });
+      res.append(c);
+    });
+  };
+  const ligne = h(`<div class="out-row"></div>`);
+  ligne.append(champNum("Poids (kg)", st.poids, (v) => { st.poids = +v || 0; maj(); }, { decimal: true }));
+  box.append(ligne);
+  const objs = h(`<div class="row"></div>`);
+  [["prise_masse", "Prise de masse"], ["seche", "Sèche"]].forEach(([k, lab]) => {
+    const b = h(`<button class="chip ${st.objectif === k ? "on" : ""}">${lab}</button>`);
+    b.addEventListener("click", () => {
+      st.objectif = k;
+      objs.querySelectorAll("button").forEach((x) => x.classList.remove("on"));
+      b.classList.add("on"); maj();
+    });
+    objs.append(b);
+  });
+  box.append(objs);
+  box.append(h(`<div class="muted small">Touche un morphotype pour le retenir. Repères en grammes par kilo de poids de corps — à ajuster selon tes résultats réels.</div>`));
+  box.append(res);
+  maj();
+  return box;
+}
+
+/* ---------- 3. Durée d'une séance ---------- */
+function outilDuree() {
+  const lignes = [{ series: 4, reps: 10, reposSec: 90 }];
+  const box = h(`<div class="stack"></div>`);
+  const liste = h(`<div class="stack"></div>`);
+  const res = h(`<div class="statgrid"></div>`);
+  const maj = () => {
+    liste.innerHTML = "";
+    lignes.forEach((l, i) => {
+      const r = h(`<div class="out-row out-line"></div>`);
+      r.append(champNum("Séries", l.series, (v) => { l.series = +v || 0; maj(); }));
+      r.append(champNum("Reps", l.reps, (v) => { l.reps = +v || 0; maj(); }));
+      r.append(champNum("Repos (s)", l.reposSec, (v) => { l.reposSec = +v || 0; maj(); }));
+      if (lignes.length > 1) {
+        const d = h(`<button class="chip danger out-del" aria-label="Retirer l'exercice ${i + 1}">✕</button>`);
+        d.addEventListener("click", () => { lignes.splice(i, 1); maj(); });
+        r.append(d);
+      }
+      liste.append(r);
+    });
+    const t = dureeSeance(lignes);
+    res.innerHTML = "";
+    res.append(statCard(IC.clock, `${t.totalMin} min`, "Durée totale"));
+    res.append(statCard(IC.dumbbell, `${t.series}`, "Séries"));
+    res.append(statCard(IC.repeat, `${t.reps}`, "Répétitions"));
+    res.append(statCard(IC.moon, `${Math.round(t.reposSec / 60)} min`, "Dont repos"));
+  };
+  box.append(h(`<div class="muted small">Une ligne par exercice. L'effort est estimé à 3 secondes par répétition.</div>`));
+  box.append(liste);
+  const bAdd = h(`<button class="chip"><span class="cic">${IC.plus}</span>Ajouter un exercice</button>`);
+  bAdd.addEventListener("click", () => { lignes.push({ series: 3, reps: 10, reposSec: 90 }); maj(); });
+  box.append(bAdd);
+  box.append(res);
+  maj();
+  return box;
+}
+
+/* ---------- 4. Estimation du maximum ---------- */
+function outilMax() {
+  const st = { charge: 60, reps: 8 };
+  const box = h(`<div class="stack"></div>`);
+  const res = h(`<div class="stack"></div>`);
+  const maj = () => {
+    const m = maxDepuisSerie(st.charge, st.reps);
+    res.innerHTML = "";
+    res.append(h(`<div class="out-big"><b class="num">${m.max} kg</b><span>Maximum estimé (1RM)</span></div>`));
+    res.append(h(`<div class="muted small">${st.reps} répétition${st.reps > 1 ? "s" : ""} à ${st.charge} kg ≈ ${m.pct} % de ton maximum.</div>`));
+    const tbl = h(`<div class="stack" style="margin-top:6px"></div>`);
+    tbl.append(h(`<div class="eyebrow">Charges de travail</div>`));
+    [95, 90, 85, 80, 75, 70, 60].forEach((pct) => {
+      tbl.append(h(`<div class="spread small"><span class="muted">${pct} %</span><b class="num">${Math.round(m.max * pct / 100 * 2) / 2} kg</b></div>`));
+    });
+    res.append(tbl);
+    const g = h(`<div class="stack" style="margin-top:6px"></div>`);
+    g.append(h(`<div class="eyebrow">Si tu fais ${st.reps} reps avec…</div>`));
+    grilleMax([20, 30, 40, 50, 60, 80, 100], st.reps).forEach((x) => {
+      g.append(h(`<div class="spread small"><span class="muted">${x.charge} kg</span><b class="num">max ≈ ${x.max} kg</b></div>`));
+    });
+    res.append(g);
+  };
+  const ligne = h(`<div class="out-row"></div>`);
+  ligne.append(champNum("Charge (kg)", st.charge, (v) => { st.charge = +v || 0; maj(); }, { decimal: true }));
+  ligne.append(champNum("Répétitions", st.reps, (v) => { st.reps = +v || 0; maj(); }));
+  box.append(ligne);
+  box.append(h(`<div class="warn small">Estimation à partir d'une série menée près de l'échec. Ne teste jamais un maximum réel sans échauffement complet ni parade.</div>`));
+  box.append(res);
+  maj();
+  return box;
+}
+
+/* ---------- 5. Composition corporelle ---------- */
+function outilComposition() {
+  const p = Etat.data.profil || {};
+  const r = Etat.data.reglages;
+  const st = {
+    poids: p.poidsKg || 75, sexe: p.sexe || "H",
+    adipo: p.masseGrassePct || null,
+    tailleCm: p.tailleCm || 175,
+    tourTaille: r.tourTailleCm || null, tourCou: r.tourCouCm || null, tourHanches: r.tourHanchesCm || null,
+  };
+  const box = h(`<div class="stack"></div>`);
+  const res = h(`<div class="stack"></div>`);
+  const maj = () => {
+    res.innerHTML = "";
+    const estime = adipositeNavy(st.sexe, {
+      tailleCm: st.tailleCm, tourTailleCm: st.tourTaille, tourCouCm: st.tourCou, tourHanchesCm: st.tourHanches,
+    });
+    const pct = st.adipo || estime;
+    if (pct == null) {
+      res.append(h(`<div class="muted small">Renseigne soit ton taux d'adiposité (balance à impédance), soit tes tours de taille et de cou pour l'estimer.</div>`));
+      return;
+    }
+    const c = composition(st.poids, pct);
+    const cat = categorieAdiposite(pct, st.sexe);
+    res.append(h(`<div class="out-big"><b class="num" style="color:${cat.col}">${pct} %</b><span>Taux d'adiposité · ${esc(cat.txt)}</span></div>`));
+    const g = h(`<div class="statgrid"></div>`);
+    g.append(statCard(IC.flame, `${c.masseGrasseKg} kg`, "Masse grasse"));
+    g.append(statCard(IC.dumbbell, `${c.masseMaigreKg} kg`, "Masse maigre"));
+    res.append(g);
+    if (!st.adipo && estime != null) res.append(h(`<div class="muted small">Estimé par la méthode des circonférences (US Navy). Une balance à impédance donne une valeur plus stable dans le temps.</div>`));
+    res.append(h(`<div class="muted small">Repères indicatifs, sans valeur médicale. Ce qui compte est l'évolution, pas la valeur absolue.</div>`));
+  };
+  box.append(h(`<div class="eyebrow">Si tu connais ton taux</div>`));
+  const l1 = h(`<div class="out-row"></div>`);
+  l1.append(champNum("Poids (kg)", st.poids, (v) => { st.poids = +v || 0; maj(); }, { decimal: true }));
+  l1.append(champNum("Adiposité (%)", st.adipo, (v) => { st.adipo = v === "" ? null : +v; maj(); }, { decimal: true, ph: "—" }));
+  box.append(l1);
+  box.append(h(`<div class="eyebrow" style="margin-top:6px">Sinon, estime-le par tes mesures</div>`));
+  const l2 = h(`<div class="out-row"></div>`);
+  l2.append(champNum("Taille (cm)", st.tailleCm, (v) => { st.tailleCm = +v || 0; maj(); }));
+  l2.append(champNum("Tour de taille", st.tourTaille, (v) => {
+    st.tourTaille = v === "" ? null : +v; r.tourTailleCm = st.tourTaille; Etat.sauver(); maj();
+  }, { ph: "cm" }));
+  box.append(l2);
+  const l3 = h(`<div class="out-row"></div>`);
+  l3.append(champNum("Tour de cou", st.tourCou, (v) => {
+    st.tourCou = v === "" ? null : +v; r.tourCouCm = st.tourCou; Etat.sauver(); maj();
+  }, { ph: "cm" }));
+  if (st.sexe === "F") {
+    l3.append(champNum("Tour de hanches", st.tourHanches, (v) => {
+      st.tourHanches = v === "" ? null : +v; r.tourHanchesCm = st.tourHanches; Etat.sauver(); maj();
+    }, { ph: "cm" }));
+  }
+  box.append(l3);
+  box.append(res);
+  maj();
+  return box;
+}
+
+/* ---------- 6. Test cardio vélo ---------- */
+function outilTestVelo() {
+  const st = { cle: Etat.data.reglages.testVeloNiveau || "debutant" };
+  const box = h(`<div class="stack"></div>`);
+  const corps = h(`<div class="stack"></div>`);
+  const maj = () => {
+    const proto = testVeloParCle(st.cle);
+    const historique = (Etat.data.testsVelo || []).filter((t) => t.cle === st.cle);
+    corps.innerHTML = "";
+    corps.append(h(`<div class="muted small">Protocole de ${proto.dureeMin} minutes. Relève ton pouls à la fin de chaque palier marqué. Refais le test une fois par mois : <b>moins de pulsations au même effort = tu progresses</b>.</div>`));
+    const saisie = [];
+    proto.paliers.forEach((pa, i) => {
+      const row = h(`<div class="velo-row"></div>`);
+      row.append(h(`<span class="velo-t"><b>${esc(pa.nom)}</b><br><span class="muted small">${pa.min} min · niveau ${pa.niveau} · ${esc(pa.rpm)} RPM</span></span>`));
+      if (pa.releve) {
+        const inp = h(`<input class="velo-in" inputmode="numeric" placeholder="bpm" aria-label="Pouls ${pa.nom}">`);
+        saisie.push({ i, inp });
+        row.append(inp);
+      } else row.append(h(`<span class="muted small">—</span>`));
+      corps.append(row);
+    });
+    const bSave = h(`<button class="primary big" style="margin-top:8px">Enregistrer ce test</button>`);
+    bSave.addEventListener("click", () => {
+      const pouls = saisie.map((s) => +s.inp.value || 0);
+      if (!pouls.some((x) => x > 0)) { toast("Saisis au moins une valeur de pouls."); return; }
+      (Etat.data.testsVelo ||= []).push({ id: Etat.uid(), cle: st.cle, date: new Date().toISOString(), pouls });
+      Etat.sauver(); toast("Test enregistré 📈"); maj();
+    });
+    corps.append(bSave);
+    if (historique.length) {
+      corps.append(h(`<div class="eyebrow" style="margin-top:10px">Tes tests</div>`));
+      historique.slice().reverse().forEach((t, idx, arr) => {
+        const d = new Date(t.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+        const moy = Math.round(t.pouls.filter((x) => x > 0).reduce((a, x) => a + x, 0) / Math.max(1, t.pouls.filter((x) => x > 0).length));
+        const prec = arr[idx + 1];
+        const cmp = prec ? comparerTestsVelo(prec.pouls, t.pouls) : null;
+        const tag = cmp ? `<span class="badge ${cmp.ameliore ? "ok" : "amber"}">${cmp.delta > 0 ? "+" : ""}${cmp.delta} bpm</span>` : "";
+        const r = h(`<div class="spread small" style="padding:7px 0;border-bottom:1px solid var(--line)"><span>${d}<br><span class="muted">${t.pouls.filter((x) => x > 0).join(" · ")} bpm</span></span><span>${tag} <b class="num">${moy}</b></span></div>`);
+        corps.append(r);
+      });
+      const bDel = h(`<button class="chip danger" style="margin-top:8px">Effacer l'historique de ce test</button>`);
+      bDel.addEventListener("click", async () => {
+        if (!await confirmer("Effacer tous les tests enregistrés pour ce niveau ?", { danger: true, ok: "Effacer" })) return;
+        Etat.data.testsVelo = (Etat.data.testsVelo || []).filter((t) => t.cle !== st.cle);
+        Etat.sauver(); maj();
+      });
+      corps.append(bDel);
+    }
+  };
+  const niv = h(`<div class="row"></div>`);
+  TESTS_VELO.forEach((t) => {
+    const b = h(`<button class="chip ${st.cle === t.cle ? "on" : ""}">${esc(t.nom)}</button>`);
+    b.addEventListener("click", () => {
+      st.cle = t.cle; Etat.data.reglages.testVeloNiveau = t.cle; Etat.sauver();
+      niv.querySelectorAll("button").forEach((x) => x.classList.remove("on"));
+      b.classList.add("on"); maj();
+    });
+    niv.append(b);
+  });
+  box.append(niv, corps);
+  maj();
+  return box;
+}
+
+/* ======================================================================
    COACH — assistant DÉTERMINISTE (réponses issues du moteur de l'app)
    + mode « Coach IA » FACULTATIF (Transformers.js, désactivé par défaut).
    ====================================================================== */
@@ -2920,6 +3239,9 @@ function vSet(v) {
   const bCoach = h(`<button class="plusitem"><span class="pm-ic mi-blue">${IC.message}</span><span class="pm-main"><b>Coach — poser une question</b></span><span class="chev">›</span></button>`);
   bCoach.addEventListener("click", () => ouvrirCoach());
   outils.append(bCoach);
+  const bOutils = h(`<button class="plusitem"><span class="pm-ic mi-orange">${IC.spark}</span><span class="pm-main"><b>Outils de calcul</b><br><span class="muted small">FC cible, macros, 1RM, composition, test vélo</span></span><span class="chev">›</span></button>`);
+  bOutils.addEventListener("click", () => ouvrirOutils());
+  outils.append(bOutils);
   v.append(outils);
 
   // Coach IA (facultatif) — désactivé par défaut, l'app reste déterministe.

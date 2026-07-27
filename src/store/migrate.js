@@ -27,6 +27,7 @@ export function etatVide() {
     foodlog: {},              // "YYYY-MM-DD" -> [aliments]
     waterlog: {},             // "YYYY-MM-DD" -> millilitres bus
     reviews: [],              // bilans d'ajustement
+    testsVelo: [],            // relevés du test cardio sur vélo (outils)
     mediaCache: {},           // exId -> URL de média résolue
     reglages: {
       theme: "dark", unites: "metrique", sons: true, vibrations: true,
@@ -57,6 +58,7 @@ export function normaliserEtat(brut) {
   out.logs = toArray(brut.logs);
   out.metrics = toArray(brut.metrics);
   out.reviews = toArray(brut.reviews);
+  out.testsVelo = toArray(brut.testsVelo);
   out.foodlog = brut.foodlog && typeof brut.foodlog === "object" ? brut.foodlog : {};
   out.waterlog = brut.waterlog && typeof brut.waterlog === "object" ? brut.waterlog : {};
   out.mediaCache = brut.mediaCache && typeof brut.mediaCache === "object" ? brut.mediaCache : {};
