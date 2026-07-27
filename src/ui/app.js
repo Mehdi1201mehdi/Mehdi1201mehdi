@@ -3161,27 +3161,22 @@ let STATS_PERIODE = "30"; // période sélectionnée dans l'aperçu Progrès
 function vStats(v) {
   const logs = Etat.data.logs;
   const p = Etat.data.profil;
-  v.append(h(`<div class="eyebrow">Ton évolution</div>`));
-  v.append(h(`<h1 style="margin-bottom:14px">Progrès</h1>`));
+  v.append(h(`<div class="dash-hi"><div><span class="eyebrow">Ton évolution</span><h1>Progrès</h1></div></div>`));
 
   const sm = statsSemaine(logs);
   const dm = dureeMoyenneMin(logs);
   const objSem = p.joursParSemaine || 3;
 
-  // Carte héro : activité de la semaine (anneau séances 7 j vs objectif)
-  const hero = h(`<div class="hero stack"><span class="glow"></span></div>`);
-  const top = h(`<div class="ringstat"></div>`);
-  top.append(h(anneauSVG(sm.seances / objSem, 78, `${sm.seances}/${objSem}`)));
-  const info = h(`<div style="flex:1;min-width:0"></div>`);
-  info.append(h(`<div class="eyebrow" style="color:var(--accent-ink)">Cette semaine</div>`));
-  info.append(h(`<h2 style="margin:2px 0 4px">${sm.seances} séance${sm.seances > 1 ? "s" : ""}</h2>`));
-  info.append(h(`<div class="muted small">${sm.seances ? `${sm.volume.toLocaleString("fr-FR")} kg de volume${sm.dureeMin != null ? ` · ~${sm.dureeMin} min/séance` : ""}` : "Aucune séance cette semaine — c'est le moment 💪"}</div>`));
-  top.append(info);
-  hero.append(top);
-  v.append(hero);
+  // Objectif de la semaine sur une ligne : l'ancienne carte héro répétait ce
+  // que la grille de statistiques affiche juste en dessous.
+  const objPct = Math.min(1, sm.seances / Math.max(1, objSem));
+  v.append(h(`<div class="card objweek">
+    <div class="spread"><span class="small"><b>${sm.seances}/${objSem}</b> séance${sm.seances > 1 ? "s" : ""} cette semaine</span>
+    <span class="small muted">${sm.seances ? `${sm.volume.toLocaleString("fr-FR")} kg` : "à démarrer"}</span></div>
+    <div class="bar" style="margin-top:7px"><div style="width:${Math.round(objPct * 100)}%${objPct >= 1 ? ";background:var(--ok)" : ""}"></div></div>
+  </div>`));
 
   // Aperçu par période : filtres 7J · 30J · 3M · 6M · 1A · Tout
-  v.append(h(`<div class="eyebrow" style="margin:20px 0 0">Aperçu</div>`));
   const PERIODES = [["7", "7J"], ["30", "30J"], ["90", "3M"], ["180", "6M"], ["365", "1A"], ["0", "Tout"]];
   const chipsP = h(`<div class="row" style="overflow-x:auto;flex-wrap:nowrap;margin:10px 0 12px;scrollbar-width:none"></div>`);
   PERIODES.forEach(([val, lab]) => {
