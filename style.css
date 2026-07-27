@@ -498,6 +498,32 @@ body.guide-open{overflow:hidden}
 .warm-cta .mi{flex:0 0 auto;border-radius:12px;display:grid;place-items:center;background:var(--surface-2)}
 .warm-cta .g{flex:1;min-width:0}
 
+/* ---- Coach : accès + fil de discussion ---- */
+.coach-cta{display:flex;align-items:center;gap:12px;width:100%;text-align:left;margin-top:14px;padding:14px}
+.coach-cta-ic{flex:0 0 auto;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
+.coach-cta-ic svg{width:20px;height:20px;display:block}
+.coach-cta-g{flex:1;min-width:0;display:block}
+.coach-cta-g b{display:block;font-size:.95rem}
+.coach-cta-g span{display:block}
+.sheet.coach .inner{display:flex;flex-direction:column;min-height:100dvh;padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+.coach-fil{flex:1;display:flex;flex-direction:column;gap:12px;overflow-y:auto;padding:10px 0}
+.coach-bulle{max-width:92%;padding:12px 14px;border-radius:16px;background:var(--surface);border:1px solid var(--hair);animation:revealUp .3s var(--ease) both}
+.coach-bulle.moi{align-self:flex-end;background:var(--accent);border-color:transparent;color:#fff;border-bottom-right-radius:6px}
+.coach-bulle.coach{align-self:flex-start;border-bottom-left-radius:6px}
+.coach-bulle .stack{gap:8px}
+.coach-bulle b{color:inherit}
+.coach-exo{margin:0;padding:11px 12px;display:flex;align-items:center;gap:10px}
+.coach-sugg{display:flex;flex-wrap:wrap;gap:7px;margin-top:4px}
+.coach-sugg .chip{font-size:.76rem}
+.coach-ia-tag{display:inline-block;font-size:.62rem;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--indigo);margin-bottom:5px}
+.coach-ia-txt{display:block;font-size:.9rem;line-height:1.5;white-space:pre-wrap}
+.coach-barre{display:flex;gap:9px;align-items:center;padding-top:10px;border-top:1px solid var(--hair);position:sticky;bottom:0;background:var(--bg)}
+.coach-barre input{flex:1;min-width:0;padding:13px 15px;border-radius:14px;background:var(--surface-2);border:1px solid var(--hair);color:var(--ink);font-size:1rem}
+.coach-barre input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.coach-barre button{flex:0 0 auto;width:48px;height:48px;min-height:auto;padding:0;display:grid;place-items:center;border-radius:14px}
+.coach-barre button svg{width:20px;height:20px;display:block}
+@media (prefers-reduced-motion: reduce){.coach-bulle{animation:none!important}}
+
 /* ---- Démonstration animée (SVG maison, hors ligne) ---- */
 .exdemo{position:relative;width:150px;aspect-ratio:3/4;margin:0 auto;border-radius:20px;overflow:hidden;
   background:radial-gradient(120% 90% at 50% 12%,color-mix(in srgb,var(--accent) 12%,var(--surface)),var(--surface) 70%);border:1px solid var(--hair)}

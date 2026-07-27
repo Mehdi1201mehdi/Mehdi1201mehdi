@@ -63,6 +63,7 @@ function trouverParentSeance(seanceId) {
 import { seancesVersCSV, metriquesVersCSV, nomFichierExport } from "../engine/export.js";
 import { echauffementPour, ETIREMENTS, dureeSequence } from "../data/mobilite.js";
 import { serieActuelle, meilleureSerie, grilleJours, defis } from "../engine/defis.js";
+import { detecterIntention, trouverExoParNom } from "../engine/assistant.js";
 import { grilleMois, moisAdjacent, NOMS_JOURS_COURTS } from "../engine/calendar.js";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -503,6 +504,9 @@ const IC = {
   map: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/></svg>`,
   check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>`,
   x: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>`,
+  message: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg>`,
+  send: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>`,
+  spark: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>`,
   forward: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 4 10 8-10 8zM19 5v14"/></svg>`,
   back: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 20-10-8 10-8zM5 5v14"/></svg>`,
   layers: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg>`,
@@ -585,6 +589,11 @@ function vDash(v) {
     wc.append(h(`<div class="muted small" style="margin-top:5px">Marche, mobilité ou récupération active. Reviens demain 💪</div>`));
   }
   v.append(wc);
+
+  // Coach : barre de question (assistant déterministe, IA en option)
+  const coachCta = h(`<button class="card coach-cta"><span class="coach-cta-ic">${IC.message}</span><span class="coach-cta-g"><b>Pose ta question au coach</b><span class="muted small">Remplacer un exercice, nutrition, repos…</span></span><span class="chev" aria-hidden="true">›</span></button>`);
+  coachCta.addEventListener("click", () => ouvrirCoach());
+  v.append(coachCta);
 
   // Raccourcis rapides (façon maquette) : Exercices · Nutrition · Calendrier
   const qrow = h(`<div class="qrow"></div>`);
@@ -1917,6 +1926,297 @@ function seqRender() {
 }
 
 /* ======================================================================
+   COACH — assistant DÉTERMINISTE (réponses issues du moteur de l'app)
+   + mode « Coach IA » FACULTATIF (Transformers.js, désactivé par défaut).
+   ====================================================================== */
+
+/** Exemples de questions proposés à l'utilisateur (aussi utiles que l'aide). */
+const COACH_EXEMPLES = [
+  "Par quoi remplacer les tractions ?",
+  "Quelle séance aujourd'hui ?",
+  "Combien de protéines par jour ?",
+  "Des exercices pour les épaules",
+  "Combien de repos entre les séries ?",
+  "Mes records",
+];
+
+/**
+ * Résumé FACTUEL de l'utilisateur, injecté dans le prompt du mode IA. Ne
+ * contient que des données déjà présentes dans l'app (jamais envoyées ailleurs :
+ * l'inférence est locale).
+ */
+function contexteUtilisateur() {
+  const p = Etat.data.profil || {};
+  const b = calculerBesoins(p);
+  const sj = seanceDuJour(Etat.data.programme);
+  const logs = Etat.data.logs || [];
+  const l = [];
+  l.push(`Prénom : ${p.prenom || "—"}, niveau : ${LEVEL_LABELS[p.niveau] || p.niveau}, objectif : ${GOAL_LABELS[p.objectif] || p.objectif}.`);
+  l.push(`Entraînement : ${p.joursParSemaine} jours/semaine, ${p.dureeSeanceMin} min par séance.`);
+  l.push(`Matériel disponible : ${(p.equipements || []).map((e) => EQUIPMENT_LABELS[e] || e).join(", ") || "aucun"}.`);
+  if (b) l.push(`Besoins quotidiens calculés : ${b.kcal} kcal, ${b.prot} g de protéines, ${b.lip} g de lipides, ${b.gluc} g de glucides, ${b.eau} L d'eau.`);
+  l.push(sj ? `Séance prévue aujourd'hui : ${sj.nom} (${sj.exercices.length} exercices).` : "Aujourd'hui : jour de repos.");
+  l.push(`Séances enregistrées au total : ${logs.length}. Série en cours : ${serieActuelle(logs)} jour(s).`);
+  return l.join("\n");
+}
+
+/**
+ * Réponse DÉTERMINISTE : classe la question puis interroge le moteur existant.
+ * Renvoie un élément DOM (texte + éventuels boutons d'action).
+ */
+function repondreAssistant(q) {
+  const { intent, muscle } = detecterIntention(q);
+  const box = h(`<div class="stack"></div>`);
+  const txt = (s) => box.append(h(`<div class="small">${s}</div>`));
+  const p = Etat.data.profil || {};
+
+  /** Liste d'exercices cliquables (ouvre la fiche). */
+  const listeExos = (exos, vide) => {
+    if (!exos.length) { txt(vide); return; }
+    exos.forEach((e) => {
+      const b = h(`<button class="card wcard sil coach-exo" style="width:100%;text-align:left"><span class="g"><b>${esc(e.nom)}</b><br><span class="muted small">${esc((e.musclesPrincipaux || []).map((m) => MUSCLE_LABELS[m] || m).join(", "))}</span></span><span class="chev">›</span></button>`);
+      b.addEventListener("click", () => ouvrirDetail(e));
+      box.append(b);
+    });
+  };
+
+  switch (intent) {
+    case "remplacer": {
+      const exo = trouverExoParNom(q, CATALOGUE);
+      if (!exo) { txt("Précise l'exercice à remplacer, par exemple : « par quoi remplacer le squat ? »"); break; }
+      const alts = alternatives(exo.id, p);
+      if (!alts.length) { txt(`Aucune alternative à <b>${esc(exo.nom)}</b> compatible avec ton matériel et tes contraintes. Ajoute du matériel dans ton profil pour élargir les options.`); break; }
+      txt(`Pour remplacer <b>${esc(exo.nom)}</b>, voici ce qui correspond à ton matériel :`);
+      alts.forEach((a) => {
+        const b = h(`<button class="card wcard sil coach-exo" style="width:100%;text-align:left"><span class="g"><b>${esc(a.exercice.nom)}</b><br><span class="muted small">${esc(a.explication)}</span></span><span class="chev">›</span></button>`);
+        b.addEventListener("click", () => ouvrirDetail(a.exercice));
+        box.append(b);
+      });
+      break;
+    }
+    case "exos_muscle": {
+      if (!muscle) { txt("Précise le groupe musculaire, par exemple : « des exercices pour les pectoraux »."); break; }
+      // Les exercices qui ciblent le muscle en PRINCIPAL passent devant ceux qui
+      // ne le sollicitent qu'en secondaire (sinon « épaules » remonte des pompes).
+      const res = chercherCatalogue({ muscle }).filter(estRealisable)
+        .sort((a, b) => Number((b.musclesPrincipaux || []).includes(muscle)) - Number((a.musclesPrincipaux || []).includes(muscle)))
+        .slice(0, 6);
+      txt(`Exercices pour <b>${esc(MUSCLE_LABELS[muscle] || muscle)}</b> réalisables avec ton matériel :`);
+      listeExos(res, "Aucun exercice réalisable avec ton matériel actuel pour ce groupe.");
+      break;
+    }
+    case "nutrition": {
+      const b = calculerBesoins(p);
+      txt(`Pour ton objectif « ${esc(GOAL_LABELS[p.objectif] || p.objectif)} », tes besoins calculés sont :`);
+      const g = h(`<div class="statgrid"></div>`);
+      g.append(statCard(IC.flame, `${b.kcal}`, "kcal / jour"));
+      g.append(statCard(IC.dumbbell, `${b.prot} g`, "Protéines"));
+      g.append(statCard(IC.apple, `${b.gluc} g`, "Glucides"));
+      g.append(statCard(IC.droplet, `${b.lip} g`, "Lipides"));
+      box.append(g);
+      const bn = h(`<button class="secondary big">Ouvrir la nutrition</button>`);
+      bn.addEventListener("click", () => { fermerCoach(); nav("food"); });
+      box.append(bn);
+      break;
+    }
+    case "eau": {
+      const b = calculerBesoins(p);
+      txt(`Vise environ <b>${b.eau} L d'eau par jour</b> (calculé sur ton poids), un peu plus les jours d'entraînement intense ou de forte chaleur.`);
+      const bn = h(`<button class="secondary big">Suivre mon hydratation</button>`);
+      bn.addEventListener("click", () => { fermerCoach(); nav("food"); });
+      box.append(bn);
+      break;
+    }
+    case "seance_jour": {
+      const sj = seanceDuJour(Etat.data.programme);
+      if (!sj) { txt("Aujourd'hui c'est <b>repos</b> 😴 — marche, mobilité ou récupération active. Ta prochaine séance t'attend demain."); break; }
+      txt(`Aujourd'hui : <b>${esc(sj.nom)}</b> — ${sj.exercices.length} exercices, environ ${sj.dureeEstimeeMin} min.`);
+      sj.exercices.slice(0, 8).forEach((e, i) => box.append(h(`<div class="small">${i + 1}. ${esc(nomExo(e.exerciceId))}</div>`)));
+      const bn = h(`<button class="primary big"><span class="btn-ico">${IC.play}</span>Commencer la séance</button>`);
+      bn.addEventListener("click", () => { fermerCoach(); LIVE = null; APERCU = sj.id; nav("train"); });
+      box.append(bn);
+      break;
+    }
+    case "records": {
+      const cls = classementRecords(Etat.data.logs, nomExo, 6);
+      if (!cls.length) { txt("Pas encore de record : enregistre quelques séances et ils apparaîtront ici."); break; }
+      txt("Tes meilleures performances :");
+      cls.forEach((r) => box.append(h(`<div class="spread small"><span>${esc(r.nom)}</span><b>${r.poidsMax} kg · 1RM ~${r.e1rm} kg</b></div>`)));
+      const bn = h(`<button class="secondary big">Voir tous mes records</button>`);
+      bn.addEventListener("click", () => { fermerCoach(); nav("stats"); });
+      box.append(bn);
+      break;
+    }
+    case "repos": {
+      const o = p.objectif;
+      const reco = o === "force" ? "3 à 5 min" : o === "perte_graisse" ? "45 à 60 s" : "1 min 30 à 2 min";
+      txt(`Pour ton objectif « ${esc(GOAL_LABELS[o] || o)} » : <b>${reco}</b> entre les séries lourdes, et 45 à 60 s sur l'isolation. Le minuteur se lance tout seul quand tu valides une série.`);
+      break;
+    }
+    case "progression": {
+      txt("La règle appliquée par l'app : quand tu atteins le <b>haut de la fourchette de répétitions sur toutes tes séries</b>, tu augmentes la charge à la séance suivante (environ +2,5 % ou le plus petit disque disponible), puis tu repars en bas de la fourchette.");
+      txt("Le conseil affiché sur chaque exercice pendant la séance tient déjà compte de tes deux dernières performances.");
+      break;
+    }
+    case "aide":
+      txt("Je réponds à partir de <b>tes vraies données</b> : ton programme, ton matériel, tes séances et tes besoins. Essaie par exemple :");
+      break;
+    default:
+      txt("Je n'ai pas compris la question. Je sais répondre sur : le remplacement d'un exercice, la séance du jour, la nutrition, l'hydratation, les temps de repos, la progression et tes records.");
+  }
+
+  // Suggestions cliquables (aide + question non comprise)
+  if (intent === "aide" || intent === "inconnu") {
+    const s = h(`<div class="coach-sugg"></div>`);
+    COACH_EXEMPLES.forEach((ex) => {
+      const b = h(`<button class="chip">${esc(ex)}</button>`);
+      b.addEventListener("click", () => envoyerQuestionCoach(ex));
+      s.append(b);
+    });
+    box.append(s);
+  }
+  return box;
+}
+
+/* ---------- interface de discussion ---------- */
+let COACH_IA = null; // module coachIA.js chargé à la demande (null tant qu'inactif)
+
+function fermerCoach() { document.getElementById("coach")?.remove(); }
+
+/** Ajoute une bulle dans le fil et fait défiler vers le bas. */
+function bulleCoach(role, contenu) {
+  const fil = document.querySelector("#coach .coach-fil");
+  if (!fil) return null;
+  const b = h(`<div class="coach-bulle ${role}"></div>`);
+  if (typeof contenu === "string") b.innerHTML = `<div class="small">${contenu}</div>`;
+  else b.append(contenu);
+  fil.append(b);
+  fil.scrollTop = fil.scrollHeight;
+  return b;
+}
+
+/** Traite une question : réponse déterministe, puis complément IA si activé. */
+async function envoyerQuestionCoach(question) {
+  const q = (question || "").trim();
+  if (!q) return;
+  const champ = document.querySelector("#coachInput");
+  if (champ) champ.value = "";
+  bulleCoach("moi", esc(q));
+
+  // 1) Réponse déterministe — instantanée, exacte, toujours affichée.
+  const { intent } = detecterIntention(q);
+  bulleCoach("coach", repondreAssistant(q));
+
+  // 2) Mode IA facultatif : complète uniquement si l'utilisateur l'a activé.
+  //    Utile surtout quand la réponse déterministe ne sait pas répondre.
+  if (!Etat.data.reglages.coachIA || !COACH_IA || !COACH_IA.estPret()) return;
+  if (intent !== "inconnu" && intent !== "aide") return; // pas de doublon inutile
+
+  const bulle = bulleCoach("coach ia", `<span class="coach-ia-tag">Coach IA</span><span class="coach-ia-txt">…</span>`);
+  const cible = bulle.querySelector(".coach-ia-txt");
+  try {
+    let acc = "";
+    await COACH_IA.demander(q, contexteUtilisateur(), (t) => { acc += t; cible.textContent = acc; });
+    if (!acc.trim()) cible.textContent = "(pas de réponse)";
+  } catch (e) {
+    cible.textContent = "Le coach IA n'a pas pu répondre. La réponse ci-dessus reste valable.";
+  }
+}
+
+/**
+ * Carte de réglage du mode « Coach IA » (Profil). DÉSACTIVÉ par défaut :
+ * tant qu'il ne l'est pas, aucune bibliothèque ni modèle n'est téléchargé et
+ * l'app reste strictement déterministe et hors ligne.
+ */
+function carteCoachIA() {
+  const actif = !!Etat.data.reglages.coachIA;
+  const c = h(`<div class="card stack" style="margin-top:12px"></div>`);
+  c.append(h(`<div class="spread"><h2 style="margin:0;font-size:1.05rem"><span class="cic">${IC.spark}</span>Coach IA (expérimental)</h2></div>`));
+  c.append(h(`<div class="muted small">Ajoute un petit modèle de langage qui tourne <b>dans ton téléphone</b> pour les questions ouvertes. Le coach normal, lui, répond déjà instantanément et sans rien télécharger.</div>`));
+  c.append(h(`<div class="warn small">Premier lancement : <b>téléchargement d'environ 300 Mo</b> (à faire en Wi-Fi), et réponses plus lentes sur mobile. Les réponses d'une IA peuvent être inexactes : le coach déterministe reste la référence.</div>`));
+
+  const sw = h(`<button class="big ${actif ? "primary" : "secondary"}">${actif ? "Désactiver le coach IA" : "Activer le coach IA"}</button>`);
+  sw.addEventListener("click", async () => {
+    if (actif) {
+      Etat.data.reglages.coachIA = false; Etat.sauver();
+      try { const m = await import("../integrations/coachIA.js"); await m.decharger(); } catch (e) { /* rien à décharger */ }
+      toast("Coach IA désactivé — l'app est de nouveau 100 % déterministe.");
+      render();
+      return;
+    }
+    const ok = await confirmer(
+      "Activer le coach IA ? Un modèle d'environ 300 Mo sera téléchargé au premier usage (Wi-Fi conseillé). Les réponses sont générées localement, mais peuvent être inexactes.",
+      { ok: "Activer" });
+    if (!ok) return;
+    Etat.data.reglages.coachIA = true; Etat.sauver();
+    toast("Coach IA activé — ouvre le Coach pour lancer le téléchargement.");
+    render();
+  });
+  c.append(sw);
+
+  if (actif) {
+    // Choix du modèle (le plus léger d'abord).
+    const sel = h(`<div class="row"></div>`);
+    [["onnx-community/Qwen2.5-0.5B-Instruct", "Qwen2.5 0.5B · ~350 Mo"],
+     ["HuggingFaceTB/SmolLM2-360M-Instruct", "SmolLM2 360M · ~280 Mo"]].forEach(([id, lab]) => {
+      const cur = (Etat.data.reglages.coachIAModele || "onnx-community/Qwen2.5-0.5B-Instruct") === id;
+      const b = h(`<button class="chip ${cur ? "on" : ""}">${esc(lab)}</button>`);
+      b.addEventListener("click", () => { Etat.data.reglages.coachIAModele = id; Etat.sauver(); render(); });
+      sel.append(b);
+    });
+    c.append(sel);
+  }
+  return c;
+}
+
+/** Ouvre la feuille « Coach ». */
+function ouvrirCoach() {
+  fermerCoach();
+  const sheet = h(`<div class="sheet coach" id="coach"><div class="inner"></div></div>`);
+  const inner = sheet.querySelector(".inner");
+  inner.append(h(`<div class="sheet-top"><h2 style="margin:0">Coach</h2><button class="chip" id="coachX">✕ Fermer</button></div>`));
+
+  const fil = h(`<div class="coach-fil"></div>`);
+  inner.append(fil);
+
+  const barre = h(`<form class="coach-barre"><input id="coachInput" type="text" autocomplete="off" placeholder="Pose ta question…" aria-label="Ta question"><button class="primary" type="submit" aria-label="Envoyer">${IC.send}</button></form>`);
+  barre.addEventListener("submit", (e) => { e.preventDefault(); envoyerQuestionCoach(document.querySelector("#coachInput").value); });
+  inner.append(barre);
+
+  sheet.querySelector("#coachX").addEventListener("click", fermerCoach);
+  document.body.append(sheet);
+
+  // Message d'accueil + suggestions
+  bulleCoach("coach", repondreAssistant("aide"));
+  // Si le mode IA est activé, on le prépare en tâche de fond.
+  if (Etat.data.reglages.coachIA) activerCoachIA(true);
+  document.querySelector("#coachInput")?.focus();
+}
+
+/**
+ * Charge le mode IA (import dynamique + téléchargement du modèle).
+ * @param {boolean} silencieux  n'affiche pas de bulle de progression
+ */
+async function activerCoachIA(silencieux = false) {
+  let bulle = null, cible = null;
+  if (!silencieux) {
+    bulle = bulleCoach("coach ia", `<span class="coach-ia-tag">Coach IA</span><span class="coach-ia-txt">Préparation…</span>`);
+    cible = bulle?.querySelector(".coach-ia-txt");
+  }
+  try {
+    if (!COACH_IA) COACH_IA = await import("../integrations/coachIA.js");
+    const modele = Etat.data.reglages.coachIAModele || COACH_IA.MODELE_DEFAUT;
+    await COACH_IA.chargerModele(modele, (info) => {
+      if (cible) cible.textContent = info.pct ? `${info.etape} ${info.pct}%` : info.etape;
+    });
+    if (cible) cible.textContent = "Coach IA prêt — pose ta question.";
+  } catch (e) {
+    if (cible) cible.textContent = "Impossible de charger le coach IA (connexion ou navigateur incompatible). Le coach déterministe fonctionne normalement.";
+    else toast("Coach IA indisponible — le coach normal fonctionne.");
+  }
+}
+
+/* ======================================================================
    NUTRITION (Open Food Facts + base locale)
    ====================================================================== */
 const VERRE_ML = 250; // un verre standard
@@ -2525,7 +2825,13 @@ function vSet(v) {
   outil(IC.apple, "mi-green", "Nutrition", "food");
   outil(IC.search, "mi-blue", "Catalogue d'exercices", "cat");
   outil(IC.dumbbell, "mi-indigo", "Programme Anatoly", "anatoly");
+  const bCoach = h(`<button class="plusitem"><span class="pm-ic mi-blue">${IC.message}</span><span class="pm-main"><b>Coach — poser une question</b></span><span class="chev">›</span></button>`);
+  bCoach.addEventListener("click", () => ouvrirCoach());
+  outils.append(bCoach);
   v.append(outils);
+
+  // Coach IA (facultatif) — désactivé par défaut, l'app reste déterministe.
+  v.append(carteCoachIA());
 
   const prof = h(`<div class="card stack"><h2 style="margin:0">Programme</h2></div>`);
   const bReg = h(`<button>Régénérer le programme avec le profil actuel</button>`);
