@@ -505,6 +505,57 @@ body.guide-open{overflow:hidden}
 .pgm-meta{display:inline-flex;flex-wrap:wrap;gap:5px;margin-top:6px}
 .pgm-meta .badge,.pgm-meta .pill{font-size:.68rem}
 
+/* ---- Sections repliables (Progrès, Profil) ---- */
+.sect{border-top:1px solid var(--hair);margin-top:2px}
+.sect:first-of-type{border-top:0}
+.sect-head{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;
+  min-height:52px;padding:14px 2px;background:none;border:0;color:var(--ink);text-align:left}
+.sect-t{display:flex;align-items:baseline;gap:9px;font-size:1rem;font-weight:800;letter-spacing:-.01em;min-width:0}
+.sect-r{font-size:.78rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sect-chev{flex:0 0 auto;width:20px;height:20px;color:var(--ink-soft);transition:transform .2s var(--ease)}
+.sect-chev svg{width:100%;height:100%;display:block}
+.sect.on .sect-chev{transform:rotate(180deg);color:var(--accent)}
+.sect-body{padding-bottom:10px;animation:revealUp .24s var(--ease) both}
+.sect-body>*:first-child{margin-top:0}
+@media (prefers-reduced-motion: reduce){.sect-chev{transition:none}.sect-body{animation:none}}
+
+/* ---- Bibliothèque de programmes : filtres ---- */
+.filtres-pgm{margin-top:10px;overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px;scrollbar-width:none}
+.filtres-pgm::-webkit-scrollbar{display:none}
+.filtres-pgm .chip{flex:0 0 auto}
+
+/* ---- Accueil : en-tête compact et listes denses ---- */
+.dash-hi{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.dash-hi h1{margin:1px 0 0;font-size:1.45rem;line-height:1.1}
+.dash-hi .eyebrow{font-size:.64rem}
+.streak-chip{display:inline-flex;align-items:center;gap:5px;padding:7px 12px;border-radius:999px;
+  background:rgba(249,115,22,.13);color:var(--orange);font-weight:800}
+.streak-chip svg{width:15px;height:15px;display:block}
+.streak-chip b{font-size:1rem;line-height:1}
+.streak-chip span{font-size:.72rem;opacity:.8}
+.dash-lbl{margin:18px 0 8px}
+.histo-mini{padding:2px 14px}
+.histo-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.histo-row:last-child{border-bottom:0}
+.hr-t{min-width:0;flex:1}
+.hr-t b{font-size:.9rem}
+.hr-v{flex:0 0 auto;font-variant-numeric:tabular-nums}
+
+/* ---- Séance active : carte d'exercice compacte ---- */
+.exocard{gap:8px}
+.exocard h3{font-size:1.02rem;letter-spacing:-.01em}
+/* Ligne de contexte unique, dépliable d'un tap pour lire le conseil complet */
+.exometa{display:flex;align-items:center;gap:6px;width:100%;text-align:left;padding:11px 0;min-height:44px;
+  background:none;border:0;color:var(--ink-soft);font-size:.78rem;font-weight:600}
+.exometa .sug{color:var(--accent-ink)}
+.exometa-i{width:14px;height:14px;margin:0 0 0 auto;flex:0 0 auto;opacity:.65}
+.exometa[aria-expanded="true"] .exometa-i{opacity:1;color:var(--accent)}
+/* Une seule rangée d'actions : le reste passe dans le menu ⋯ */
+.exomenu{margin-left:auto;min-width:44px;font-size:1.1rem;line-height:1;letter-spacing:.06em}
+.menu-sheet .inner{max-width:420px;padding-top:10px}
+.menu-sheet .plusitem.danger .pm-ic{background:color-mix(in srgb,var(--danger) 16%,transparent);color:var(--danger)}
+.menu-sheet .plusitem.on .pm-ic{background:var(--accent-soft);color:var(--accent)}
+
 /* ---- Outils de calcul ---- */
 .out-item{align-items:center;gap:12px;margin:0}
 .out-item .mi{flex:0 0 auto;border-radius:12px;display:grid;place-items:center;background:var(--surface-2)}

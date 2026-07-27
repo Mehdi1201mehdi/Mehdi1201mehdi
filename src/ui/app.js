@@ -512,6 +512,7 @@ const IC = {
   check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>`,
   x: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>`,
   message: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg>`,
+  chevron: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>`,
   send: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>`,
   spark: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>`,
   forward: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 4 10 8-10 8zM19 5v14"/></svg>`,
@@ -559,71 +560,57 @@ function vDash(v) {
   // En-tête personnalisé selon l'heure
   const heure = new Date().getHours();
   const salut = heure < 12 ? "Bonjour" : heure < 18 ? "Bon après-midi" : "Bonsoir";
-  v.append(h(`<div class="eyebrow">${salut}</div>`));
-  v.append(h(`<h1 style="margin:0">${esc(p.prenom || "Athlète")} 👋</h1>`));
-  v.append(h(`<div class="muted small" style="margin-top:3px">Prêt pour ton entraînement ?</div>`));
-
-  // Deux tuiles horizontales : série (streak) + niveau (façon maquette)
-  const duo = h(`<div class="statgrid" style="margin-top:15px"></div>`);
+  // En-tête sur UNE ligne : salutation + série en cours. L'ancien bloc de trois
+  // lignes (eyebrow + prénom + « prêt ? ») ne portait aucune information utile.
   const _serie = serieJours(logs);
-  duo.append(h(`<div class="mstat"><div class="ic ic-orange">${IC.flame}</div><div class="g"><span>Série actuelle</span><b class="num">${_serie} jour${_serie > 1 ? "s" : ""}</b></div></div>`));
-  duo.append(h(`<div class="mstat"><div class="ic ic-blue">${IC.bars}</div><div class="g"><span>Niveau</span><b>${esc(niveauCourt(p.niveau))}</b></div></div>`));
-  v.append(duo);
+  v.append(h(`<div class="dash-hi">
+    <div><span class="eyebrow">${salut}</span><h1>${esc(p.prenom || "Athlète")}</h1></div>
+    ${_serie > 0 ? `<span class="streak-chip" title="Série en cours">${IC.flame}<b class="num">${_serie}</b><span>j</span></span>` : ""}
+  </div>`));
 
-  // Entraînement du jour (grande carte)
-  v.append(h(`<div class="eyebrow" style="margin:20px 0 9px">Entraînement du jour</div>`));
+  // Entraînement du jour — carte unique et dominante : c'est l'action n°1.
   const wc = h(`<div class="card wkcard"></div>`);
   if (sj) {
-    const kcal = Math.round((sj.dureeEstimeeMin || 45) * 8);
     const muscles = (sj.groupesCibles || []).map((m) => MUSCLE_LABELS[m] || m).slice(0, 3).join(" · ");
     let pct = seanceFaite ? 1 : 0;
-    if (LIVE && LIVE.seanceId === sj.id) pct = progressionSeance(sj).pct;
-    wc.append(h(`<div class="spread"><h2 style="margin:0;font-size:1.5rem">${esc(sj.nom)}</h2><span class="wk-ic">${IC.dumbbell}</span></div>`));
-    if (muscles) wc.append(h(`<div class="muted small" style="margin:3px 0 13px">${esc(muscles)}</div>`));
-    const st = h(`<div class="wk-stats"></div>`);
-    st.append(h(`<div><b>${sj.exercices.length}</b><span>Exercices</span></div>`));
-    st.append(h(`<div><b>${sj.dureeEstimeeMin}</b><span>min</span></div>`));
-    st.append(h(`<div><b>${kcal}</b><span>kcal env.</span></div>`));
-    st.append(h(`<div><b class="lvl">${esc(niveauCourt(p.niveau))}</b><span>Niveau</span></div>`));
-    wc.append(st);
-    wc.append(h(`<div class="spread small" style="margin:15px 0 6px"><span class="muted">Progression séance</span><span class="num" style="color:var(--accent-ink);font-weight:800">${Math.round(pct * 100)}%</span></div>`));
-    wc.append(h(`<div class="bar"><div style="width:${Math.round(pct * 100)}%"></div></div>`));
-    const b = h(`<button class="primary big" style="margin-top:15px">${seanceFaite ? "✓ Séance faite — revoir" : `<span class="btn-ico">${IC.play}</span>Commencer la séance`}</button>`);
-    b.addEventListener("click", () => { LIVE = null; APERCU = sj.id; nav("train"); });
+    const enCours = LIVE && LIVE.seanceId === sj.id;
+    if (enCours) pct = progressionSeance(sj).pct;
+    wc.append(h(`<div class="spread"><span class="eyebrow">${enCours ? "Séance en cours" : "Entraînement du jour"}</span><span class="wk-ic">${IC.dumbbell}</span></div>`));
+    wc.append(h(`<h2 style="margin:2px 0 0;font-size:1.3rem">${esc(sj.nom)}</h2>`));
+    wc.append(h(`<div class="muted small" style="margin:2px 0 10px">${esc(muscles)}${muscles ? " · " : ""}${sj.exercices.length} exercices · ~${sj.dureeEstimeeMin} min</div>`));
+    if (pct > 0) {
+      wc.append(h(`<div class="spread small" style="margin-bottom:5px"><span class="muted">Progression</span><span class="num" style="color:var(--accent-ink);font-weight:800">${Math.round(pct * 100)}%</span></div>`));
+      wc.append(h(`<div class="bar"><div style="width:${Math.round(pct * 100)}%"></div></div>`));
+    }
+    const b = h(`<button class="primary big" style="margin-top:11px">${seanceFaite ? "✓ Séance faite — revoir" : `<span class="btn-ico">${IC.play}</span>${enCours ? "Continuer la séance" : "Commencer la séance"}`}</button>`);
+    b.addEventListener("click", () => { if (!enCours) LIVE = null; APERCU = enCours ? null : sj.id; nav("train"); });
     wc.append(b);
   } else {
-    wc.append(h(`<div class="spread"><h2 style="margin:0">Jour de repos</h2><span class="wk-ic wk-ic-rest">${IC.moon}</span></div>`));
-    wc.append(h(`<div class="muted small" style="margin-top:5px">Marche, mobilité ou récupération active. Reviens demain 💪</div>`));
+    wc.append(h(`<div class="spread"><span class="eyebrow">Aujourd'hui</span><span class="wk-ic wk-ic-rest">${IC.moon}</span></div>`));
+    wc.append(h(`<h2 style="margin:2px 0 0;font-size:1.3rem">Jour de repos</h2>`));
+    wc.append(h(`<div class="muted small" style="margin-top:3px">Marche, mobilité ou récupération active.</div>`));
+    const b = h(`<button class="secondary big" style="margin-top:11px"><span class="btn-ico">${IC.play}</span>S'entraîner quand même</button>`);
+    b.addEventListener("click", () => { LIVE = null; APERCU = null; nav("train"); });
+    wc.append(b);
   }
   v.append(wc);
 
-  // Coach : barre de question (assistant déterministe, IA en option)
-  const coachCta = h(`<button class="card coach-cta"><span class="coach-cta-ic">${IC.message}</span><span class="coach-cta-g"><b>Pose ta question au coach</b><span class="muted small">Remplacer un exercice, nutrition, repos…</span></span><span class="chev" aria-hidden="true">›</span></button>`);
-  coachCta.addEventListener("click", () => ouvrirCoach());
-  v.append(coachCta);
-
-  // Raccourcis rapides (façon maquette) : Exercices · Nutrition · Calendrier
-  const qrow = h(`<div class="qrow"></div>`);
-  const qbtn = (icone, cls, label, tab) => {
-    const b = h(`<button><span class="qi ${cls}">${icone}</span><span>${label}</span></button>`);
-    b.addEventListener("click", () => nav(tab));
-    return b;
-  };
-  qrow.append(qbtn(IC.search, "q-blue", "Exercices", "cat"));
-  qrow.append(qbtn(IC.apple, "q-green", "Nutrition", "food"));
-  qrow.append(qbtn(IC.calendar, "q-indigo", "Calendrier", "stats"));
-  v.append(qrow);
-
-  // Ma semaine
-  v.append(h(`<div class="eyebrow" style="margin:20px 0 9px">Ma semaine</div>`));
+  // Ma semaine — bande compacte, juste sous l'action principale.
+  v.append(h(`<div class="eyebrow dash-lbl">Ma semaine</div>`));
   v.append(semaineStrip(logs));
 
-  // Défis & régularité (série, objectifs, assiduité) — dérivé des vraies séances
-  carteDefis(v);
-
-  // Carte musculaire : aperçu des zones sollicitées (élément différenciant,
-  // repris depuis Progrès — vide silencieusement si aucun historique).
-  carteMuscleHeatmap(v);
+  // Raccourcis vers ce qui n'est PAS dans la barre de navigation
+  // (elle donne déjà Programme, Séance, Progrès, Profil).
+  const qrow = h(`<div class="qrow"></div>`);
+  const qbtn = (icone, cls, label, onClick) => {
+    const b = h(`<button><span class="qi ${cls}">${icone}</span><span>${label}</span></button>`);
+    b.addEventListener("click", onClick);
+    return b;
+  };
+  qrow.append(qbtn(IC.message, "q-blue", "Coach", () => ouvrirCoach()));
+  qrow.append(qbtn(IC.apple, "q-green", "Nutrition", () => nav("food")));
+  qrow.append(qbtn(IC.search, "q-indigo", "Exercices", () => nav("cat")));
+  v.append(qrow);
 
   // Objectif du jour (façon « Today Target ») : séance, calories, hydratation
   const foodT = (Etat.data.foodlog[jour] || []).reduce((a, f) => a + (f.kcal || 0), 0);
@@ -638,8 +625,55 @@ function vDash(v) {
   tc.addEventListener("click", () => nav("food"));
   v.append(tc);
 
+  // Historique récent : 3 dernières séances, en lignes compactes (pas en cartes).
+  const recents = logs.slice().sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 3);
+  if (recents.length) {
+    const head = h(`<div class="spread dash-lbl"><span class="eyebrow">Séances récentes</span><button class="linklike">Voir tout ›</button></div>`);
+    head.querySelector("button").addEventListener("click", () => nav("stats"));
+    v.append(head);
+    const box = h(`<div class="card histo-mini"></div>`);
+    recents.forEach((l) => {
+      const d = new Date(l.date);
+      const jours = Math.round((Date.now() - d.getTime()) / 864e5);
+      const quand = jours <= 0 ? "aujourd'hui" : jours === 1 ? "hier" : `il y a ${jours} j`;
+      const vol = Math.round(volumeLog(l));
+      const min = Math.round((l.dureeSec || 0) / 60);
+      box.append(h(`<div class="histo-row"><span class="hr-t"><b>${esc(l.seanceNom || "Séance")}</b><br><span class="muted small">${quand}</span></span><span class="muted small hr-v">${min ? min + " min · " : ""}${vol.toLocaleString("fr-FR")} kg</span></div>`));
+    });
+    v.append(box);
+  }
+
   v.append(h(`<div class="disclaimer">En cas de douleur vive ou inhabituelle, arrête le mouvement. Cette app ne pose aucun diagnostic médical.</div>`));
 }
+/**
+ * Section repliable. Garde l'écran court : seul l'essentiel est ouvert par
+ * défaut, le reste est à un tap. L'état d'ouverture est mémorisé par clé.
+ * @param {HTMLElement} parent
+ * @param {string} cle     identifiant stable (mémorisation de l'état)
+ * @param {string} titre
+ * @param {(corps:HTMLElement)=>void} remplir
+ * @param {{ouvert?:boolean, resume?:string}} [opts]
+ */
+const SECTIONS_OUVERTES = {};
+function section(parent, cle, titre, remplir, opts = {}) {
+  const ouvert = SECTIONS_OUVERTES[cle] ?? !!opts.ouvert;
+  const wrap = h(`<section class="sect${ouvert ? " on" : ""}"></section>`);
+  const head = h(`<button class="sect-head" aria-expanded="${ouvert}"><span class="sect-t">${esc(titre)}${opts.resume ? `<span class="sect-r muted">${esc(opts.resume)}</span>` : ""}</span><span class="sect-chev" aria-hidden="true">${IC.chevron}</span></button>`);
+  const corps = h(`<div class="sect-body"></div>`);
+  if (ouvert) remplir(corps); else corps.hidden = true;
+  head.addEventListener("click", () => {
+    const on = corps.hidden;
+    SECTIONS_OUVERTES[cle] = on;
+    wrap.classList.toggle("on", on);
+    head.setAttribute("aria-expanded", String(on));
+    if (on && !corps.childElementCount) remplir(corps);
+    corps.hidden = !on;
+  });
+  wrap.append(head, corps);
+  parent.append(wrap);
+  return wrap;
+}
+
 function kpi(lab, val) { return h(`<div class="card kpi"><span class="lab">${esc(lab)}</span><b class="num">${esc(val)}</b></div>`); }
 /** Anneau de progression SVG (0..1) avec texte central. Composant réutilisable. */
 function anneauSVG(pct, taille = 76, texte = "") {
@@ -747,17 +781,15 @@ function vProg(v) {
   bCat.addEventListener("click", () => nav("cat"));
   v.append(bCat);
 
-  // ---- Bibliothèque de programmes classiques (prêts à installer) ----
-  v.append(h(`<h2 style="margin:20px 0 2px">Programmes classiques</h2>`));
-  v.append(h(`<div class="muted small" style="margin-bottom:8px">Des structures d'entraînement éprouvées, écrites avec les exercices de ton catalogue. Installe-en une : elle devient une routine que tu peux modifier librement.</div>`));
-  PROGRAMMES.forEach((pr) => v.append(carteProgrammeClassique(pr)));
-  v.append(h(`<h2 style="margin:20px 0 2px">Programmes de salle</h2>`));
-  v.append(h(`<div class="muted small" style="margin-bottom:8px">Fiches d'entraînement complètes (machines, poulies, circuits), transposées depuis tes documents avec les exercices du catalogue.</div>`));
-  PROGRAMMES_SALLE.forEach((pr) => v.append(carteProgrammeClassique(pr)));
+  // ---- Bibliothèque de programmes : une seule entrée, la liste s'ouvre en
+  // feuille. 23 cartes empilées ici allongeaient l'écran de 3 000 px.
+  const nbPgm = PROGRAMMES.length + PROGRAMMES_SALLE.length;
+  const bBib = h(`<button class="card wcard sil warm-cta" style="width:100%;margin-top:18px;text-align:left"><span class="mi mi-indigo" style="width:34px;height:34px">${IC.layers}</span><span class="g"><b>Bibliothèque de programmes</b><br><span class="muted small">${nbPgm} programmes prêts à installer · débutant à avancé</span></span><span class="chev" aria-hidden="true">›</span></button>`);
+  bBib.addEventListener("click", ouvrirBibliothequeProgrammes);
+  v.append(bBib);
 
   // ---- Mes routines (programmes créés à la main, illimités) ----
-  v.append(h(`<h2 style="margin:18px 0 2px">Mes routines</h2>`));
-  v.append(h(`<div class="muted small" style="margin-bottom:8px">Crée tes propres programmes, séances et exercices — sans limite. Ils apparaissent aussi dans l'onglet Séance.</div>`));
+  v.append(h(`<div class="spread dash-lbl"><span class="eyebrow">Mes routines</span></div>`));
   (Etat.data.programmesPerso || []).forEach((r) => {
     const nbEx = r.seances.reduce((a, s) => a + s.exercices.length, 0);
     const card = h(`<div class="card"><div class="spread"><b>${esc(r.nom)}</b><span class="pill">${r.seances.length} séance(s)</span></div><div class="muted small">${nbEx} exercice(s)</div></div>`);
@@ -784,6 +816,50 @@ function vProg(v) {
   bFromLog.addEventListener("click", dupliquerSeancePassee);
   barre.append(bNew, bFromLog);
   v.append(barre);
+}
+
+/**
+ * Bibliothèque de programmes : feuille avec filtres par objectif/niveau.
+ * Sortie de l'écran Programme pour ne pas l'allonger inutilement.
+ */
+function ouvrirBibliothequeProgrammes() {
+  const tous = [...PROGRAMMES, ...PROGRAMMES_SALLE];
+  let filtre = "tous";
+  const sheet = h(`<div class="sheet"><div class="inner"></div></div>`);
+  const inner = sheet.querySelector(".inner");
+  inner.append(h(`<div class="sheet-top"><h2 style="margin:0">Programmes</h2><button class="chip" id="bibX">✕ Fermer</button></div>`));
+  inner.append(h(`<div class="muted small">Structures d'entraînement écrites avec les exercices de ton catalogue. Installe-en une : elle devient une routine modifiable.</div>`));
+
+  const filtres = h(`<div class="row filtres-pgm"></div>`);
+  const liste = h(`<div class="stack" style="margin-top:10px"></div>`);
+  const OPTS = [
+    ["tous", "Tous"], ["debutant", "Débutant"], ["intermediaire", "Intermédiaire"], ["avance", "Avancé"],
+    ["prise_muscle", "Prise de muscle"], ["perte_graisse", "Perte de gras"], ["force", "Force"],
+  ];
+  const refresh = () => {
+    liste.innerHTML = "";
+    const res = tous.filter((p) => filtre === "tous" || p.niveau === filtre || p.objectif === filtre);
+    if (!res.length) { liste.append(h(`<div class="muted small">Aucun programme pour ce filtre.</div>`)); return; }
+    liste.append(h(`<div class="muted small">${res.length} programme${res.length > 1 ? "s" : ""}</div>`));
+    res.forEach((pr) => {
+      const c = carteProgrammeClassique(pr);
+      c.addEventListener("click", () => sheet.remove(), { once: true });
+      liste.append(c);
+    });
+  };
+  OPTS.forEach(([k, lab]) => {
+    const b = h(`<button class="chip ${k === "tous" ? "on" : ""}">${lab}</button>`);
+    b.addEventListener("click", () => {
+      filtre = k;
+      filtres.querySelectorAll("button").forEach((x) => x.classList.remove("on"));
+      b.classList.add("on"); refresh();
+    });
+    filtres.append(b);
+  });
+  inner.append(filtres, liste);
+  refresh();
+  sheet.querySelector("#bibX").addEventListener("click", () => sheet.remove());
+  document.body.append(sheet);
 }
 
 /** Carte d'un programme classique de la bibliothèque (ouvre l'aperçu). */
@@ -1431,11 +1507,9 @@ function vTrain(v) {
   const head = h(`<div class="card trainhead stack"></div>`);
   head.append(h(`<div class="spread"><div style="min-width:0"><h1 style="margin:0;font-size:1.3rem">${esc(seance.nom)}</h1><span class="livetimer"><span class="livedot" aria-hidden="true"></span><span class="num" id="seanceTimer">00:00</span></span></div><button class="chip danger" id="abandon">Abandonner</button></div>`));
   head.append(h(`<div class="bar"><div id="seanceProgBar" style="width:${Math.round(pr.pct * 100)}%"></div></div>`));
-  head.append(h(`<div class="muted small" id="seanceProgTxt">${pr.faits}/${pr.tot} séries · ${nbExos} exercices · sauvegarde auto 💾</div>`));
-  const bGuide = h(`<button class="secondary big" style="margin-top:10px"><span class="btn-ico">${IC.forward}</span>Mode guidé (pas à pas)</button>`);
-  bGuide.addEventListener("click", ouvrirGuide);
-  head.append(bGuide);
+  head.append(h(`<div class="spread small" style="margin-top:2px"><span class="muted" id="seanceProgTxt">${pr.faits}/${pr.tot} séries · ${nbExos} exercices</span><button class="linklike" id="goGuide">Mode guidé ›</button></div>`));
   v.append(head);
+  $("#goGuide", head).addEventListener("click", ouvrirGuide);
   arreterChrono(); majChrono(); SESSION_TMR = setInterval(majChrono, 1000);
   seance.exercices.forEach((e) => v.append(carteExoLive(e)));
   const bAdd = h(`<button class="chip" style="margin-top:8px"><span class="cic">${IC.plus}</span>Ajouter un exercice</button>`);
@@ -1470,7 +1544,7 @@ function majProgressionSeance() {
   const pr = progressionSeance(seance);
   const bar = $("#seanceProgBar"), txt = $("#seanceProgTxt");
   if (bar) bar.style.width = `${Math.round(pr.pct * 100)}%`;
-  if (txt) txt.textContent = `${pr.faits}/${pr.tot} séries validées · sauvegarde auto 💾`;
+  if (txt) txt.textContent = `${pr.faits}/${pr.tot} séries · ${seance.exercices.length} exercices`;
 }
 /** Progression d'une séance en cours : séries validées / total. */
 function progressionSeance(seance) {
@@ -1495,11 +1569,21 @@ function carteExoLive(e) {
   const [derniere, avant] = Etat.perfs(st.exId);
   const sug = recommander(st.exId, plage, derniere || null, avant || null);
   const enTemps = !!st.series[0]?.dureeSec;
-  const c = h(`<div class="card stack"></div>`);
+  const c = h(`<div class="card stack exocard"></div>`);
   c.append(h(`<div class="spread"><h3 style="margin:0">${esc(exo.nom)}</h3><span class="pill">${st.series.length} × ${enTemps ? (st.series[0].dureeSec + " s") : (plage[0] + "–" + plage[1])}</span></div>`));
-  c.append(h(`<div class="muted small">${(exo.musclesPrincipaux || []).map((m) => MUSCLE_LABELS[m] || m).join(", ")} · repos ${t?.reposSec || 60}s</div>`));
-  c.append(h(`<div class="notice small"><b>Conseil :</b> ${esc(sug.message)}${sug.chargeKg ? ` <b>(~${sug.chargeKg} kg)</b>` : ""}</div>`));
-  if (derniere) c.append(h(`<div class="muted small">Dernière fois : ${derniere.series.map((s) => `${s.chargeKg || 0}kg×${s.reps || s.dureeSec || 0}`).join(" · ")}</div>`));
+  // Une SEULE ligne de contexte : muscle · repos · charge conseillée.
+  // Le détail du conseil est accessible d'un tap (on ne lit pas un paragraphe
+  // entre deux séries), et « dernière fois » est déjà dans la colonne Précédent.
+  const metaTxt = `${(exo.musclesPrincipaux || []).map((m) => MUSCLE_LABELS[m] || m).join(", ")} · repos ${t?.reposSec || 60}s`
+    + (sug.chargeKg ? ` · conseil <b class="sug">~${sug.chargeKg} kg</b>` : "");
+  const meta = h(`<button class="exometa muted small" aria-expanded="false">${metaTxt}<span class="cic exometa-i">${IC.info}</span></button>`);
+  const conseil = h(`<div class="notice small" hidden>${esc(sug.message)}</div>`);
+  meta.addEventListener("click", () => {
+    const ouvert = conseil.hidden;
+    conseil.hidden = !ouvert;
+    meta.setAttribute("aria-expanded", String(ouvert));
+  });
+  c.append(meta, conseil);
   // Tableau des séries : Série · Précédent (ou RIR) · Kg · Reps · Validé
   const col2 = st.showRir ? "RIR" : "Précédent";
   c.append(h(`<div class="setrow"><span class="head">Série</span><span class="head">${col2}</span><span class="head">${enTemps ? "Sec" : "Kg"}</span><span class="head">${enTemps ? "Durée" : "Reps"}</span><span class="head">✓</span></div>`));
@@ -1553,24 +1637,50 @@ function carteExoLive(e) {
     });
     serieActs.append(bFill);
   }
+  // Actions secondaires (démo, RIR, douleur, remplacer, retirer) : regroupées
+  // derrière un menu. Pendant une séance, on ne veut qu'une rangée d'actions.
+  const bMenu = h(`<button class="chip exomenu" aria-label="Autres actions pour ${esc(exo.nom)}">⋯</button>`);
+  if (st.douleur) bMenu.classList.add("danger");
+  bMenu.addEventListener("click", () => menuExoLive(e, exo, st));
+  serieActs.append(bMenu);
   c.append(serieActs);
-  const acts = h(`<div class="row"></div>`);
-  const bDouleur = h(`<button class="chip ${st.douleur ? "danger" : ""}"><span class="cic">${IC.alert}</span>${st.douleur ? "Douleur signalée" : "Signaler une douleur"}</button>`);
-  bDouleur.addEventListener("click", () => { st.douleur = !st.douleur; persistLive(true); if (st.douleur) info("Douleur vive, articulaire ou inhabituelle : arrête cet exercice aujourd'hui. Si elle persiste, consulte un professionnel de santé.", { titre: "⚠️ Douleur signalée" }); render(); });
-  const bDemo = h(`<button class="chip"><span class="cic">${IC.play}</span>Démo</button>`);
-  bDemo.addEventListener("click", () => ouvrirDetail(exo));
-  const bRir = h(`<button class="chip ${st.showRir ? "on" : ""}" title="Afficher la colonne RIR (reps en réserve)">RIR</button>`);
-  bRir.addEventListener("click", () => { st.showRir = !st.showRir; persistLive(true); render(); });
-  const bRempl = h(`<button class="chip"><span class="cic">${IC.swap}</span>Remplacer</button>`);
-  bRempl.addEventListener("click", () => remplacer(e.exerciceId));
-  const bRetirer = h(`<button class="chip"><span class="cic">${IC.trash}</span>Retirer</button>`);
-  bRetirer.addEventListener("click", async () => { if (await confirmer(`Retirer « ${exo.nom} » de la séance ?`, { danger: true, ok: "Retirer" })) retirerExerciceLive(e.exerciceId); });
-  acts.append(bDemo, bRir, bDouleur, bRempl, bRetirer);
-  c.append(acts);
   // Exercice terminé (toutes les séries validées) → état visuel discret.
   if (st.series.length && st.series.every((s) => s.done)) c.classList.add("exo-done");
   return c;
 }
+/**
+ * Menu des actions secondaires d'un exercice en séance. Sorti de la carte pour
+ * garder l'écran d'entraînement dense et manipulable d'une main.
+ */
+function menuExoLive(e, exo, st) {
+  const sheet = h(`<div class="sheet menu-sheet"><div class="inner"></div></div>`);
+  const inner = sheet.querySelector(".inner");
+  const fermer = () => sheet.remove();
+  inner.append(h(`<div class="sheet-top"><h2 style="margin:0;font-size:1.1rem">${esc(exo.nom)}</h2><button class="chip" id="mX">✕</button></div>`));
+  const item = (icone, label, onClick, cls = "") => {
+    const b = h(`<button class="plusitem ${cls}"><span class="pm-ic mi-blue">${icone}</span><span class="pm-main"><b>${esc(label)}</b></span><span class="chev">›</span></button>`);
+    b.addEventListener("click", () => { fermer(); onClick(); });
+    inner.append(b);
+    return b;
+  };
+  item(IC.play, "Voir la démonstration", () => ouvrirDetail(exo));
+  item(IC.repeat, st.showRir ? "Masquer la colonne RIR" : "Afficher la colonne RIR", () => {
+    st.showRir = !st.showRir; persistLive(true); render();
+  });
+  item(IC.swap, "Remplacer l'exercice", () => remplacer(e.exerciceId));
+  item(IC.alert, st.douleur ? "Retirer la douleur signalée" : "Signaler une douleur", () => {
+    st.douleur = !st.douleur; persistLive(true);
+    if (st.douleur) info("Douleur vive, articulaire ou inhabituelle : arrête cet exercice aujourd'hui. Si elle persiste, consulte un professionnel de santé.", { titre: "⚠️ Douleur signalée" });
+    render();
+  }, st.douleur ? "on" : "");
+  item(IC.trash, "Retirer de la séance", async () => {
+    if (await confirmer(`Retirer « ${exo.nom} » de la séance ?`, { danger: true, ok: "Retirer" })) retirerExerciceLive(e.exerciceId);
+  }, "danger");
+  sheet.querySelector("#mX").addEventListener("click", fermer);
+  sheet.addEventListener("click", (ev) => { if (ev.target === sheet) fermer(); });
+  document.body.append(sheet);
+}
+
 /** Ajoute un exercice au vol pendant la séance (choix dans le catalogue). */
 function ajouterExerciceLive(seance) {
   choisirExercice((exId) => {
@@ -3078,39 +3188,45 @@ function vStats(v) {
   g.append(statCard(IC.flame, (dureeP * 8).toLocaleString("fr-FR"), "Calories"));
   v.append(g);
 
-  carteCalendrier(v, logs);
-
-  // Graphique de progression interactif (exercice/corps × métrique × période)
+  // Graphique de progression interactif : LE graphique utile, toujours visible.
   carteProgression(v);
 
-  const sem = volumeParSemaine(logs);
-  if (sem.length >= 1) v.append(h(`<div class="card">${svgBars(sem, "Volume par semaine (kg)")}</div>`));
-
-  // Volume par groupe musculaire (répartition du travail)
-  const parMuscle = volumeParMuscle(logs, getExercise).slice(0, 8)
-    .map((x) => ({ x: MUSCLE_LABELS[x.muscle] || x.muscle, v: x.v }));
-  if (parMuscle.length) v.append(h(`<div class="card">${svgBars(parMuscle, "Volume par groupe musculaire")}</div>`));
-
-  // Carte de chaleur musculaire (visuel des zones travaillées)
-  carteMuscleHeatmap(v);
-
-  // Récupération musculaire (frais vs récemment travaillé, d'après les séances)
-  carteRecup(v);
-
-  // Records personnels (1RM estimé · Epley) — grille de cartes
+  // Le reste est rangé en sections repliables — l'écran faisait 6 écrans de
+  // long, on ne lisait plus rien. Priorité : régularité, muscles, records.
   const prs = classementRecords(logs, nomExo, 8);
+
+  section(v, "regularite", "Régularité", (b) => {
+    carteCalendrier(b, logs);
+    carteDefis(b);
+  }, { ouvert: true, resume: `${sm.seances}/${objSem} cette semaine` });
+
+  section(v, "volume", "Volume", (b) => {
+    const sem2 = volumeParSemaine(logs);
+    if (sem2.length >= 1) b.append(h(`<div class="card">${svgBars(sem2, "Volume par semaine (kg)")}</div>`));
+    const parMuscle = volumeParMuscle(logs, getExercise).slice(0, 8)
+      .map((x) => ({ x: MUSCLE_LABELS[x.muscle] || x.muscle, v: x.v }));
+    if (parMuscle.length) b.append(h(`<div class="card">${svgBars(parMuscle, "Volume par groupe musculaire")}</div>`));
+    if (!sem2.length && !parMuscle.length) b.append(h(`<div class="muted small">Aucune séance enregistrée pour l'instant.</div>`));
+  }, { resume: `${volP.toLocaleString("fr-FR")} kg` });
+
+  section(v, "muscles", "Muscles & récupération", (b) => {
+    carteMuscleHeatmap(b);
+    carteRecup(b);
+  });
+
   if (prs.length) {
-    v.append(h(`<div class="eyebrow" style="margin:18px 0 9px">Records personnels</div>`));
-    const rg = h(`<div class="recgrid"></div>`);
-    prs.slice(0, 6).forEach((r) => rg.append(h(`<div class="reccard"><div class="rc-name">${esc(r.nom)}</div><div class="rc-val num">${r.e1rm}<span> kg</span></div><div class="rc-sub muted">${r.charge}kg × ${r.reps}</div></div>`)));
-    v.append(rg);
-    v.append(h(`<div class="hint">${esc(FORMULE_1RM)}. Estimation indicative — ne teste jamais un vrai maximum en reprise.</div>`));
+    section(v, "records", "Records personnels", (b) => {
+      const rg = h(`<div class="recgrid"></div>`);
+      prs.slice(0, 6).forEach((r) => rg.append(h(`<div class="reccard"><div class="rc-name">${esc(r.nom)}</div><div class="rc-val num">${r.e1rm}<span> kg</span></div><div class="rc-sub muted">${r.charge}kg × ${r.reps}</div></div>`)));
+      b.append(rg);
+      b.append(h(`<div class="hint">${esc(FORMULE_1RM)}. Estimation indicative — ne teste jamais un vrai maximum en reprise.</div>`));
+    }, { resume: `${prs.length}` });
   }
 
-  // Calculateurs force (1RM, %, disques)
-  carteForce(v);
+  section(v, "force", "Calculateurs de force", (b) => carteForce(b));
 
-  // poids
+  // poids — rangé dans une section (consulté occasionnellement, pas à chaque ouverture)
+  const secPoids = h(`<div></div>`);
   const c = h(`<div class="card stack"><h2 style="margin:0">Poids du corps</h2></div>`);
   const rowW = h(`<div class="row"><input id="wKg" aria-label="Poids du matin en kg" inputmode="decimal" placeholder="Poids du matin (kg)" style="flex:1"><button class="primary" id="wAdd">Ajouter</button></div>`);
   c.append(rowW);
@@ -3136,23 +3252,28 @@ function vStats(v) {
   }
   if (poids.length) c.append(h(`<div class="small muted">Dernier : ${poids[poids.length - 1].poidsKg} kg · ${poids.length} mesure(s)</div>`));
   c.append(h(`<div class="hint">Pèse-toi le matin à jeun. Aucune décision sur une seule pesée : on regarde la tendance sur 1–2 semaines.</div>`));
-  v.append(c);
-  $("#wAdd", v).addEventListener("click", () => {
-    const kg = parseFloat(($("#wKg", v).value || "").replace(",", ".")); if (!kg) return;
+  secPoids.append(c);
+  section(v, "poids", "Poids du corps", (b) => b.append(secPoids), {
+    resume: poids.length ? `${poids[poids.length - 1].poidsKg} kg` : "",
+  });
+  c.querySelector("#wAdd").addEventListener("click", () => {
+    const kg = parseFloat((c.querySelector("#wKg").value || "").replace(",", ".")); if (!kg) return;
     Etat.data.metrics.push({ id: Etat.uid(), date: new Date().toISOString(), poidsKg: kg }); Etat.sauver(); render();
   });
 
-  // Mensurations
-  const cm = h(`<div class="card stack"><h2 style="margin:0">Mensurations</h2>
-    <div class="row"><input id="mTaille" aria-label="Tour de taille en cm" inputmode="decimal" placeholder="Tour de taille (cm)" style="flex:1"><input id="mPoit" aria-label="Poitrine en cm" inputmode="decimal" placeholder="Poitrine" style="flex:1"></div>
-    <div class="row"><input id="mBras" aria-label="Bras en cm" inputmode="decimal" placeholder="Bras" style="flex:1"><input id="mCuisse" aria-label="Cuisse en cm" inputmode="decimal" placeholder="Cuisse" style="flex:1"><button id="mAdd">Enregistrer</button></div>
-    <div class="hint">Mesure 1×/semaine, mêmes conditions. Le tour de taille est le meilleur repère de perte de graisse.</div></div>`);
-  v.append(cm);
-  $("#mAdd", v).addEventListener("click", () => {
-    const num = (id) => parseFloat(($(id, v).value || "").replace(",", ".")) || null;
-    const e = { id: Etat.uid(), date: new Date().toISOString(), taille: num("#mTaille"), poitrine: num("#mPoit"), bras: num("#mBras"), cuisse: num("#mCuisse") };
-    if (!e.taille && !e.poitrine && !e.bras && !e.cuisse) return;
-    Etat.data.metrics.push(e); Etat.sauver(); render();
+  section(v, "mensurations", "Mensurations", (v) => {
+    // Mensurations
+    const cm = h(`<div class="card stack"><h2 style="margin:0">Mensurations</h2>
+      <div class="row"><input id="mTaille" aria-label="Tour de taille en cm" inputmode="decimal" placeholder="Tour de taille (cm)" style="flex:1"><input id="mPoit" aria-label="Poitrine en cm" inputmode="decimal" placeholder="Poitrine" style="flex:1"></div>
+      <div class="row"><input id="mBras" aria-label="Bras en cm" inputmode="decimal" placeholder="Bras" style="flex:1"><input id="mCuisse" aria-label="Cuisse en cm" inputmode="decimal" placeholder="Cuisse" style="flex:1"><button id="mAdd">Enregistrer</button></div>
+      <div class="hint">Mesure 1×/semaine, mêmes conditions. Le tour de taille est le meilleur repère de perte de graisse.</div></div>`);
+    v.append(cm);
+    $("#mAdd", v).addEventListener("click", () => {
+      const num = (id) => parseFloat(($(id, v).value || "").replace(",", ".")) || null;
+      const e = { id: Etat.uid(), date: new Date().toISOString(), taille: num("#mTaille"), poitrine: num("#mPoit"), bras: num("#mBras"), cuisse: num("#mCuisse") };
+      if (!e.taille && !e.poitrine && !e.bras && !e.cuisse) return;
+      Etat.data.metrics.push(e); Etat.sauver(); render();
+    });
   });
 
   // Bilan & ajustement (2 semaines)
@@ -3164,17 +3285,18 @@ function vStats(v) {
     (Etat.data.reviews ||= []).push({ date: new Date().toISOString(), statut: r.statut, message: r.message });
     Etat.sauver();
   });
-  cb.append(bBilan); v.append(cb);
+  cb.append(bBilan);
+  section(v, "bilan", "Bilan & ajustement", (b) => b.append(cb));
 
   // historique
   if (logs.length) {
-    const hist = h(`<div class="card stack"><h2 style="margin:0">Dernières séances</h2></div>`);
+    const hist = h(`<div class="card stack"></div>`);
     logs.slice(-8).reverse().forEach((l) => {
       hist.append(h(`<div class="spread small" style="padding:6px 0;border-bottom:1px solid var(--line)">
         <span>${new Date(l.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} — ${esc(l.seanceNom || "")}</span>
         <span class="muted">${(l.exercices || []).length} exos</span></div>`));
     });
-    v.append(hist);
+    section(v, "historique", "Historique des séances", (b) => b.append(hist), { resume: `${logs.length}` });
   } else {
     v.append(h(`<div class="notice small">Réalise ta première séance pour voir tes statistiques se remplir.</div>`));
   }
@@ -3247,21 +3369,22 @@ function vSet(v) {
   // Coach IA (facultatif) — désactivé par défaut, l'app reste déterministe.
   v.append(carteCoachIA());
 
-  const prof = h(`<div class="card stack"><h2 style="margin:0">Programme</h2></div>`);
+  const prof = h(`<div class="card stack"></div>`);
   const bReg = h(`<button>Régénérer le programme avec le profil actuel</button>`);
   bReg.addEventListener("click", () => { Etat.data.programme = genererProgramme(p); Etat.sauver(); nav("prog"); toast("Programme régénéré ✔"); });
-  prof.append(bReg); v.append(prof);
+  prof.append(bReg);
+  section(v, "p-prog", "Programme d'entraînement", (b) => b.append(prof));
 
-  const aff = h(`<div class="card stack"><h2 style="margin:0">Apparence</h2></div>`);
+  const aff = h(`<div class="card stack"></div>`);
   aff.append(chipsInline([["auto", "Auto"], ["light", "Clair"], ["dark", "Sombre"]], (val) => Etat.data.reglages.theme === val, (val) => { Etat.data.reglages.theme = val; Etat.sauver(); appliquerTheme(); }));
-  v.append(aff);
+  section(v, "p-app", "Apparence", (b) => b.append(aff));
 
   // Démonstrations
-  const cwx = h(`<div class="card stack"><h2 style="margin:0">Démonstrations</h2>
+  const cwx = h(`<div class="card stack">
     <div class="hint">Les visuels des exercices viennent du dataset GitHub <b>hasaneyldrm/exercises-dataset</b> (référencés par URL, avec attribution), avec repli sur ExerciseDB open-source. La carte musculaire est un SVG intégré adapté de <b>react-muscle-highlighter</b> (licence MIT). Aucune clé requise.</div></div>`);
-  v.append(cwx);
+  section(v, "p-med", "Démonstrations & sources", (b) => b.append(cwx));
 
-  const don = h(`<div class="card stack"><h2 style="margin:0">Mes données</h2>
+  const don = h(`<div class="card stack">
     <div class="small muted">Tout est stocké localement sur cet appareil. Aucune donnée n'est envoyée à un serveur.</div></div>`);
   const bExp = h(`<button>💾 Sauvegarde complète (JSON)</button>`);
   bExp.addEventListener("click", () => {
@@ -3308,7 +3431,8 @@ function vSet(v) {
   bExpCsvPoids.addEventListener("click", () => telechargerCSV(metriquesVersCSV(Etat.data.metrics), nomFichierExport("suivi-corporel")));
   const bDel = h(`<button class="danger">Tout effacer</button>`);
   bDel.addEventListener("click", async () => { if (await confirmer("Effacer TOUTES les données (profil, programme, historique) ? Cette action est irréversible.", { danger: true, ok: "Tout effacer" })) { Etat.reset(); DRAFT = null; STEP = 0; $("#tabs").hidden = true; render(); } });
-  don.append(bExp, bImp, file, bExpCsvSeances, bExpCsvPoids, bDel); v.append(don);
+  don.append(bExp, bImp, file, bExpCsvSeances, bExpCsvPoids, bDel);
+  section(v, "p-data", "Mes données & sauvegarde", (b) => b.append(don));
 
   v.append(h(`<div class="card flat small muted">Coach Perso — Application de musculation personnelle, locale et hors ligne. Ne remplace pas un avis médical.</div>`));
 }
