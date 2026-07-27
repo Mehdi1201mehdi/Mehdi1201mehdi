@@ -476,7 +476,11 @@ export const EXERCISES = [
  * Les ~250 exercices wger (`exercises-extra.js`, gros fichier) ne sont importés
  * qu'à l'ouverture de l'écran Catalogue, pas au démarrage de l'app.
  */
-export const CATALOGUE = [...EXERCISES];
+import { SALLE_EXERCISES } from "./exercises-salle.js";
+
+// Catalogue = base originale + exercices de salle (machines/poulies), tous deux
+// rédigés pour ce projet et chargés d'emblée (donc disponibles hors ligne).
+export const CATALOGUE = [...EXERCISES, ...SALLE_EXERCISES];
 
 /** Index par id pour accès O(1) (sur le catalogue actuellement chargé). */
 export const EXERCISES_BY_ID = Object.fromEntries(CATALOGUE.map((e) => [e.id, e]));

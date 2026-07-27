@@ -65,6 +65,7 @@ import { echauffementPour, ETIREMENTS, dureeSequence } from "../data/mobilite.js
 import { serieActuelle, meilleureSerie, grilleJours, defis } from "../engine/defis.js";
 import { detecterIntention, trouverExoParNom } from "../engine/assistant.js";
 import { PROGRAMMES } from "../data/programmes.js";
+import { PROGRAMMES_SALLE } from "../data/programmes-salle.js";
 import { grilleMois, moisAdjacent, NOMS_JOURS_COURTS } from "../engine/calendar.js";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -745,6 +746,9 @@ function vProg(v) {
   v.append(h(`<h2 style="margin:20px 0 2px">Programmes classiques</h2>`));
   v.append(h(`<div class="muted small" style="margin-bottom:8px">Des structures d'entraînement éprouvées, écrites avec les exercices de ton catalogue. Installe-en une : elle devient une routine que tu peux modifier librement.</div>`));
   PROGRAMMES.forEach((pr) => v.append(carteProgrammeClassique(pr)));
+  v.append(h(`<h2 style="margin:20px 0 2px">Programmes de salle</h2>`));
+  v.append(h(`<div class="muted small" style="margin-bottom:8px">Fiches d'entraînement complètes (machines, poulies, circuits), transposées depuis tes documents avec les exercices du catalogue.</div>`));
+  PROGRAMMES_SALLE.forEach((pr) => v.append(carteProgrammeClassique(pr)));
 
   // ---- Mes routines (programmes créés à la main, illimités) ----
   v.append(h(`<h2 style="margin:18px 0 2px">Mes routines</h2>`));
@@ -801,6 +805,7 @@ function apercuProgrammeClassique(pr) {
   inner.append(h(`<div class="muted small">${esc(pr.accroche)}</div>`));
   inner.append(h(`<div class="row" style="margin:10px 0"><span class="badge accent">${pr.joursParSemaine} séances / semaine</span><span class="pill">${esc(LEVEL_LABELS[pr.niveau] || pr.niveau)}</span><span class="pill">~${pr.dureeMin} min</span></div>`));
   inner.append(h(`<div class="small">${esc(pr.description)}</div>`));
+  if (pr.echauffement) inner.append(h(`<div class="notice small" style="margin-top:10px"><b>Échauffement :</b> ${esc(pr.echauffement)}</div>`));
   inner.append(h(`<div class="notice small" style="margin-top:10px"><b>Progresser :</b> ${esc(pr.progression)}</div>`));
 
   const bInst = h(`<button class="primary big" style="margin:14px 0"><span class="btn-ico">${IC.plus}</span>Installer comme routine</button>`);
@@ -817,8 +822,12 @@ function apercuProgrammeClassique(pr) {
     c.append(h(`<div class="spread"><b>${esc(s.nom)}</b><span class="pill">${s.exercices.length} exos</span></div>`));
     s.exercices.forEach((ex, j) => {
       const exo = getExercise(ex.ref);
-      const vol = ex.duree ? `${ex.series} × ${ex.duree} s` : `${ex.series} × ${ex.reps[0]}–${ex.reps[1]}`;
-      const l = h(`<div class="spread small"><span><span class="anat-num">${j + 1}</span>${esc(exo ? exo.nom : ex.ref)}</span><span class="muted">${vol} · ${formatRepos(ex.repos)}</span></div>`);
+      const dureeTxt = ex.duree >= 120 ? `${Math.round(ex.duree / 60)} min` : `${ex.duree} s`;
+      const repsTxt = ex.reps && (ex.reps[0] === ex.reps[1] ? `${ex.reps[0]}` : `${ex.reps[0]}–${ex.reps[1]}`);
+      const vol = ex.duree ? `${ex.series} × ${dureeTxt}` : `${ex.series} × ${repsTxt}`;
+      // repos 0 = enchaîné (format circuit)
+      const reposTxt = ex.repos ? formatRepos(ex.repos) : "enchaîné";
+      const l = h(`<div class="spread small"><span><span class="anat-num">${j + 1}</span>${esc(exo ? exo.nom : ex.ref)}</span><span class="muted">${vol} · ${reposTxt}</span></div>`);
       if (exo) { l.classList.add("tap"); l.addEventListener("click", () => ouvrirDetail(exo)); }
       c.append(l);
     });
