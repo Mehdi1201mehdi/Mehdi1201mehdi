@@ -498,6 +498,13 @@ body.guide-open{overflow:hidden}
 .warm-cta .mi{flex:0 0 auto;border-radius:12px;display:grid;place-items:center;background:var(--surface-2)}
 .warm-cta .g{flex:1;min-width:0}
 
+/* ---- Bibliothèque de programmes classiques ---- */
+.pgm-card{align-items:flex-start;gap:12px;margin-bottom:9px}
+.pgm-card .mini-silhouette{flex:0 0 auto;width:42px;height:70px;display:block;background:var(--surface-2);border:1px solid var(--hair);border-radius:12px;padding:4px}
+.pgm-card .g{flex:1;min-width:0}
+.pgm-meta{display:inline-flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.pgm-meta .badge,.pgm-meta .pill{font-size:.68rem}
+
 /* ---- Coach : accès + fil de discussion ---- */
 .coach-cta{display:flex;align-items:center;gap:12px;width:100%;text-align:left;margin-top:14px;padding:14px}
 .coach-cta-ic{flex:0 0 auto;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
