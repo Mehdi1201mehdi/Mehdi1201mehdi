@@ -75,6 +75,7 @@ import {
   TESTS_VELO, testVeloParCle, comparerTestsVelo,
 } from "../engine/outils.js";
 import { PROGRAMMES_SALLE } from "../data/programmes-salle.js";
+import { DUREES, FREQUENCES, MATERIELS, filtrerProgrammes, nbCriteresActifs } from "../engine/bibliotheque.js";
 import { CLES_MOTEUR, LABELS_MOTEUR, DEF_MOTEUR, FIN_VERS_CATALOGUE } from "../data/muscles-moteur.js";
 import { coefficientsPour } from "../data/exercise-muscle-map.js";
 import { etatMusculaire, zoneDisponibilite, cibleVolumeHebdo, analyserSeance } from "../engine/fatigue.js";
@@ -842,44 +843,73 @@ function vProg(v) {
 }
 
 /**
- * Bibliothèque de programmes : feuille avec filtres par objectif/niveau.
- * Sortie de l'écran Programme pour ne pas l'allonger inutilement.
+ * Bibliothèque de programmes : feuille avec filtres cumulables.
+ *
+ * Cinq facettes (objectif, niveau, durée d'une séance, matériel, fréquence)
+ * plutôt qu'une seule liste de puces : devant 18 programmes, la vraie question
+ * est « qu'est-ce qui rentre dans mes 45 minutes avec mes haltères ».
  */
 function ouvrirBibliothequeProgrammes() {
   const tous = [...PROGRAMMES_SALLE];
-  let filtre = "tous";
+  const crit = { objectif: null, niveau: null, duree: null, materiel: null, frequence: null };
   const sheet = h(`<div class="sheet"><div class="inner"></div></div>`);
   const inner = sheet.querySelector(".inner");
   inner.append(h(`<div class="sheet-top"><h2 style="margin:0">Programmes</h2><button class="chip" id="bibX">✕ Fermer</button></div>`));
   inner.append(h(`<div class="muted small">Structures d'entraînement écrites avec les exercices de ton catalogue. Installe-en une : elle devient une routine modifiable.</div>`));
 
-  const filtres = h(`<div class="row filtres-pgm"></div>`);
+  const facettes = h(`<div class="stack facettes"></div>`);
   const liste = h(`<div class="stack" style="margin-top:10px"></div>`);
-  const OPTS = [
-    ["tous", "Tous"], ["debutant", "Débutant"], ["intermediaire", "Intermédiaire"], ["avance", "Avancé"],
-    ["prise_muscle", "Prise de muscle"], ["perte_graisse", "Perte de gras"], ["force", "Force"],
+  const compteur = h(`<div class="spread" style="margin-top:10px"><span class="muted small" id="bibN"></span><button class="linklike" id="bibReset" hidden>Tout effacer</button></div>`);
+
+  const GROUPES = [
+    ["objectif", "Objectif", [["prise_muscle", "Prise de muscle"], ["perte_graisse", "Perte de gras"], ["force", "Force"], ["recomposition", "Remise en forme"]]],
+    ["niveau", "Niveau", [["debutant", "Débutant"], ["intermediaire", "Intermédiaire"], ["avance", "Avancé"]]],
+    ["duree", "Durée d'une séance", DUREES.map((d) => [d.cle, d.label])],
+    ["materiel", "Matériel", MATERIELS.map((m) => [m.cle, m.label])],
+    ["frequence", "Séances / semaine", FREQUENCES.map((f) => [f.cle, f.label])],
   ];
+
   const refresh = () => {
+    // Puces : reflètent la sélection courante.
+    facettes.querySelectorAll("button[data-cle]").forEach((b) => {
+      b.classList.toggle("on", crit[b.dataset.cle] === b.dataset.val);
+      b.setAttribute("aria-pressed", String(crit[b.dataset.cle] === b.dataset.val));
+    });
+    const n = nbCriteresActifs(crit);
+    $("#bibReset", compteur).hidden = n === 0;
     liste.innerHTML = "";
-    const res = tous.filter((p) => filtre === "tous" || p.niveau === filtre || p.objectif === filtre);
-    if (!res.length) { liste.append(h(`<div class="muted small">Aucun programme pour ce filtre.</div>`)); return; }
-    liste.append(h(`<div class="muted small">${res.length} programme${res.length > 1 ? "s" : ""}</div>`));
+    const res = filtrerProgrammes(tous, crit, getExercise);
+    $("#bibN", compteur).textContent = res.length
+      ? `${res.length} programme${res.length > 1 ? "s" : ""}${n ? ` · ${n} filtre${n > 1 ? "s" : ""}` : ""}`
+      : "Aucun résultat";
+    if (!res.length) {
+      liste.append(h(`<div class="empty-state"><div class="es-ic">${IC.search}</div><b>Aucun programme ne coche tous ces critères</b><div class="muted small">Retire un filtre — la durée ou le matériel sont les plus restrictifs.</div></div>`));
+      const b = h(`<button class="secondary big">Effacer les filtres</button>`);
+      b.addEventListener("click", () => { Object.keys(crit).forEach((k) => { crit[k] = null; }); refresh(); });
+      liste.append(b);
+      return;
+    }
     res.forEach((pr) => {
       const c = carteProgrammeClassique(pr);
       c.addEventListener("click", () => sheet.remove(), { once: true });
       liste.append(c);
     });
   };
-  OPTS.forEach(([k, lab]) => {
-    const b = h(`<button class="chip ${k === "tous" ? "on" : ""}">${lab}</button>`);
-    b.addEventListener("click", () => {
-      filtre = k;
-      filtres.querySelectorAll("button").forEach((x) => x.classList.remove("on"));
-      b.classList.add("on"); refresh();
+
+  GROUPES.forEach(([cle, titre, opts]) => {
+    const g = h(`<div class="facette"><div class="eyebrow">${titre}</div></div>`);
+    const row = h(`<div class="row scrollx"></div>`);
+    opts.forEach(([val, lab]) => {
+      const b = h(`<button class="chip" data-cle="${cle}" data-val="${val}" aria-pressed="false">${lab}</button>`);
+      // Re-toucher une puce active l'annule : un seul geste pour poser et retirer.
+      b.addEventListener("click", () => { crit[cle] = crit[cle] === val ? null : val; refresh(); });
+      row.append(b);
     });
-    filtres.append(b);
+    g.append(row);
+    facettes.append(g);
   });
-  inner.append(filtres, liste);
+  inner.append(facettes, compteur, liste);
+  $("#bibReset", compteur).addEventListener("click", () => { Object.keys(crit).forEach((k) => { crit[k] = null; }); refresh(); });
   refresh();
   sheet.querySelector("#bibX").addEventListener("click", () => sheet.remove());
   document.body.append(sheet);

@@ -345,6 +345,32 @@ label.f>span{display:block;font-size:.8rem;font-weight:750;color:var(--ink-soft)
 .disclaimer{font-size:.72rem;line-height:1.45;color:var(--ink-soft);opacity:.62;text-align:center;margin:22px 10px 6px;max-width:40ch;margin-left:auto;margin-right:auto}
 .notice{background:var(--accent-soft);border-radius:var(--radius-sm);padding:12px 14px;font-size:.86rem;margin:10px 0;color:var(--accent-ink)}
 
+/* ---- États partagés : vide, chargement, erreur ----------------------------
+   Un écran qui n'a rien à montrer doit le dire et proposer la sortie, jamais
+   rester blanc. Ces trois blocs sont réutilisés partout (bibliothèque,
+   catalogue, médias, recherche d'aliments…). */
+.empty-state{display:flex;flex-direction:column;align-items:center;text-align:center;gap:var(--space-2);
+  padding:var(--space-6) var(--space-4);color:var(--ink-soft)}
+.empty-state b{color:var(--ink);font-size:var(--fs-h3)}
+.empty-state .es-ic{width:40px;height:40px;display:grid;place-items:center;border-radius:14px;
+  background:var(--surface-2);color:var(--ink-soft)}
+.empty-state .es-ic svg{width:20px;height:20px}
+.empty-state.err .es-ic{background:var(--danger-soft);color:var(--danger)}
+.empty-state button{margin-top:var(--space-1)}
+/* Squelettes de chargement : la forme du contenu à venir, pas un vide gris */
+.skeleton{position:relative;overflow:hidden;background:var(--surface-2);border-radius:var(--radius-sm);
+  min-height:14px}
+.skeleton::after{content:"";position:absolute;inset:0;transform:translateX(-100%);
+  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--ink) 8%,transparent),transparent);
+  animation:skel 1.3s infinite}
+@keyframes skel{100%{transform:translateX(100%)}}
+.skel-card{display:flex;gap:var(--space-3);align-items:center;padding:var(--space-3);margin:var(--space-2) 0;
+  border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface)}
+.skel-card .sk-av{width:44px;height:44px;border-radius:12px;flex:0 0 auto}
+.skel-card .sk-l{flex:1;display:flex;flex-direction:column;gap:6px}
+.skel-card .sk-l i{display:block;height:11px;border-radius:6px}
+@media (prefers-reduced-motion:reduce){.skeleton::after{animation:none}}
+
 details{border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 15px;margin:9px 0;background:var(--surface)}
 summary{cursor:pointer;font-weight:750;list-style:none;display:flex;justify-content:space-between;gap:8px;align-items:center}
 summary::after{content:"+";color:var(--accent-ink);font-weight:800;font-size:1.1rem}
@@ -582,6 +608,12 @@ body.guide-open{overflow:hidden}
 .filtres-pgm{margin-top:10px;overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px;scrollbar-width:none}
 .filtres-pgm::-webkit-scrollbar{display:none}
 .filtres-pgm .chip{flex:0 0 auto}
+/* Facettes cumulables : une ligne défilante par critère, jamais de retour ligne */
+.facettes{gap:var(--space-3);margin-top:var(--space-3)}
+.facette .eyebrow{margin-bottom:var(--space-1)}
+.row.scrollx{overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px;scrollbar-width:none}
+.row.scrollx::-webkit-scrollbar{display:none}
+.row.scrollx>.chip{flex:0 0 auto}
 
 /* ---- Accueil : en-tête compact et listes denses ---- */
 .dash-hi{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
