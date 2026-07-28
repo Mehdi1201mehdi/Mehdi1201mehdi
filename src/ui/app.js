@@ -80,6 +80,7 @@ import { CLES_MOTEUR, LABELS_MOTEUR, DEF_MOTEUR, FIN_VERS_CATALOGUE } from "../d
 import { coefficientsPour } from "../data/exercise-muscle-map.js";
 import { etatMusculaire, zoneDisponibilite, cibleVolumeHebdo, analyserSeance } from "../engine/fatigue.js";
 import { genererProchaineSeance, resumeCorps, compatibiliteExercice, PLAN_PARAMS } from "../engine/planner.js";
+import { expliquerApprentissage, PARAMS_APPRENTISSAGE } from "../engine/apprentissage.js";
 import { grilleMois, moisAdjacent, NOMS_JOURS_COURTS } from "../engine/calendar.js";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -2913,6 +2914,25 @@ function ouvrirEtatMusculaire() {
   });
   inner.append(prio);
   inner.append(h(`<div class="hint">La priorité combine disponibilité (45 %), déficit de volume hebdomadaire (30 %), ancienneté de la dernière sollicitation (15 %) et équilibre général (10 %).</div>`));
+
+  // Ce que le moteur a APPRIS de l'historique. Affiché systématiquement, même
+  // quand il n'a encore rien appris : une correction invisible sur un modèle
+  // qu'on ne peut pas inspecter ne serait pas acceptable.
+  inner.append(h(`<div class="eyebrow" style="margin:16px 0 8px">Calibration apprise</div>`));
+  const appris = expliquerApprentissage(Etat.data.logs || [], getExercise, Date.now());
+  const cApp = h(`<div class="card stack"></div>`);
+  if (!appris.length) {
+    cApp.append(h(`<div class="muted small">Le moteur utilise ses valeurs génériques. Il ajustera la vitesse de récupération muscle par muscle dès qu'il aura observé assez de retours rapprochés sur un même exercice (${PARAMS_APPRENTISSAGE.MIN_OBS} minimum).</div>`));
+  } else {
+    cApp.append(h(`<div class="muted small">Ajustements déduits de tes performances quand tu reviens sur un muscle en moins de ${PARAMS_APPRENTISSAGE.SEUIL_COURT_H} h.</div>`));
+    appris.forEach((a) => {
+      const pct = Math.round(Math.abs(a.facteur - 1) * 100);
+      cApp.append(h(`<div class="spread small" style="margin-top:6px">
+        <span><b>${esc(LABELS_MOTEUR[a.muscle] || a.muscle)}</b> · récupération ${esc(a.sens)}</span>
+        <span class="muted">${a.facteur > 1 ? "+" : "−"}${pct} % · ${a.n} obs.</span></div>`));
+    });
+  }
+  inner.append(cApp);
 
   sheet.querySelector("#eX").addEventListener("click", () => sheet.remove());
   document.body.append(sheet);

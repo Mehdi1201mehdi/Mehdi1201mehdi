@@ -123,7 +123,36 @@ Le moteur ne conclut **jamais** au repos parce que le haut du corps est fatigué
 alors que les jambes sont fraîches : il propose les jambes. C'est précisément
 l'intérêt du système.
 
-## 8. Validation
+## 8. Apprentissage local (calibration)
+
+`src/engine/apprentissage.js` recalibre les demi-vies de récupération sur
+l'historique **réel**, muscle par muscle.
+
+**Signal observé.** Chaque fois qu'un même exercice revient moins de 72 h après
+la fois précédente, on compare la meilleure performance des deux séances (1RM
+estimé par Epley ; à défaut répétitions, puis secondes). La performance chute →
+le muscle récupère plus lentement que le modèle générique → sa demi-vie est
+allongée. Elle tient ou progresse → demi-vie raccourcie.
+
+**Garde-fous.** Un modèle qui s'ajuste sur du bruit est pire que pas de modèle :
+
+- rien n'est appliqué en dessous de **4 observations** pour un muscle donné ;
+- la correction est bornée à **±30 %**, et la confiance monte progressivement
+  entre 4 et 12 observations ;
+- au-delà de 72 h l'écart ne dit plus rien sur la récupération : ces paires ne
+  sont pas comptées ;
+- seuls les **120 derniers jours** informent ;
+- un écart moyen sous ±2 % est traité comme du bruit : aucune correction.
+
+**Transparence.** `expliquerApprentissage()` alimente la section « Calibration
+apprise » de l'écran *État musculaire* : muscle concerné, sens de la correction,
+amplitude, nombre d'observations. Tant que rien n'a été appris, l'écran le dit.
+
+Sans historique suffisant, tous les facteurs valent 1 et le moteur se comporte
+exactement comme avant — c'est ce que vérifie la simulation 30 jours, qui passe
+inchangée avec la calibration active.
+
+## 9. Validation
 
 - **Simulation 30 jours** en boucle fermée (chaque séance proposée est réalisée
   et réinjectée) : 22 séances, 8 jours de repos, tous les groupes entre 20 et 50
@@ -134,4 +163,4 @@ l'intérêt du système.
   données, pas du calendrier.
 - **Récupération sans entraînement** : strictement croissante jour après jour.
 
-`node --test tests/planner.test.js tests/planner-simulation.test.js`
+`node --test tests/planner.test.js tests/planner-simulation.test.js tests/apprentissage.test.js`

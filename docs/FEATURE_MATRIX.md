@@ -75,6 +75,18 @@ Légende : ✅ opérationnel · ⚠️ partiel · ❌ absent · 🔒 volontairem
 | Composition corporelle (US Navy) | ✅ | Outils |
 | Test cardio vélo avec historique | ✅ | Outils |
 
+## Options avancées de séance
+
+| Fonction | État | Où |
+|---|---|---|
+| Mode d'interface débutant / avancé | ✅ | Profil → Mode d'interface |
+| Colonne d'effort RIR ou RPE | ✅ | Séance (mode avancé) |
+| Drop set / rest-pause (tap sur le n° de série) | ✅ | Séance (mode avancé) |
+| Supersets et tri-sets (jusqu'à 4 groupes) | ✅ | Séance → menu de l'exercice |
+| Tempo affiché | ✅ | Séance (mode avancé) |
+| Calibration apprise de la récupération | ✅ | État musculaire |
+| Filtres bibliothèque (objectif, niveau, durée, matériel, fréquence) | ✅ | Programme → Bibliothèque |
+
 ## Assistance
 
 | Fonction | État | Où |

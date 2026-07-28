@@ -16,6 +16,7 @@
 import { CLES_MOTEUR, LABELS_MOTEUR, DEF_MOTEUR } from "../data/muscles-moteur.js";
 import { coefficientsPour, musclePrincipalMoteur, classerExercice } from "../data/exercise-muscle-map.js";
 import { etatMusculaire, cibleVolumeHebdo, zoneDisponibilite, PARAMS } from "./fatigue.js";
+import { facteursRecuperation } from "./apprentissage.js";
 
 /* ============================ PARAMÈTRES ============================ */
 
@@ -377,7 +378,10 @@ export function construireSeance(muscles, etat, catalogue, profil = {}) {
  * @param {number} [maintenant]
  */
 export function genererProchaineSeance(logs, getExercise, catalogue, profil = {}, maintenant = Date.now()) {
-  const etat = etatMusculaire(logs, getExercise, maintenant, { ressenti: profil.ressenti });
+  // Calibration apprise sur l'historique : sans données suffisantes elle vaut
+  // 1 partout et le moteur se comporte exactement comme avant.
+  const facteurs = facteursRecuperation(logs, getExercise, maintenant);
+  const etat = etatMusculaire(logs, getExercise, maintenant, { ressenti: profil.ressenti, facteurs });
   const classement = prioriterMuscles(etat, profil, maintenant);
 
   const duree = profil.dureeMin || 60;

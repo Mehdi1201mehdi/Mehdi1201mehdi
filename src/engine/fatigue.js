@@ -160,7 +160,7 @@ export function decroissance(fatigue, heures, demiVieH) {
  * @param {number} seriesEquivalentes
  * @param {number} partEchec 0–1
  */
-export function demiVie(seriesEquivalentes, partEchec = 0, taille = "moyen") {
+export function demiVie(seriesEquivalentes, partEchec = 0, taille = "moyen", facteurAppris = 1) {
   const s = Math.max(0, seriesEquivalentes);
   const S = PARAMS.SEUILS_SOLLICITATION;
   let base;
@@ -172,7 +172,11 @@ export function demiVie(seriesEquivalentes, partEchec = 0, taille = "moyen") {
   // mais il coûte plus cher en récupération.
   const mult = 1 + Math.min(1, Math.max(0, partEchec)) * (PARAMS.ECHEC_DEMI_VIE_MAX - 1);
   const tailleMult = PARAMS.DEMI_VIE_TAILLE[taille] ?? 0.85;
-  return base * mult * tailleMult;
+  // Calibration apprise sur l'historique (voir engine/apprentissage.js), bornée
+  // en amont ; ici on se contente de refuser une valeur aberrante.
+  const appris = Number.isFinite(facteurAppris) && facteurAppris > 0
+    ? Math.max(0.5, Math.min(2, facteurAppris)) : 1;
+  return base * mult * tailleMult * appris;
 }
 
 /* ============================ ANALYSE D'UNE SÉANCE ============================ */
@@ -238,10 +242,14 @@ export function analyserSeance(log, getExercise) {
  * @param {any[]} logs séances réalisées
  * @param {(id:string)=>any} getExercise
  * @param {number} [maintenant] timestamp
- * @param {{niveau?:string, ressenti?:number}} [opts] ressenti : −1 (frais) à +1 (très fatigué)
+ * @param {{niveau?:string, ressenti?:number, facteurs?:Record<string,number>}} [opts]
+ *        ressenti : −1 (frais) à +1 (très fatigué) ;
+ *        facteurs : calibration apprise par muscle (1 = modèle générique)
  * @returns {Record<string, any>} muscleState par clé
  */
 export function etatMusculaire(logs, getExercise, maintenant = Date.now(), opts = {}) {
+  const facteurs = (opts && opts.facteurs) || {};
+  const fa = (cle) => facteurs[cle] || 1;
   /** @type {Record<string, any>} */
   const etat = {};
   for (const cle of CLES_MOTEUR) {
@@ -271,7 +279,7 @@ export function etatMusculaire(logs, getExercise, maintenant = Date.now(), opts 
       // 1) faire décroître la fatigue accumulée jusqu'à cette séance
       if (m._dernierT != null) {
         const h = (t - m._dernierT) / 36e5;
-        m.fatigue = decroissance(m.fatigue, h, demiVie(m._dernierVolume, m._dernierEchec, DEF[muscle]?.taille));
+        m.fatigue = decroissance(m.fatigue, h, demiVie(m._dernierVolume, m._dernierEchec, DEF[muscle]?.taille, fa(muscle)));
       }
       // 2) ajouter le nouveau stress, saturé puis combiné
       const apport = saturation(e.stress);
@@ -298,7 +306,7 @@ export function etatMusculaire(logs, getExercise, maintenant = Date.now(), opts 
     const m = etat[cle];
     if (m._dernierT != null) {
       const h = (maintenant - m._dernierT) / 36e5;
-      m.fatigue = decroissance(m.fatigue, h, demiVie(m._dernierVolume, m._dernierEchec, DEF[cle]?.taille));
+      m.fatigue = decroissance(m.fatigue, h, demiVie(m._dernierVolume, m._dernierEchec, DEF[cle]?.taille, fa(cle)));
     }
     // Le ressenti déclaré module légèrement, sans jamais écraser les données
     // d'entraînement (±12 points au maximum).
