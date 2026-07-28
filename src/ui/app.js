@@ -81,6 +81,7 @@ import { coefficientsPour } from "../data/exercise-muscle-map.js";
 import { etatMusculaire, zoneDisponibilite, cibleVolumeHebdo, analyserSeance } from "../engine/fatigue.js";
 import { genererProchaineSeance, resumeCorps, compatibiliteExercice, PLAN_PARAMS } from "../engine/planner.js";
 import { expliquerApprentissage, PARAMS_APPRENTISSAGE } from "../engine/apprentissage.js";
+import { creerRepos, restantSec, estEcoule, progression, ajusterRepos, restaurerRepos, formatRestant } from "../engine/repos.js";
 import { grilleMois, moisAdjacent, NOMS_JOURS_COURTS } from "../engine/calendar.js";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -2152,73 +2153,148 @@ function etiquettePR(r) {
   return `1RM estimé ${r.valeur} kg (avant ${r.ancien} kg)`;
 }
 
-/* ---------- minuteur de repos ---------- */
+/* ---------- minuteur de repos ----------
+   Un SEUL état de repos (`REPOS`), fondé sur l'instant de fin et persisté :
+   il survit au verrouillage de l'écran, au changement d'application et au
+   rechargement. L'affichage — plein écran ou capsule — n'est qu'une vue de cet
+   état, jamais la source de vérité. */
 let TMR = null;
+let REPOS = null;           // { finAt, totalSec, label } | null
+let VEILLE = null;          // verrou d'écran (Wake Lock), best-effort
 let CAL_VIEW = null; // {annee, mois} du calendrier d'assiduité affiché (Progrès)
+
+/** Empêche l'écran de s'éteindre pendant le repos, quand le navigateur le permet. */
+async function tenirEcran() {
+  try {
+    if (VEILLE || !navigator.wakeLock) return;
+    VEILLE = await navigator.wakeLock.request("screen");
+    VEILLE.addEventListener?.("release", () => { VEILLE = null; });
+  } catch (e) { VEILLE = null; }   // refusé (batterie faible, onglet caché) : sans conséquence
+}
+function relacherEcran() {
+  try { VEILLE?.release?.(); } catch (e) {}
+  VEILLE = null;
+}
+
+/** Écrit l'état de repos dans le stockage pour qu'il survive à un rechargement. */
+function persistRepos() {
+  Etat.data.reposEnCours = REPOS ? { ...REPOS } : null;
+  Etat.sauver();
+}
+
+/** Le repos est terminé : signal, nettoyage, message. */
+function finDuRepos(annonce) {
+  const ann = $("#ovAnnonce"); if (ann) ann.textContent = "Repos terminé, série suivante";
+  const visible = $("#overlay").classList.contains("show") || !!document.getElementById("restCap")?.classList.contains("show");
+  stopTimer();
+  try { if (Etat.data.reglages.vibrations !== false) navigator.vibrate?.([120, 60, 120]); } catch (e) {}
+  if (annonce !== false && !visible) toast("Repos terminé — série suivante");
+}
+
+/** Redessine les deux vues possibles du repos à partir de l'horloge. */
+function dessinerRepos() {
+  if (!REPOS) return;
+  const reste = restantSec(REPOS);
+  const ov = $("#overlay");
+  if (ov && ov.classList.contains("show")) {
+    $("#ovTxt").textContent = formatRestant(REPOS);
+    $("#ringFg").style.strokeDashoffset = String(653 * progression(REPOS));
+    $("#overlay .ring")?.classList.toggle("urgent", reste <= 10);
+  }
+  const cap = document.getElementById("restCap");
+  if (cap && cap.classList.contains("show")) {
+    cap.querySelector("b").textContent = formatRestant(REPOS);
+    cap.classList.toggle("urgent", reste <= 10);
+  }
+}
+
+/** Boucle d'affichage. Elle ne calcule rien : elle relit l'horloge. */
+function boucleRepos() {
+  clearInterval(TMR);
+  TMR = setInterval(() => {
+    if (!REPOS) { clearInterval(TMR); TMR = null; return; }
+    if (estEcoule(REPOS)) { finDuRepos(); return; }
+    dessinerRepos();
+  }, 250);   // 4 fois par seconde : l'affichage reste juste même si un tic saute
+}
+
 function startTimer(sec, label = "") {
+  REPOS = creerRepos(sec, label);
+  persistRepos();
+  ouvrirEcranRepos();
+}
+
+/** Affiche le repos en plein écran (à partir de l'état courant). */
+function ouvrirEcranRepos() {
+  if (!REPOS) return;
   const ov = $("#overlay"); ov.classList.add("show");
-  const sub = $("#ovSub"); if (sub) sub.textContent = label;
-  const ann = $("#ovAnnonce"); if (ann) ann.textContent = `Temps de repos ${sec} secondes${label ? ", " + label : ""}`; // annonce lecteurs d'écran
-  const ring = $("#overlay .ring");
-  let total = sec, left = sec;
-  const draw = () => {
-    $("#ovTxt").textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
-    $("#ringFg").style.strokeDashoffset = String(653 * (1 - left / total));
-    if (ring) ring.classList.toggle("urgent", left <= 10);
-  };
-  draw(); clearInterval(TMR);
-  TMR = setInterval(() => { left--; if (left <= 0) { if (ann) ann.textContent = "Repos terminé, série suivante"; stopTimer(); try { if (Etat.data.reglages.vibrations !== false) navigator.vibrate?.([120, 60, 120]); } catch (e) {} return; } draw(); }, 1000);
-  $("#ovPlus").onclick = () => { left += 15; total = Math.max(total, left); draw(); };
-  $("#ovMinus").onclick = () => { left = Math.max(1, left - 15); draw(); };
+  masquerCapsule(false);
+  const sub = $("#ovSub"); if (sub) sub.textContent = REPOS.label;
+  const ann = $("#ovAnnonce");
+  if (ann) ann.textContent = `Temps de repos ${restantSec(REPOS)} secondes${REPOS.label ? ", " + REPOS.label : ""}`;
+  dessinerRepos(); boucleRepos(); tenirEcran();
+  $("#ovPlus").onclick = () => { REPOS = ajusterRepos(REPOS, 15); persistRepos(); dessinerRepos(); };
+  $("#ovMinus").onclick = () => { REPOS = ajusterRepos(REPOS, -15); persistRepos(); dessinerRepos(); };
   $("#ovSkip").onclick = stopTimer; // « Passer le repos » arrête vraiment
   // Un tap sur le fond RÉDUIT le minuteur : il continue dans une capsule, ce
   // qui permet de saisir la série suivante sans perdre le décompte.
   ov.onclick = (e) => {
     if (e.target !== ov) return;
-    clearInterval(TMR); TMR = null;
-    $("#overlay").classList.remove("show");
+    ov.classList.remove("show");
     $("#overlay .ring")?.classList.remove("urgent");
-    if (left > 0) afficherCapsule(left, label);
+    if (!estEcoule(REPOS)) afficherCapsule();
+    else stopTimer();
   };
 }
+
 function stopTimer() {
   clearInterval(TMR); TMR = null;
+  REPOS = null; persistRepos();
+  relacherEcran();
   $("#overlay").classList.remove("show");
   $("#overlay .ring")?.classList.remove("urgent");
-  masquerCapsule();
+  masquerCapsule(false);
 }
 
 /* ---------- capsule de repos persistante ----------
    Réduire le minuteur ne doit pas l'arrêter : on continue à voir le temps
    restant tout en saisissant la série suivante ou en changeant d'écran. */
-let CAPSULE_TMR = null;
-function afficherCapsule(restant, label = "") {
+function afficherCapsule() {
+  if (!REPOS) return;
   let cap = document.getElementById("restCap");
   if (!cap) {
     cap = h(`<button id="restCap" class="restcap" aria-label="Reprendre le minuteur de repos"><span class="cic">${IC.clock}</span><b class="num"></b></button>`);
-    cap.addEventListener("click", () => { const r = +cap.dataset.left || 0; masquerCapsule(); if (r > 0) startTimer(r, cap.dataset.label || ""); });
+    cap.addEventListener("click", () => { if (REPOS && !estEcoule(REPOS)) ouvrirEcranRepos(); else stopTimer(); });
     document.body.append(cap);
   }
-  cap.dataset.label = label;
-  const maj = () => {
-    const r = Math.max(0, +cap.dataset.left || 0);
-    cap.querySelector("b").textContent = `${Math.floor(r / 60)}:${String(r % 60).padStart(2, "0")}`;
-    cap.classList.toggle("urgent", r <= 10);
-  };
-  cap.dataset.left = String(restant);
-  cap.classList.add("show"); maj();
-  clearInterval(CAPSULE_TMR);
-  CAPSULE_TMR = setInterval(() => {
-    const r = (+cap.dataset.left || 0) - 1;
-    cap.dataset.left = String(r);
-    if (r <= 0) { try { if (Etat.data.reglages.vibrations !== false) navigator.vibrate?.([120, 60, 120]); } catch (e) {} masquerCapsule(); toast("Repos terminé — série suivante"); return; }
-    maj();
-  }, 1000);
+  cap.classList.add("show");
+  dessinerRepos(); boucleRepos();
 }
-function masquerCapsule() {
-  clearInterval(CAPSULE_TMR); CAPSULE_TMR = null;
+function masquerCapsule(arreter = true) {
   document.getElementById("restCap")?.classList.remove("show");
+  if (arreter) stopTimer();
 }
+
+/**
+ * Reprend un repos en cours après un rechargement, un réveil ou un retour dans
+ * l'application. Si le repos s'est achevé pendant l'absence, on le signale une
+ * fois puis on nettoie — plutôt que d'afficher un décompte figé et faux.
+ */
+function reprendreRepos() {
+  const restaure = restaurerRepos(Etat.data.reposEnCours);
+  if (restaure) { REPOS = restaure; afficherCapsule(); return; }
+  if (Etat.data.reposEnCours) {          // il existait mais il est échu
+    Etat.data.reposEnCours = null; Etat.sauver();
+    toast("Repos terminé pendant ton absence");
+  }
+}
+
+// Revenir dans l'app doit montrer le temps JUSTE immédiatement : la limitation
+// des minuteurs en arrière-plan a pu faire sauter des tics d'affichage.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible" || !REPOS) return;
+  if (estEcoule(REPOS)) finDuRepos(); else { dessinerRepos(); boucleRepos(); tenirEcran(); }
+});
 
 /* ======================================================================
    LECTEUR DE SÉANCE GUIDÉ (plein écran, pas à pas)
@@ -4426,6 +4502,7 @@ function vSet(v) {
 async function amorcerApp() {
   await Etat.init();
   appliquerTheme();
+  reprendreRepos();   // un repos lancé avant un rechargement doit continuer
   // État réseau INITIAL : les écouteurs `online`/`offline` ne se déclenchent
   // qu'au changement. Ouvrir l'app déjà hors connexion — le cas normal dans une
   // salle en sous-sol — ne montrait donc jamais la bannière.

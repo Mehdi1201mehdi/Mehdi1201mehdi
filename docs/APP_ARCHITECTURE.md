@@ -158,6 +158,31 @@ accessibilité (libellés, focus, reduced-motion), parcours utilisateur, et
 récentes, historique lourd, exercice retiré du catalogue, données abîmées,
 séance interrompue à reprendre).
 
+## Minuteur de repos
+
+`src/engine/repos.js` — l'état d'un repos est **l'instant de sa fin**, jamais un
+compteur décrémenté.
+
+Un décompte qui retire 1 chaque seconde suppose que le navigateur déclenche
+l'intervalle exactement une fois par seconde. Aucune plateforme ne le garantit :
+Chrome limite les minuteurs d'une page cachée, les gèle après quelques minutes,
+et Android peut évincer l'application de la mémoire. Or le repos entre deux
+séries est précisément le moment où l'on pose le téléphone.
+
+Conséquences du choix :
+
+- le temps restant est recalculé depuis l'horloge à chaque affichage : une
+  limitation des minuteurs n'affecte plus que la fluidité, jamais l'exactitude ;
+- `reposEnCours` est persisté, donc **le repos survit à un rechargement** et à
+  une éviction mémoire — on retrouve le décompte à la bonne seconde ;
+- au retour dans l'app (`visibilitychange`), l'affichage est réajusté
+  immédiatement ; si le repos s'est achevé pendant l'absence, il est signalé une
+  fois puis nettoyé, au lieu d'afficher un décompte figé et faux ;
+- l'écran plein et la capsule ne sont que deux **vues** du même état ; réduire
+  n'arrête pas, et rouvrir ne relance pas à zéro ;
+- un Wake Lock (best-effort) garde l'écran allumé pendant le repos.
+
+
 ## Contraintes à ne pas casser
 
 1. **Aucune étape de build** : modules ES natifs servis tels quels par GitHub

@@ -23,6 +23,7 @@ export function etatVide() {
     exercicesPerso: [],       // exercices créés par l'utilisateur — étape 4
     sessionEnCours: null,     // séance en cours, pour la reprise après refresh — étape 4
     seanceAuto: null,         // dernière séance générée par le moteur automatique
+    reposEnCours: null,       // minuteur de repos en cours { finAt, totalSec, label }
     logs: [],                 // séances réalisées
     metrics: [],              // poids / mensurations
     foodlog: {},              // "YYYY-MM-DD" -> [aliments]
