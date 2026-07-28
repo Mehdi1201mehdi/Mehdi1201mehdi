@@ -6,6 +6,7 @@ import {
   serialiser, restaurer, estReprenable, dureeSecondes, reconcilier,
   cyclerType, rirDepuisRpe, rpeDepuisRir, reposApresSerie,
   exercicesDuSuperset, groupeSupersetLibre, GROUPES_SUPERSET,
+  valeurSerie, completerSerie,
 } from "../src/engine/liveSession.js";
 
 const seanceExemple = {
@@ -207,4 +208,68 @@ test("restaurer : un type ou un groupe corrompu est ramené à une valeur sûre"
   const rt = restaurer(brut);
   assert.equal(rt.data.pompes.series[0].type, "normale");
   assert.equal(rt.data.pompes.supersetGroupe, null);
+});
+
+/* ============ CE QUI EST AFFICHÉ EST CE QUI EST ENREGISTRÉ ============ */
+
+test("valeurSerie : la saisie prime sur tout le reste", () => {
+  const series = [{ charge: "85", reps: "9" }];
+  assert.equal(valeurSerie(series, 0, "charge", 80, 75), 85);
+  assert.equal(valeurSerie(series, 0, "reps", 8, 10), 9);
+  assert.equal(valeurSerie([{ charge: "82,5" }], 0, "charge", 80, 75), 82.5, "virgule décimale");
+});
+
+test("valeurSerie : à défaut, la dernière série remplie de CETTE séance", () => {
+  // On répète presque toujours la même charge d'une série à l'autre.
+  const series = [{ charge: "85", reps: "9" }, { charge: "", reps: "" }, { charge: "", reps: "" }];
+  assert.equal(valeurSerie(series, 1, "charge", 80, 75), 85);
+  assert.equal(valeurSerie(series, 2, "charge", 80, 75), 85, "remonte au-delà d'une série vide");
+  assert.equal(valeurSerie(series, 2, "reps", 8, 10), 9);
+});
+
+test("valeurSerie : puis la séance précédente, puis le conseil, puis null", () => {
+  const vide = [{ charge: "", reps: "" }];
+  assert.equal(valeurSerie(vide, 0, "charge", 80, 75), 80, "séance précédente");
+  assert.equal(valeurSerie(vide, 0, "charge", null, 75), 75, "conseil");
+  assert.equal(valeurSerie(vide, 0, "charge", null, null), null, "rien d'exploitable");
+  assert.equal(valeurSerie(vide, 0, "charge", "pas un nombre", null), null);
+  assert.equal(valeurSerie(null, 0, "charge", null, 60), 60);
+});
+
+test("completerSerie : valider sans rien saisir enregistre ce qui était affiché", () => {
+  // LE bug : l'écran montrait « 80 » et « 8 », on validait, et l'historique
+  // recevait null — série comptée comme faite mais vide.
+  const series = [nouvelleSerie()];
+  const pose = completerSerie(series, 0, { chargePrecedente: 80, repsPrecedentes: 8 });
+  assert.deepEqual(pose, { charge: 80, reps: 8 });
+  assert.equal(series[0].charge, "80");
+  assert.equal(series[0].reps, "8");
+});
+
+test("completerSerie : ne touche jamais à une saisie existante", () => {
+  const series = [{ charge: "100", reps: "5", dureeSec: null }];
+  completerSerie(series, 0, { chargePrecedente: 80, repsPrecedentes: 8 });
+  assert.equal(series[0].charge, "100");
+  assert.equal(series[0].reps, "5");
+});
+
+test("completerSerie : n'invente rien quand rien n'est déductible", () => {
+  const series = [nouvelleSerie()];
+  const pose = completerSerie(series, 0, {});
+  assert.deepEqual(pose, { charge: null, reps: null });
+  assert.equal(series[0].charge, "");
+  assert.equal(series[0].reps, "");
+});
+
+test("completerSerie : un exercice chronométré ne reçoit pas de répétitions", () => {
+  const series = [nouvelleSerie(45)];
+  completerSerie(series, 0, { chargePrecedente: 20, repsPrecedentes: 12 });
+  assert.equal(series[0].reps, "", "la durée fait office de mesure");
+  assert.equal(series[0].dureeSec, 45);
+  assert.equal(series[0].charge, "20", "une charge reste pertinente (gilet lesté)");
+});
+
+test("completerSerie : série inexistante → aucun effet, aucune exception", () => {
+  assert.deepEqual(completerSerie([], 3, { chargePrecedente: 80 }), { charge: null, reps: null });
+  assert.doesNotThrow(() => completerSerie(null, 0, {}));
 });

@@ -18,6 +18,9 @@ importante · **P3** polish.
 | Séance | Reprendre une séance interrompue plantait si le gabarit avait changé entre-temps (exercice ajouté au programme pendant la séance) | Écran mort, séance en cours inaccessible | `reconcilier(live, seance)` dans le moteur + garde-fou dans la carte d'exercice. Résolu |
 | Accueil | La séance générée par le moteur ne démarrait pas : `demarrer()` re-rendait la vue courante | Le bouton principal ne faisait rien | Bascule explicite via `nav("train")`. Résolu |
 
+| Séance | La ligne affichait « 80 » et « 8 » en suggestion et invitait à valider ; toucher ✓ sans rien taper enregistrait `chargeKg: null, reps: null` | **Perte de données silencieuse sur le geste le plus naturel.** La série comptait comme faite mais vide : volume 0, aucun record, progression et moteur de récupération nourris de vide | Ce qui est affiché est ce qui est enregistré : `valeurSerie()` calcule la suggestion, `completerSerie()` la pose à la validation, et les suggestions des séries suivantes se recalculent à chaque frappe. Résolu |
+| Séance | Le minuteur de repos décrémentait un compteur : perdu au rechargement, faussé quand le navigateur gèle les minuteurs | Revenir sans décompte, à deviner depuis combien de temps on attend | État = instant de fin, persisté (`engine/repos.js`). Résolu |
+
 ## P1 — Impact UX majeur
 
 | Écran | Problème | Impact utilisateur | Solution |

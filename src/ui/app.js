@@ -24,7 +24,7 @@ import { Etat, seanceDuJour, planningJours } from "../store/state.js";
 import {
   nouvelleSession, ajouterSerie, retirerDerniereSerie,
   serialiser, restaurer, estReprenable, dureeSecondes,
-  reconcilier, TYPES_SERIE, GROUPES_SUPERSET, cyclerType, rirDepuisRpe,
+  reconcilier, TYPES_SERIE, GROUPES_SUPERSET, cyclerType, rirDepuisRpe, valeurSerie, completerSerie,
   exercicesDuSuperset, groupeSupersetLibre, reposApresSerie,
 } from "../engine/liveSession.js";
 import {
@@ -1815,6 +1815,21 @@ function carteExoLive(e, seance) {
   const showEffort = st.showRir != null ? st.showRir : avance;
   const col2 = showEffort ? metriqueEffort() : "Précédent";
   c.append(h(`<div class="setrow"><span class="head">Série</span><span class="head">${col2}</span><span class="head">${enTemps ? "Sec" : "Kg"}</span><span class="head">${enTemps ? "Durée" : "Reps"}</span><span class="head">✓</span></div>`));
+  // Les suggestions des séries suivantes dépendent de ce qui vient d'être
+  // saisi : elles doivent être recalculées à chaque frappe, sinon l'écran
+  // promet une valeur et la validation en enregistre une autre.
+  const lignes = [];
+  const majSuggestions = () => {
+    for (const { row, i } of lignes) {
+      const dpi = derniere && derniere.series[i];
+      const cc = valeurSerie(st.series, i, "charge", dpi && dpi.chargeKg, sug.chargeKg);
+      const rr = valeurSerie(st.series, i, "reps", dpi && dpi.reps, plage && plage[0]);
+      const ic = row.querySelector('input[data-f="charge"]');
+      if (ic) ic.placeholder = cc == null ? "—" : String(cc);
+      const ir = row.querySelector('input[data-f="reps"]');
+      if (ir) ir.placeholder = rr == null ? "—" : String(rr);
+    }
+  };
   st.series.forEach((s, i) => {
     const dp = derniere && derniere.series[i];
     const prev = dp ? (enTemps ? `${dp.dureeSec || 0}s` : `${dp.chargeKg || 0}×${dp.reps || 0}`) : "—";
@@ -1824,16 +1839,21 @@ function carteExoLive(e, seance) {
     // En mode avancé le numéro de série devient un bouton : un tap fait défiler
     // normale → drop set → rest-pause. Aucun sous-menu, aucune colonne en plus.
     const tSerie = TYPES_SERIE[s.type] || TYPES_SERIE.normale;
+    // Suggestion affichée = valeur qui sera enregistrée si l'on valide sans
+    // rien taper. Les deux doivent être calculées au même endroit, sans quoi
+    // l'écran promet une chose et l'historique en garde une autre.
+    const chargeAff = valeurSerie(st.series, i, "charge", dp && dp.chargeKg, sug.chargeKg);
+    const repsAff = valeurSerie(st.series, i, "reps", dp && dp.reps, plage && plage[0]);
     const numEl = avance
       ? `<button class="serie sertype ${s.type !== "normale" ? "on" : ""}" aria-label="Type de la série ${i + 1} : ${tSerie.label}. Toucher pour changer">${i + 1}${tSerie.court ? `<span class="sertag">${tSerie.court}</span>` : ""}</button>`
       : `<span class="serie">${i + 1}</span>`;
     const row = h(`<div class="setrow${s.done ? " vdone" : ""}${s.type !== "normale" ? " serie-" + s.type : ""}">
       ${numEl}
       ${col2El}
-      <input inputmode="decimal" placeholder="${sug.chargeKg || "—"}" value="${s.charge}" data-f="charge" aria-label="Charge série ${i + 1}">
-      <input inputmode="numeric" placeholder="${enTemps ? s.dureeSec : plage[0]}" value="${enTemps ? s.dureeSec : s.reps}" data-f="${enTemps ? "dureeSec" : "reps"}" aria-label="${enTemps ? "Durée" : "Répétitions"} série ${i + 1}">
+      <input inputmode="decimal" placeholder="${chargeAff == null ? "—" : chargeAff}" value="${s.charge}" data-f="charge" aria-label="Charge série ${i + 1}">
+      <input inputmode="numeric" placeholder="${enTemps ? s.dureeSec : (repsAff == null ? "—" : repsAff)}" value="${enTemps ? s.dureeSec : s.reps}" data-f="${enTemps ? "dureeSec" : "reps"}" aria-label="${enTemps ? "Durée" : "Répétitions"} série ${i + 1}">
       <button class="done ${s.done ? "on" : ""}" aria-label="Valider la série ${i + 1}">✓</button></div>`);
-    on(row, "input", "input", (ev) => { const f = ev.target.dataset.f; s[f] = ev.target.value; persistLive(); });
+    on(row, "input", "input", (ev) => { const f = ev.target.dataset.f; s[f] = ev.target.value; persistLive(); majSuggestions(); });
     const bType = row.querySelector(".sertype");
     if (bType) bType.addEventListener("click", () => {
       s.type = cyclerType(s.type);
@@ -1843,11 +1863,23 @@ function carteExoLive(e, seance) {
     });
     row.querySelector(".done").addEventListener("click", (ev) => {
       s.done = !s.done;
+      // Valider sans avoir saisi enregistre ce que la ligne affichait. C'est le
+      // geste le plus courant en salle : on répète la série précédente.
+      if (s.done) {
+        completerSerie(st.series, i, {
+          chargePrecedente: dp && dp.chargeKg, chargeConseil: sug.chargeKg,
+          repsPrecedentes: dp && dp.reps, repsConseil: plage && plage[0],
+        });
+        row.querySelectorAll("input[data-f]").forEach((inp) => {
+          const f = inp.dataset.f;
+          if (f === "charge" || f === "reps") inp.value = s[f] ?? "";
+        });
+      }
       const btn = ev.currentTarget;
       btn.classList.toggle("on", s.done);
       row.classList.toggle("vdone", s.done);
       if (s.done) { btn.classList.remove("pop"); void btn.offsetWidth; btn.classList.add("pop"); try { if (Etat.data.reglages.vibrations !== false) navigator.vibrate?.(20); } catch (e) {} }
-      persistLive(); majProgressionSeance();
+      persistLive(); majProgressionSeance(); majSuggestions();
       if (!s.done) return;
       // Repos : court et fixe pour un drop set / rest-pause, nul dans un
       // superset tant qu'il reste un partenaire à enchaîner.
@@ -1857,8 +1889,10 @@ function carteExoLive(e, seance) {
       const suffixe = r.raison === "normal" ? "" : ` · ${r.raison}`;
       startTimer(r.sec, `${exo.nom} · série ${i + 1}${suffixe}`);
     });
+    lignes.push({ row, i });
     c.append(row);
   });
+  majSuggestions();
   // Ajouter / retirer une série pendant la séance.
   const serieActs = h(`<div class="row"></div>`);
   const bPlus = h(`<button class="chip">+ série</button>`);

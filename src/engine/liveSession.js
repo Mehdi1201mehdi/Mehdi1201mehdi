@@ -111,6 +111,71 @@ export function reposApresSerie(opts = {}) {
   return { sec: prescrit, enchainer: false, raison: "normal" };
 }
 
+/**
+ * Valeur retenue pour un champ d'une série — celle qui sera ENREGISTRÉE si
+ * l'utilisateur valide sans rien saisir.
+ *
+ * L'écran affiche une suggestion en gris (« 80 », « 8 ») et invite à valider.
+ * Le geste naturel est donc de toucher ✓ sans rien taper : il faut que ce geste
+ * enregistre exactement ce qui était affiché. Sinon la série est comptée comme
+ * faite mais vide, et tout ce qui en dépend — volume, records, progression,
+ * moteur de récupération — travaille sur du vide.
+ *
+ * Cascade, du plus précis au plus général :
+ *   1. ce qui est saisi dans la série ;
+ *   2. la dernière série DÉJÀ REMPLIE du même exercice dans cette séance
+ *      (on répète presque toujours la même charge d'une série à l'autre) ;
+ *   3. la même série lors de la séance précédente ;
+ *   4. le conseil de progression.
+ *
+ * @param {any[]} series      séries live de l'exercice
+ * @param {number} i          index de la série
+ * @param {"charge"|"reps"} champ
+ * @param {number|string|null} [precedent] valeur de la séance précédente
+ * @param {number|string|null} [conseil]   valeur conseillée
+ * @returns {number|null} valeur numérique, ou null si rien n'est exploitable
+ */
+export function valeurSerie(series, i, champ, precedent = null, conseil = null) {
+  const nombre = (v) => {
+    if (v === "" || v == null) return null;
+    const n = typeof v === "string" ? parseFloat(v.replace(",", ".")) : Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const liste = Array.isArray(series) ? series : [];
+  const saisi = nombre(liste[i] && liste[i][champ]);
+  if (saisi != null) return saisi;
+  for (let k = i - 1; k >= 0; k--) {
+    const v = nombre(liste[k] && liste[k][champ]);
+    if (v != null) return v;
+  }
+  const p = nombre(precedent);
+  if (p != null) return p;
+  return nombre(conseil);
+}
+
+/**
+ * Complète une série avec les valeurs affichées au moment de la valider.
+ * Ne touche à rien si l'utilisateur a déjà saisi quelque chose, et n'invente
+ * jamais une valeur qu'on ne pouvait pas déduire.
+ *
+ * @returns {{charge:number|null, reps:number|null}} ce qui a été posé
+ */
+export function completerSerie(series, i, opts = {}) {
+  const s = (series || [])[i];
+  if (!s) return { charge: null, reps: null };
+  const pose = { charge: null, reps: null };
+  if (s.charge === "" || s.charge == null) {
+    const v = valeurSerie(series, i, "charge", opts.chargePrecedente, opts.chargeConseil);
+    if (v != null) { s.charge = String(v); pose.charge = v; }
+  }
+  // Un exercice chronométré porte sa durée, pas des répétitions.
+  if (!s.dureeSec && (s.reps === "" || s.reps == null)) {
+    const v = valeurSerie(series, i, "reps", opts.repsPrecedentes, opts.repsConseil);
+    if (v != null) { s.reps = String(v); pose.reps = v; }
+  }
+  return pose;
+}
+
 /** Crée l'état live d'une séance à partir d'un gabarit de séance. */
 export function nouvelleSession(seance, maintenant = new Date().toISOString()) {
   const data = {};
