@@ -76,7 +76,7 @@ import {
 import { PROGRAMMES_SALLE } from "../data/programmes-salle.js";
 import { CLES_MOTEUR, LABELS_MOTEUR, DEF_MOTEUR, FIN_VERS_CATALOGUE } from "../data/muscles-moteur.js";
 import { coefficientsPour } from "../data/exercise-muscle-map.js";
-import { etatMusculaire, zoneDisponibilite, cibleVolumeHebdo } from "../engine/fatigue.js";
+import { etatMusculaire, zoneDisponibilite, cibleVolumeHebdo, analyserSeance } from "../engine/fatigue.js";
 import { genererProchaineSeance, resumeCorps, compatibiliteExercice, PLAN_PARAMS } from "../engine/planner.js";
 import { grilleMois, moisAdjacent, NOMS_JOURS_COURTS } from "../engine/calendar.js";
 
@@ -1678,7 +1678,7 @@ function carteExoLive(e) {
       const btn = ev.currentTarget;
       btn.classList.toggle("on", s.done);
       row.classList.toggle("vdone", s.done);
-      if (s.done) { btn.classList.remove("pop"); void btn.offsetWidth; btn.classList.add("pop"); try { navigator.vibrate?.(20); } catch (e) {} }
+      if (s.done) { btn.classList.remove("pop"); void btn.offsetWidth; btn.classList.add("pop"); try { if (Etat.data.reglages.vibrations !== false) navigator.vibrate?.(20); } catch (e) {} }
       persistLive(); majProgressionSeance();
       if (s.done) startTimer(t?.reposSec || 60, `${exo.nom} · série ${i + 1}`);
     });
@@ -1891,6 +1891,10 @@ function ecranFinSeance(log, prs) {
     prs.forEach((r) => rc.append(h(`<div class="small">• ${esc(r.nom)} : ${esc(etiquettePR(r))}</div>`)));
     inner.append(rc);
   }
+  // Ressenti (correctif subjectif borné) puis impact musculaire de la séance.
+  inner.append(blocRessenti());
+  inner.append(blocImpactSeance(log));
+
   const bEtir = h(`<button class="card wcard sil warm-cta" style="width:100%;margin-top:16px;text-align:left"><span class="mi mi-indigo" style="width:34px;height:34px">${IC.wind}</span><span class="g"><b>Étirements guidés</b><br><span class="muted small">${ETIREMENTS.length} mouvements · ~${Math.round(dureeSequence(ETIREMENTS) / 60)} min · retour au calme</span></span><span class="chev" aria-hidden="true">›</span></button>`);
   bEtir.addEventListener("click", () => ouvrirSequence("Étirements", ETIREMENTS, { onFin: () => {} }));
   inner.append(bEtir);
@@ -1925,7 +1929,7 @@ function startTimer(sec, label = "") {
     if (ring) ring.classList.toggle("urgent", left <= 10);
   };
   draw(); clearInterval(TMR);
-  TMR = setInterval(() => { left--; if (left <= 0) { if (ann) ann.textContent = "Repos terminé, série suivante"; stopTimer(); try { navigator.vibrate?.([120, 60, 120]); } catch (e) {} return; } draw(); }, 1000);
+  TMR = setInterval(() => { left--; if (left <= 0) { if (ann) ann.textContent = "Repos terminé, série suivante"; stopTimer(); try { if (Etat.data.reglages.vibrations !== false) navigator.vibrate?.([120, 60, 120]); } catch (e) {} return; } draw(); }, 1000);
   $("#ovPlus").onclick = () => { left += 15; total = Math.max(total, left); draw(); };
   $("#ovMinus").onclick = () => { left = Math.max(1, left - 15); draw(); };
   $("#ovSkip").onclick = stopTimer; // « Passer le repos » arrête vraiment
@@ -1969,7 +1973,7 @@ function afficherCapsule(restant, label = "") {
   CAPSULE_TMR = setInterval(() => {
     const r = (+cap.dataset.left || 0) - 1;
     cap.dataset.left = String(r);
-    if (r <= 0) { try { navigator.vibrate?.([120, 60, 120]); } catch (e) {} masquerCapsule(); toast("Repos terminé — série suivante"); return; }
+    if (r <= 0) { try { if (Etat.data.reglages.vibrations !== false) navigator.vibrate?.([120, 60, 120]); } catch (e) {} masquerCapsule(); toast("Repos terminé — série suivante"); return; }
     maj();
   }, 1000);
 }
@@ -2046,7 +2050,7 @@ function guideValider(charge, valeur, enTemps) {
   if (valeur !== "") { if (enTemps) s.dureeSec = +valeur; else s.reps = String(valeur); }
   s.done = true;
   persistLive(); majProgressionSeance();
-  try { navigator.vibrate?.(20); } catch (e) {}
+  try { if (Etat.data.reglages.vibrations !== false) navigator.vibrate?.(20); } catch (e) {}
   const t = cur.e.series.find((x) => x.type === "travail") || cur.e.series[0];
   const repos = (t && t.reposSec) || 60;
   const encore = guideAvancer();
@@ -2159,7 +2163,7 @@ function guideRenderRepos(g, cur) {
     fg.style.strokeDashoffset = String(653 * (1 - GUIDE.left / GUIDE.total));
     ring.classList.toggle("urgent", GUIDE.left <= 10);
   };
-  const fini = () => { if (GUIDE.tmr) clearInterval(GUIDE.tmr); GUIDE.tmr = null; GUIDE.phase = "work"; try { navigator.vibrate?.([120, 60, 120]); } catch (e) {} guideRender(); };
+  const fini = () => { if (GUIDE.tmr) clearInterval(GUIDE.tmr); GUIDE.tmr = null; GUIDE.phase = "work"; try { if (Etat.data.reglages.vibrations !== false) navigator.vibrate?.([120, 60, 120]); } catch (e) {} guideRender(); };
   draw();
   GUIDE.tmr = setInterval(() => { GUIDE.left--; if (GUIDE.left <= 0) { fini(); return; } draw(); }, 1000);
   rest.querySelector("#gPlus").addEventListener("click", () => { GUIDE.left += 15; GUIDE.total = Math.max(GUIDE.total, GUIDE.left); draw(); });
@@ -2202,7 +2206,7 @@ function seqAvancer(delta) {
 function seqFini() {
   const cb = SEQ?.onFin;
   seqFermer(false);
-  try { navigator.vibrate?.([120, 60, 120]); } catch (e) {}
+  try { if (Etat.data.reglages.vibrations !== false) navigator.vibrate?.([120, 60, 120]); } catch (e) {}
   toast(cb ? "Étirements terminés — bien joué 🧘" : "Échauffement terminé — bonne séance 💪");
   if (cb) cb();
 }
@@ -2256,6 +2260,98 @@ function seqRender() {
 }
 
 
+
+
+/* ======================================================================
+   ÉTATS DE L'APPLICATION — hors ligne, mise à jour disponible
+   ====================================================================== */
+
+/** Bandeau discret quand la connexion est perdue. L'app fonctionne hors ligne :
+ *  le message rassure au lieu d'alarmer. */
+function majEtatReseau() {
+  let el = document.getElementById("netBar");
+  if (navigator.onLine) { el?.remove(); return; }
+  if (el) return;
+  el = h(`<div id="netBar" class="netbar" role="status">Hors ligne — tes séances continuent d'être enregistrées sur cet appareil.</div>`);
+  document.body.append(el);
+}
+window.addEventListener("online", majEtatReseau);
+window.addEventListener("offline", majEtatReseau);
+
+/** Invite à recharger quand une nouvelle version est prête (service worker). */
+function proposerMiseAJour() {
+  if (document.getElementById("updBar")) return;
+  const el = h(`<div id="updBar" class="updbar" role="status"><span>Nouvelle version disponible</span><button class="chip">Mettre à jour</button></div>`);
+  el.querySelector("button").addEventListener("click", () => location.reload());
+  document.body.append(el);
+}
+window.addEventListener("coachperso:maj", proposerMiseAJour);
+
+/* ======================================================================
+   RESSENTI DE FIN DE SÉANCE
+   Petit correctif subjectif sur l'état musculaire. Volontairement borné :
+   il module de ±12 points au maximum et ne peut jamais écraser les données
+   d'entraînement réelles.
+   ====================================================================== */
+
+const RESSENTIS = [
+  { v: -1, nom: "Très frais", ic: "◕" },
+  { v: -0.4, nom: "Bien", ic: "◑" },
+  { v: 0.4, nom: "Fatigué", ic: "◔" },
+  { v: 1, nom: "Très fatigué", ic: "○" },
+];
+
+/**
+ * Impact musculaire de la séance qui vient d'être réalisée, et prochaine étape.
+ * Ferme la boucle : on voit ce qu'on a travaillé et ce que le moteur prévoit.
+ */
+function blocImpactSeance(log) {
+  const c = h(`<div class="card stack" style="margin-top:12px"></div>`);
+  c.append(h(`<div class="eyebrow">Impact de cette séance</div>`));
+  const { parMuscle } = analyserSeance(log, getExercise);
+  const lignes = Object.entries(parMuscle)
+    .map(([m, e]) => ({ m, s: e.stress }))
+    .sort((a, b) => b.s - a.s).slice(0, 5);
+  if (!lignes.length) {
+    c.append(h(`<div class="muted small">Aucune série enregistrée.</div>`));
+    return c;
+  }
+  const max = lignes[0].s || 1;
+  lignes.forEach((l) => {
+    c.append(h(`<div class="impact-row"><div class="spread small"><span>${esc(LABELS_MOTEUR[l.m] || l.m)}</span><span class="muted">${l.s.toFixed(1)} séries éq.</span></div>
+      <div class="bar" style="height:6px;margin-top:4px"><div style="width:${Math.round((l.s / max) * 100)}%"></div></div></div>`));
+  });
+  // Prochaine étape : le moteur a déjà recalculé.
+  const gen = calculerAuto();
+  const suite = gen.repos
+    ? "Repos conseillé — l'ensemble du corps est encore en récupération."
+    : `${gen.nom} · ${gen.exercices.length} exercices · ~${gen.dureeEstimee} min`;
+  c.append(h(`<div class="notice small" style="margin-top:8px"><b>Prochaine séance :</b> ${esc(suite)}</div>`));
+  return c;
+}
+
+/** Rangée de choix du ressenti, ajoutée à l'écran de fin de séance. */
+function blocRessenti() {
+  const c = h(`<div class="card stack" style="margin-top:14px"></div>`);
+  c.append(h(`<div class="spread"><b>Comment te sens-tu ?</b><span class="muted small">optionnel</span></div>`));
+  c.append(h(`<div class="muted small">Ajuste légèrement l'estimation de récupération. Tes séries enregistrées restent la référence.</div>`));
+  const row = h(`<div class="ressenti-row"></div>`);
+  const actuel = Etat.data.reglages.ressenti ?? 0;
+  RESSENTIS.forEach((r) => {
+    const b = h(`<button class="ressenti ${actuel === r.v ? "on" : ""}"><span>${r.ic}</span><b>${esc(r.nom)}</b></button>`);
+    b.addEventListener("click", () => {
+      Etat.data.reglages.ressenti = Etat.data.reglages.ressenti === r.v ? 0 : r.v;
+      Etat.sauver();
+      row.querySelectorAll("button").forEach((x) => x.classList.remove("on"));
+      if (Etat.data.reglages.ressenti === r.v) b.classList.add("on");
+      AUTO = null; // forcer le recalcul de la prochaine séance
+      try { navigator.vibrate?.(12); } catch (e) {}
+    });
+    row.append(b);
+  });
+  c.append(row);
+  return c;
+}
 
 /* ======================================================================
    COMPOSANTS DE SÉANCE — vignette, badges musculaires, alternatives rapides
@@ -3879,6 +3975,25 @@ function vSet(v) {
       toast("Programme régénéré 💪"); render();
     });
     c.append(bRegen);
+    b.append(c);
+  });
+
+  // Réglages d'entraînement : mode automatique, retour haptique.
+  section(v, "p-moteur", "Séance automatique", (b) => {
+    const c = h(`<div class="card stack"></div>`);
+    const on = Etat.data.reglages.moteurAuto !== false;
+    c.append(h(`<div class="muted small">Quand il est actif, l'application analyse ta récupération et construit la prochaine séance à ta place. Ton programme reste disponible dans son onglet.</div>`));
+    const bt = h(`<button class="big ${on ? "primary" : "secondary"}">${on ? "Mode automatique actif" : "Activer le mode automatique"}</button>`);
+    bt.addEventListener("click", () => {
+      Etat.data.reglages.moteurAuto = !on; Etat.sauver();
+      toast(on ? "Mode automatique désactivé" : "Mode automatique activé");
+      render();
+    });
+    c.append(bt);
+    c.append(h(`<div class="spread" style="margin-top:10px"><span class="small">Retour haptique (vibrations)</span></div>`));
+    c.append(chipsInline([[true, "Activé"], [false, "Désactivé"]],
+      (val) => (Etat.data.reglages.vibrations !== false) === val,
+      (val) => { Etat.data.reglages.vibrations = val; Etat.sauver(); }));
     b.append(c);
   });
 
