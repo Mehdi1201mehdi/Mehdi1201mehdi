@@ -576,6 +576,42 @@ body.guide-open{overflow:hidden}
 .menu-sheet .plusitem.danger .pm-ic{background:color-mix(in srgb,var(--danger) 16%,transparent);color:var(--danger)}
 .menu-sheet .plusitem.on .pm-ic{background:var(--accent-soft);color:var(--accent)}
 
+/* ---- Séance : vignette, badges musculaires, alternatives ---- */
+.exo-tete{display:flex;align-items:flex-start;gap:11px}
+.exo-vign{position:relative;flex:0 0 auto;width:52px;height:52px;padding:5px;border-radius:14px;
+  background:var(--surface-2);border:1px solid var(--hair);display:grid;place-items:center;min-height:52px}
+.exo-vign .mini-silhouette{width:100%;height:100%;display:block}
+.exo-matos{position:absolute;right:-4px;bottom:-4px;width:20px;height:20px;border-radius:7px;
+  background:var(--accent);color:var(--on-accent);display:grid;place-items:center;border:2px solid var(--surface)}
+.exo-matos svg{width:11px;height:11px;display:block}
+.exo-titre{flex:1;min-width:0}
+.exo-titre h3{margin:0;font-size:1rem;line-height:1.25;letter-spacing:-.01em}
+.exo-vol{flex:0 0 auto;align-self:flex-start}
+.mbadges{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.mbadge{padding:3px 8px;min-height:auto;border-radius:999px;font-size:.66rem;font-weight:700;
+  background:var(--surface-2);border:1px solid var(--hair);color:var(--ink-soft)}
+.mbadge.on{background:var(--accent-soft);border-color:transparent;color:var(--accent-ink)}
+.exometa .cic{margin-right:4px;opacity:.7}
+/* Alternatives « machine occupée » */
+.alt-row{display:flex;align-items:center;gap:11px;padding:11px}
+.alt-v{position:relative;flex:0 0 auto;width:44px;height:44px;padding:4px;border-radius:12px;
+  background:var(--surface-2);display:grid;place-items:center}
+.alt-v .mini-silhouette{width:100%;height:100%;display:block}
+.alt-g{flex:1;min-width:0}
+/* Capsule de repos persistante */
+.restcap{position:fixed;right:14px;z-index:65;display:none;align-items:center;gap:7px;
+  bottom:calc(84px + env(safe-area-inset-bottom));padding:10px 15px;border-radius:999px;min-height:44px;
+  background:var(--accent);color:var(--on-accent);border:0;font-weight:800;
+  box-shadow:0 8px 24px color-mix(in srgb,var(--accent) 40%,transparent)}
+.restcap.show{display:inline-flex;animation:popIn .25s var(--ease) both}
+.restcap .cic{width:15px;height:15px;margin:0}
+.restcap b{font-variant-numeric:tabular-nums;font-size:.95rem}
+.restcap.urgent{background:var(--danger);box-shadow:0 8px 24px color-mix(in srgb,var(--danger) 45%,transparent)}
+@media (prefers-reduced-motion: reduce){.restcap.show{animation:none}}
+/* Silhouette interactive */
+.sil-inter g[data-m]{cursor:pointer}
+.sil-inter .bodysvg{touch-action:manipulation}
+
 /* ---- Moteur automatique : carte corps + prochaine séance ---- */
 .moteur{border-color:color-mix(in srgb,var(--accent) 26%,var(--hair));
   background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 7%,var(--surface)),var(--surface))}

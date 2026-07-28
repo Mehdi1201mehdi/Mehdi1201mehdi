@@ -115,5 +115,5 @@ de l'utilisateur.**
 - `docs/DESIGN_SYSTEM.md` — tokens, typographie, composants.
 - `docs/TECH_STACK.md` — dépendances et décisions (pourquoi pas de React/GSAP/Recharts).
 - `docs/ASSET_SOURCES.md` — provenance et licences des assets.
-- `docs/ARCHITECTURE.md`, `docs/INTEGRATIONS.md` — détail moteur & intégrations.
+- `docs/APP_ARCHITECTURE.md`, `docs/INTEGRATIONS.md` — détail moteur & intégrations.
 - `.claude/skills/` — design-guard, fitness-ui, visual-audit.

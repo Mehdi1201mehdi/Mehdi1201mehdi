@@ -41,6 +41,10 @@ serveur ; le futur coach IA passera par un proxy serveur (aucune clé dans l'app
 | Force / powerlifting | `src/engine/powerlifting.js` |
 | Sauvegarde, export | `src/engine/backup.js`, `export.js` |
 | Anatomie (SVG) | `src/ui/anatomy.js`, `src/data/anatomy-paths.js` |
+| Moteur automatique — fatigue et récupération | `src/engine/fatigue.js` |
+| Moteur automatique — planification | `src/engine/planner.js` |
+| Taxonomie musculaire fine (18 groupes) | `src/data/muscles-moteur.js` |
+| Coefficients musculaires des exercices | `src/data/exercise-muscle-map.js` |
 | Interface, PWA | `src/ui/app.js`, `index.html`, `style.css`, `sw.js`, `manifest.webmanifest` |
 | Coach IA **facultatif** | `src/integrations/coachIA.js` — désactivé par défaut, voir plus bas |
 
@@ -55,6 +59,11 @@ Catalogue, Programme Anatoly, Coach, Outils de calcul.
 
 Composants transverses :
 - `section()` — section repliable (Progrès, Profil), état mémorisé en mémoire.
+- `vignetteExo()` / `badgesMuscles()` — identification rapide d'un exercice
+  pendant la séance (silhouette + matériel en 52 px, muscles en badges).
+- `machineOccupee()` — alternatives immédiates classées par compatibilité.
+- Capsule de repos persistante (`#restCap`) : réduire le minuteur ne l'arrête
+  pas, le décompte continue pendant la saisie.
 - Feuilles plein écran (`.sheet`) — détail d'exercice, Coach, Outils,
   bibliothèque de programmes, menu d'actions d'un exercice en séance.
 - Mode guidé (`.guide`) — lecteur de séance pas à pas et séquences de
@@ -95,6 +104,7 @@ IndexedDB (`src/store/db.js`) avec **miroir localStorage**, clé
 | `foodlog{}` / `waterlog{}` | `"YYYY-MM-DD"` → aliments / millilitres |
 | `reviews[]` | bilans d'ajustement |
 | `testsVelo[]` | relevés du test cardio sur vélo |
+| `seanceAuto` | dernière séance générée par le moteur automatique |
 | `mediaCache{}` | `exId` → URL de média résolue |
 | `reglages` | thème, unités, sons, vibrations, pouls de repos, morphotype, coach IA |
 

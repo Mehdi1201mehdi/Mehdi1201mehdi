@@ -77,7 +77,7 @@ import { PROGRAMMES_SALLE } from "../data/programmes-salle.js";
 import { CLES_MOTEUR, LABELS_MOTEUR, DEF_MOTEUR, FIN_VERS_CATALOGUE } from "../data/muscles-moteur.js";
 import { coefficientsPour } from "../data/exercise-muscle-map.js";
 import { etatMusculaire, zoneDisponibilite, cibleVolumeHebdo } from "../engine/fatigue.js";
-import { genererProchaineSeance, resumeCorps, PLAN_PARAMS } from "../engine/planner.js";
+import { genererProchaineSeance, resumeCorps, compatibiliteExercice, PLAN_PARAMS } from "../engine/planner.js";
 import { grilleMois, moisAdjacent, NOMS_JOURS_COURTS } from "../engine/calendar.js";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -1601,12 +1601,22 @@ function carteExoLive(e) {
   const sug = recommander(st.exId, plage, derniere || null, avant || null);
   const enTemps = !!st.series[0]?.dureeSec;
   const c = h(`<div class="card stack exocard"></div>`);
-  c.append(h(`<div class="spread"><h3 style="margin:0">${esc(exo.nom)}</h3><span class="pill">${st.series.length} × ${enTemps ? (st.series[0].dureeSec + " s") : (plage[0] + "–" + plage[1])}</span></div>`));
-  // Une SEULE ligne de contexte : muscle · repos · charge conseillée.
-  // Le détail du conseil est accessible d'un tap (on ne lit pas un paragraphe
-  // entre deux séries), et « dernière fois » est déjà dans la colonne Précédent.
-  const metaTxt = `${(exo.musclesPrincipaux || []).map((m) => MUSCLE_LABELS[m] || m).join(", ")} · repos ${t?.reposSec || 60}s`
-    + (sug.chargeKg ? ` · conseil <b class="sug">~${sug.chargeKg} kg</b>` : "");
+
+  // En-tête : vignette 52 px + nom + badges musculaires. La vignette ouvre la
+  // fiche (démonstration, technique) sans occuper la moitié de l'écran.
+  const tete = h(`<div class="exo-tete"></div>`);
+  const vign = h(`<button class="exo-vign" aria-label="Voir la démonstration de ${esc(exo.nom)}">${vignetteExo(exo)}</button>`);
+  vign.addEventListener("click", () => ouvrirDetail(exo));
+  const titre = h(`<div class="exo-titre"><h3>${esc(exo.nom)}</h3></div>`);
+  titre.append(badgesMuscles(exo));
+  tete.append(vign, titre, h(`<span class="pill exo-vol">${st.series.length} × ${enTemps ? (st.series[0].dureeSec + " s") : (plage[0] + "–" + plage[1])}</span>`));
+  c.append(tete);
+
+  // Ligne de contexte unique, dépliable : repos, charge conseillée, objectif.
+  const objectif = !enTemps && sug.chargeKg
+    ? `${sug.chargeKg} kg × ${plage[0]}–${plage[1]}` : null;
+  const metaTxt = `<span class="cic">${IC.clock}</span>repos ${formatRepos(t?.reposSec || 60)}`
+    + (objectif ? ` · <span class="cic">${IC.dumbbell}</span>objectif <b class="sug">${objectif}</b>` : "");
   const meta = h(`<button class="exometa muted small" aria-expanded="false">${metaTxt}<span class="cic exometa-i">${IC.info}</span></button>`);
   const conseil = h(`<div class="notice small" hidden>${esc(sug.message)}</div>`);
   meta.addEventListener("click", () => {
@@ -1670,6 +1680,12 @@ function carteExoLive(e) {
   }
   // Actions secondaires (démo, RIR, douleur, remplacer, retirer) : regroupées
   // derrière un menu. Pendant une séance, on ne veut qu'une rangée d'actions.
+  // « Machine occupée » : le cas le plus fréquent en salle. Un tap propose
+  // immédiatement les alternatives compatibles, sans passer par un menu.
+  const bOcc = h(`<button class="chip"><span class="cic">${IC.swap}</span>Machine occupée</button>`);
+  bOcc.addEventListener("click", () => machineOccupee(e.exerciceId, exo));
+  serieActs.append(bOcc);
+
   const bMenu = h(`<button class="chip exomenu" aria-label="Autres actions pour ${esc(exo.nom)}">⋯</button>`);
   if (st.douleur) bMenu.classList.add("danger");
   bMenu.addEventListener("click", () => menuExoLive(e, exo, st));
@@ -1880,11 +1896,55 @@ function startTimer(sec, label = "") {
   TMR = setInterval(() => { left--; if (left <= 0) { if (ann) ann.textContent = "Repos terminé, série suivante"; stopTimer(); try { navigator.vibrate?.([120, 60, 120]); } catch (e) {} return; } draw(); }, 1000);
   $("#ovPlus").onclick = () => { left += 15; total = Math.max(total, left); draw(); };
   $("#ovMinus").onclick = () => { left = Math.max(1, left - 15); draw(); };
-  $("#ovSkip").onclick = stopTimer;
-  // Un tap sur le fond ferme le minuteur (pour revenir à « Terminer » facilement).
-  ov.onclick = (e) => { if (e.target === ov) stopTimer(); };
+  $("#ovSkip").onclick = stopTimer; // « Passer le repos » arrête vraiment
+  // Un tap sur le fond RÉDUIT le minuteur : il continue dans une capsule, ce
+  // qui permet de saisir la série suivante sans perdre le décompte.
+  ov.onclick = (e) => {
+    if (e.target !== ov) return;
+    clearInterval(TMR); TMR = null;
+    $("#overlay").classList.remove("show");
+    $("#overlay .ring")?.classList.remove("urgent");
+    if (left > 0) afficherCapsule(left, label);
+  };
 }
-function stopTimer() { clearInterval(TMR); $("#overlay").classList.remove("show"); $("#overlay .ring")?.classList.remove("urgent"); }
+function stopTimer() {
+  clearInterval(TMR); TMR = null;
+  $("#overlay").classList.remove("show");
+  $("#overlay .ring")?.classList.remove("urgent");
+  masquerCapsule();
+}
+
+/* ---------- capsule de repos persistante ----------
+   Réduire le minuteur ne doit pas l'arrêter : on continue à voir le temps
+   restant tout en saisissant la série suivante ou en changeant d'écran. */
+let CAPSULE_TMR = null;
+function afficherCapsule(restant, label = "") {
+  let cap = document.getElementById("restCap");
+  if (!cap) {
+    cap = h(`<button id="restCap" class="restcap" aria-label="Reprendre le minuteur de repos"><span class="cic">${IC.clock}</span><b class="num"></b></button>`);
+    cap.addEventListener("click", () => { const r = +cap.dataset.left || 0; masquerCapsule(); if (r > 0) startTimer(r, cap.dataset.label || ""); });
+    document.body.append(cap);
+  }
+  cap.dataset.label = label;
+  const maj = () => {
+    const r = Math.max(0, +cap.dataset.left || 0);
+    cap.querySelector("b").textContent = `${Math.floor(r / 60)}:${String(r % 60).padStart(2, "0")}`;
+    cap.classList.toggle("urgent", r <= 10);
+  };
+  cap.dataset.left = String(restant);
+  cap.classList.add("show"); maj();
+  clearInterval(CAPSULE_TMR);
+  CAPSULE_TMR = setInterval(() => {
+    const r = (+cap.dataset.left || 0) - 1;
+    cap.dataset.left = String(r);
+    if (r <= 0) { try { navigator.vibrate?.([120, 60, 120]); } catch (e) {} masquerCapsule(); toast("Repos terminé — série suivante"); return; }
+    maj();
+  }, 1000);
+}
+function masquerCapsule() {
+  clearInterval(CAPSULE_TMR); CAPSULE_TMR = null;
+  document.getElementById("restCap")?.classList.remove("show");
+}
 
 /* ======================================================================
    LECTEUR DE SÉANCE GUIDÉ (plein écran, pas à pas)
@@ -2164,6 +2224,104 @@ function seqRender() {
 }
 
 
+
+/* ======================================================================
+   COMPOSANTS DE SÉANCE — vignette, badges musculaires, alternatives rapides
+   ====================================================================== */
+
+/** Icône de matériel, pour identifier un exercice d'un coup d'œil. */
+const IC_MATOS = {
+  barre: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h18M6 8v8M18 8v8M2 10v4M22 10v4"/></svg>`,
+  halteres: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 7v10M18 7v10M4 9v6M20 9v6M6 12h12"/></svg>`,
+  poulie: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="2.5"/><path d="M12 7.5V15M8 19h8M9 15h6v4H9z"/></svg>`,
+  machine: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="16" height="12" rx="2"/><path d="M8 20h8M12 16v4M8 8h8M8 12h5"/></svg>`,
+  corps: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="4.5" r="2.5"/><path d="M12 7v7M7 9l5 2 5-2M9 21l3-7 3 7"/></svg>`,
+};
+
+/**
+ * Vignette d'exercice (52 px) : silhouette du muscle principal + icône de
+ * matériel. Générée localement, donc instantanée et disponible hors ligne —
+ * là où une image distante mettrait du temps et occuperait tout l'écran.
+ */
+function vignetteExo(exo) {
+  const muscles = (exo.musclesPrincipaux || []).slice(0, 2);
+  const eq = exo.equipement || [];
+  let matos = "corps";
+  if (eq.includes("barre") || eq.includes("barre_ez")) matos = "barre";
+  else if (eq.includes("halteres") || eq.includes("kettlebell")) matos = "halteres";
+  else if (eq.includes("poulie") || eq.includes("elastiques")) matos = "poulie";
+  else if (eq.includes("machine_leviers") || eq.includes("machine_guidee") || eq.includes("smith")) matos = "machine";
+  return `${muscles.length ? miniSilhouette(muscles) : ""}<span class="exo-matos" aria-hidden="true">${IC_MATOS[matos]}</span>`;
+}
+
+/**
+ * Badges des muscles travaillés : principal en accent, secondaires en discret.
+ * Un appui explique le rôle de chacun — plus lisible qu'une phrase.
+ */
+function badgesMuscles(exo) {
+  const box = h(`<div class="mbadges"></div>`);
+  const princ = (exo.musclesPrincipaux || []).slice(0, 2);
+  const sec = (exo.musclesSecondaires || []).slice(0, 2);
+  princ.forEach((m) => {
+    const b = h(`<button class="mbadge on">${esc(MUSCLE_LABELS[m] || m)}</button>`);
+    b.addEventListener("click", (ev) => { ev.stopPropagation(); toast(`${MUSCLE_LABELS[m] || m} — muscle principal`); });
+    box.append(b);
+  });
+  sec.forEach((m) => {
+    const b = h(`<button class="mbadge">${esc(MUSCLE_LABELS[m] || m)}</button>`);
+    b.addEventListener("click", (ev) => { ev.stopPropagation(); toast(`${MUSCLE_LABELS[m] || m} — muscle secondaire`); });
+    box.append(b);
+  });
+  return box;
+}
+
+/**
+ * « Machine occupée » : propose immédiatement les meilleures alternatives,
+ * classées par compatibilité avec l'état musculaire courant et étiquetées
+ * (même muscle, moins de charge lombaire, sur machine…).
+ */
+function machineOccupee(exerciceId, exo) {
+  const seance = trouverSeance(LIVE.seanceId);
+  const presents = (seance?.exercices || []).map((x) => x.exerciceId);
+  const alts = alternatives(exerciceId, Etat.data.profil, presents);
+  const etat = (AUTO && AUTO.etat) || etatMusculaire(Etat.data.logs || [], getExercise, Date.now());
+
+  const sheet = h(`<div class="sheet menu-sheet"><div class="inner"></div></div>`);
+  const inner = sheet.querySelector(".inner");
+  const fermer = () => sheet.remove();
+  inner.append(h(`<div class="sheet-top"><h2 style="margin:0;font-size:1.1rem">Machine occupée</h2><button class="chip" id="oX">✕</button></div>`));
+  inner.append(h(`<div class="muted small">Alternatives à « ${esc(exo.nom)} » réalisables avec ton matériel, classées par compatibilité avec ton état actuel.</div>`));
+
+  if (!alts.length) {
+    inner.append(h(`<div class="notice small" style="margin-top:12px">Aucune alternative compatible avec ton matériel. Tu peux passer cet exercice ou attendre.</div>`));
+  } else {
+    const notes = alts.map((a) => ({ a, c: compatibiliteExercice(a.exercice, etat) }))
+      .sort((x, y) => y.c.score - x.c.score);
+    notes.forEach(({ a, c }) => {
+      const row = h(`<button class="card tap alt-row" style="width:100%;text-align:left;margin-top:9px">
+        <span class="alt-v">${vignetteExo(a.exercice)}</span>
+        <span class="alt-g"><b>${esc(a.exercice.nom)}</b><br><span class="muted small">${esc(a.etiquette)}</span></span>
+        <span class="badge ${c.score >= 80 ? "ok" : c.score >= 60 ? "accent" : "amber"}">${c.score} %</span></button>`);
+      row.addEventListener("click", () => {
+        fermer();
+        // Remplacement dans la séance ET dans l'état live, saisies conservées.
+        const ex = seance.exercices.find((x) => x.exerciceId === exerciceId);
+        if (ex) { ex.exerciceId = a.exercice.id; ex.justification = `Machine occupée — remplacé par ${a.exercice.nom}`; }
+        const anc = LIVE.data[exerciceId];
+        delete LIVE.data[exerciceId];
+        LIVE.data[a.exercice.id] = { ...anc, exId: a.exercice.id };
+        persistLive(true);
+        toast(`Remplacé par ${a.exercice.nom}`);
+        render();
+      });
+      inner.append(row);
+    });
+  }
+  sheet.querySelector("#oX").addEventListener("click", fermer);
+  sheet.addEventListener("click", (ev) => { if (ev.target === sheet) fermer(); });
+  document.body.append(sheet);
+}
+
 /* ======================================================================
    MOTEUR AUTOMATIQUE — état musculaire et prochaine séance
    Toute la logique vit dans engine/fatigue.js et engine/planner.js (pur,
@@ -2332,6 +2490,32 @@ function ouvrirDetailAuto(gen) {
   document.body.append(sheet);
 }
 
+/** Fiche d'un muscle : disponibilité, dernière sollicitation, volume. */
+function detailMuscle(cle, etat, profil) {
+  const m = etat[cle];
+  if (!m) return;
+  const z = zoneDisponibilite(m.readiness);
+  const cible = cibleVolumeHebdo(cle, profil.niveau || "intermediaire", DEF_MOTEUR);
+  const dernier = m.lastDirectTraining || m.lastIndirectTraining;
+  const jours = dernier ? (Date.now() - dernier) / 864e5 : null;
+  const quand = jours == null ? "jamais" : jours < 1 ? "aujourd'hui" : jours < 2 ? "hier" : `il y a ${Math.round(jours)} jours`;
+  const sheet = h(`<div class="sheet menu-sheet"><div class="inner"></div></div>`);
+  const inner = sheet.querySelector(".inner");
+  inner.append(h(`<div class="sheet-top"><h2 style="margin:0;font-size:1.15rem">${esc(LABELS_MOTEUR[cle])}</h2><button class="chip" id="dmX">✕</button></div>`));
+  inner.append(h(`<div class="out-big"><b class="num" style="color:${couleurDispo(m.readiness)}">${Math.round(m.readiness)} %</b><span>Disponibilité estimée · ${esc(z.nom)}</span></div>`));
+  inner.append(h(`<div class="bar" style="margin-bottom:14px"><div style="width:${Math.round(m.readiness)}%;background:${couleurDispo(m.readiness)}"></div></div>`));
+  const g = h(`<div class="statgrid"></div>`);
+  g.append(statCard(IC.calendar, quand, "Dernière sollicitation"));
+  g.append(statCard(IC.bars, `${m.weeklyEquivalentSets}`, `Séries / ${cible}`));
+  g.append(statCard(IC.dumbbell, `${m.weeklyDirectSets}`, "Dont directes"));
+  g.append(statCard(IC.repeat, `${m.weeklyIndirectSets}`, "Indirectes"));
+  inner.append(g);
+  inner.append(h(`<div class="hint">Disponibilité et récupération sont des <b>estimations de programmation</b> calculées depuis tes séances (volume, proximité de l'échec, temps écoulé). Ce ne sont pas des mesures physiologiques.</div>`));
+  sheet.querySelector("#dmX").addEventListener("click", () => sheet.remove());
+  sheet.addEventListener("click", (ev) => { if (ev.target === sheet) sheet.remove(); });
+  document.body.append(sheet);
+}
+
 /** Écran « État musculaire » : les 18 groupes, barres + silhouettes. */
 function ouvrirEtatMusculaire() {
   const gen = AUTO || calculerAuto();
@@ -2351,8 +2535,20 @@ function ouvrirEtatMusculaire() {
   }
   const intensites = {};
   for (const [cat, r] of Object.entries(parCat)) intensites[cat] = (100 - r) / 100;
-  inner.append(h(`<div class="card" style="margin:12px 0">${muscleHeatmap(intensites)}
-    <div class="muted small" style="text-align:center;margin-top:6px">Plus une zone est vive, plus elle est sollicitée</div></div>`));
+  const carte = h(`<div class="card sil-inter" style="margin:12px 0">${muscleHeatmap(intensites)}
+    <div class="muted small" style="text-align:center;margin-top:6px">Touche un muscle pour voir son état</div></div>`);
+  // Silhouette INTERACTIVE : chaque groupe du SVG porte son identifiant, on
+  // remonte au groupe fin le plus sollicité pour ouvrir son détail.
+  carte.addEventListener("click", (ev) => {
+    const g = ev.target.closest("g[data-m]");
+    if (!g) return;
+    const cat = g.getAttribute("data-m");
+    const fins = CLES_MOTEUR.filter((c) => FIN_VERS_CATALOGUE[c] === cat);
+    if (!fins.length) return;
+    const pire = fins.sort((a, b) => etat[a].readiness - etat[b].readiness)[0];
+    detailMuscle(pire, etat, p);
+  });
+  inner.append(carte);
 
   // Liste triée par disponibilité croissante : ce qui récupère en premier
   const rows = CLES_MOTEUR.map((cle) => ({ cle, ...etat[cle] })).sort((a, b) => a.readiness - b.readiness);
@@ -2365,6 +2561,8 @@ function ouvrirEtatMusculaire() {
       <div class="bar msc-bar"><div style="width:${Math.round(m.readiness)}%;background:${couleurDispo(m.readiness)}"></div></div>
       <div class="spread muted" style="font-size:.7rem;margin-top:3px"><span>${esc(z.nom)}</span><span>${m.weeklyEquivalentSets}/${cible} séries cette semaine</span></div>
     </div>`);
+    row.classList.add("tap");
+    row.addEventListener("click", () => detailMuscle(m.cle, etat, p));
     liste.append(row);
   });
   inner.append(liste);

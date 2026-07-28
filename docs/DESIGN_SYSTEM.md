@@ -92,6 +92,21 @@ Thème clair : voir `:root[data-theme="light"]`. Anatomie : `--anat-body/-line/-
 - `.coach-fil` / `.coach-bulle` / `.coach-barre` — fil de discussion du Coach.
 - `.pgm-card` / `.filtres-pgm` — bibliothèque de programmes et ses filtres.
 
+### Composants de séance (refonte produit)
+
+- `.exo-tete` / `.exo-vign` / `.exo-matos` — vignette d'exercice **52 px** :
+  silhouette du muscle principal + pastille de matériel. Générée localement
+  (instantanée, hors ligne) plutôt qu'une grande image distante qui occuperait
+  la moitié de l'écran. Un tap ouvre la fiche complète.
+- `.mbadges` / `.mbadge` — muscles en badges, principal en accent. Un appui
+  indique le rôle. Remplace une phrase à lire.
+- `.alt-row` — alternative d'exercice (« machine occupée ») : vignette + nom +
+  étiquette + score de compatibilité.
+- `.restcap` — capsule de repos persistante, en bas à droite au-dessus de la
+  barre de navigation. Réduire le minuteur ne l'arrête pas.
+- `.sil-inter` — silhouette interactive : chaque groupe SVG porte `data-m`,
+  un tap ouvre la fiche du muscle.
+
 ## Règles de densité (refonte UX)
 
 Mesurées à 390 px, hauteur de page. Une page qui dépasse **~2,5 écrans** doit
