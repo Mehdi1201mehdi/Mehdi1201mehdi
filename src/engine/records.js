@@ -76,6 +76,7 @@ export function classementRecords(logs, resoudreNom = (id) => id, n = 8) {
 export function detecterRecords(logsAnterieurs, nouveauLog, resoudreNom = (id) => id) {
   const histo = meilleursParExercice(logsAnterieurs);
   const actuel = meilleursParExercice([nouveauLog]);
+  /** @type {{exerciceId:string, nom:string, type:"1rm"|"poids"|"reps", valeur:number, ancien:number}[]} */
   const out = [];
   for (const exId of Object.keys(actuel)) {
     const a = actuel[exId];

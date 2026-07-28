@@ -23,6 +23,7 @@ const LANG_EN = 2; // identifiant de langue "English" chez wger
 /* ---------- mapping référentiels (par mots-clés du nom, robuste aux ids) ---------- */
 export function mapMuscle(nom) {
   const n = String(nom || "").toLowerCase();
+  /** @type {[RegExp, string][]} */
   const t = [
     [/pector/, "pectoraux"], [/latissimus|lats?\b/, "dorsaux"], [/trapez/, "trapezes"],
     [/deltoid|shoulder/, "epaules"], [/biceps femoris|hamstring|ischio/, "ischios"],
@@ -64,6 +65,7 @@ const CAT_DEFAUT = {
 /** Devine le patron biomécanique à partir du nom, avec repli sur la catégorie. */
 export function infererPatron(nom, categorie) {
   const n = String(nom || "").toLowerCase();
+  /** @type {[RegExp, string][]} */
   const rgx = [
     [/squat/, "squat"], [/deadlift|romanian|hip thrust|good morning|hip hinge/, "charniere_hanche"],
     [/lunge|split squat|step.?up/, "fente"], [/calf|calves/, "isolation_jambe"],

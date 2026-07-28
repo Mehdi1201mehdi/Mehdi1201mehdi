@@ -40,5 +40,16 @@ package npm n'est chargé par le navigateur en production.
 | Nom | Rôle | Licence |
 |---|---|---|
 | `playwright-core` | Smokes navigateur + captures d'audit visuel | Apache-2.0 |
+| `typescript` | `npm run typecheck` : vérification de types via JSDoc, sans compilation | Apache-2.0 |
+| `@types/node` | Types de `node:test`, `node:fs`… pour les tests et les scripts d'import | MIT |
 
 Chromium est pré-installé dans l'environnement (pas de téléchargement).
+
+**Aucune dépendance d'exécution.** Ces trois paquets ne sont utilisés qu'en
+développement : rien n'est installé, empaqueté ni téléchargé par le navigateur.
+`typecheck` lit les annotations JSDoc des fichiers `.js` — il ne produit aucun
+artefact, il n'y a donc toujours pas d'étape de build.
+
+Le typecheck doit rester à **zéro erreur** : c'est ainsi qu'on a trouvé
+l'appel à `estimerDureeSeance()` jamais importé dans `app.js`, qui faisait
+perdre silencieusement toute modification de séries dans une routine perso.

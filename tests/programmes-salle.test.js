@@ -52,7 +52,7 @@ test("PROGRAMMES_SALLE : métadonnées et volumes cohérents", () => {
     for (const s of p.seances) {
       assert.ok(s.nom && s.exercices.length, `${p.id}/${s.nom} : séance vide`);
       assert.ok(s.groupesCibles.length, `${p.id}/${s.nom} : aucun groupe ciblé`);
-      for (const m of s.groupesCibles) assert.ok(MUSCLES.includes(m), `${p.id} : groupe inconnu « ${m} »`);
+      for (const m of s.groupesCibles) assert.ok(/** @type {readonly string[]} */ (MUSCLES).includes(m), `${p.id} : groupe inconnu « ${m} »`);
       for (const ex of s.exercices) {
         assert.ok(ex.reps || ex.duree, `${p.id} → ${ex.ref} : ni répétitions ni durée`);
         if (ex.reps) {

@@ -48,6 +48,7 @@ test("utilisateur refusant les squats → aucun mouvement de patron 'squat'", ()
 });
 
 test("utilisateur sans banc → aucun exercice nécessitant un banc", () => {
+  /** @type {import("../src/models.js").Profil["equipements"]} */
   const equipements = ["poids_du_corps", "halteres", "barre", "rack", "poulie", "barre_traction", "machine_guidee", "machine_leviers"];
   const prog = genererProgramme(makeProfil({ equipements }));
   for (const e of tousExos(prog)) {

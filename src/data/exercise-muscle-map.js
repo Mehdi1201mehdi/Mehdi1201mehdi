@@ -187,6 +187,7 @@ export function facteurFatigue(exo) {
  */
 export function deriverCoefficients(exo) {
   if (!exo) return {};
+  /** @type {Record<string, number>} */
   const out = {};
   const ajouter = (cle, poids) => {
     if (!poids || IGNORES.has(cle)) return;

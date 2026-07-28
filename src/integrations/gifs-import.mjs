@@ -79,6 +79,7 @@ export function scoreJetons(a, b) {
  * dernier niveau couvre la grande majorité des exercices importés (wger).
  */
 export function construireMapping(catalogue, datasetIndex, gifIndex, rawBase, termeFn) {
+  /** @type {Record<string, string>} */
   const out = {};
   // Pré-calcul des jetons de chaque entrée du dataset (une seule fois).
   const idxJetons = [];

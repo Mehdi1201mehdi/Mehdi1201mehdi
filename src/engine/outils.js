@@ -56,6 +56,7 @@ export function tableZonesCardio(fcMax, fcRepos = null) {
 /* ===================== 2. BESOINS PAR MORPHOTYPE ===================== */
 
 /** Les trois morphotypes classiques. */
+/** @type {{cle:"ectomorphe"|"mesomorphe"|"endomorphe", nom:string, desc:string}[]} */
 export const MORPHOTYPES = [
   { cle: "ectomorphe", nom: "Ectomorphe", desc: "Filiforme, difficulté à prendre du poids." },
   { cle: "mesomorphe", nom: "Mésomorphe", desc: "Prend du muscle naturellement." },
@@ -97,7 +98,11 @@ export function macrosMorphotype(poidsKg, morphotype, objectif = "prise_masse") 
   return { prot, gluc, lip, kcal: prot * 4 + gluc * 4 + lip * 9 };
 }
 
-/** Toutes les combinaisons pour un poids donné (tableau comparatif). */
+/**
+ * Toutes les combinaisons pour un poids donné (tableau comparatif).
+ * @param {number} poidsKg
+ * @param {"prise_masse"|"seche"} [objectif]
+ */
 export function tableMorphotypes(poidsKg, objectif = "prise_masse") {
   return MORPHOTYPES.map((m) => ({ ...m, ...macrosMorphotype(poidsKg, m.cle, objectif) }));
 }
@@ -176,7 +181,8 @@ export function composition(poidsKg, adipositePct) {
  * Estimation du taux d'adiposité par la méthode des circonférences (US Navy),
  * utile quand on n'a pas de balance à impédance. Mesures en centimètres.
  * @param {"H"|"F"} sexe
- * @param {{tailleCm:number, tourTailleCm:number, tourCouCm:number, tourHanchesCm:number}} m
+ * @param {{tailleCm:number, tourTailleCm:number, tourCouCm:number, tourHanchesCm?:number}} m
+ *        `tourHanchesCm` n'est indispensable que pour la formule féminine.
  * @returns {number|null} pourcentage, ou null si les mesures sont insuffisantes
  */
 export function adipositeNavy(sexe, m) {

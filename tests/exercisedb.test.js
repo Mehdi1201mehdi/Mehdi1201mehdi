@@ -25,7 +25,7 @@ test("termePour mappe nos ids vers le vocabulaire ExerciseDB, avec repli sur le 
 });
 
 test("chercherDemonstration renvoie le GIF via un fetch simulé", async () => {
-  const fakeFetch = async () => ({ json: async () => ({ data: { exercises: [{ name: "Squat", gifUrl: "http://x/squat.gif" }] } }) });
+  const fakeFetch = /** @type {any} */ (async () => ({ json: async () => ({ data: { exercises: [{ name: "Squat", gifUrl: "http://x/squat.gif" }] } }) }));
   const res = await chercherDemonstration("squat-poids-du-corps", { fetchImpl: fakeFetch });
   assert.equal(res.gifUrl, "http://x/squat.gif");
 });

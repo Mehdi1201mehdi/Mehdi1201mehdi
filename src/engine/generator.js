@@ -196,6 +196,7 @@ function nbSeries(role, profil) {
 /** Construit les séries d'un exercice (avec échauffement pour les principaux). */
 function construireSeries(exo, role, profil) {
   const p = PRESCRIPTIONS[profil.objectif] || PRESCRIPTIONS.remise_forme;
+  /** @type {import("../models.js").SetTemplate[]} */
   const series = [];
   const enTemps = exo.repsPertinent[0] === 1 && exo.repsPertinent[1] === 1;
 

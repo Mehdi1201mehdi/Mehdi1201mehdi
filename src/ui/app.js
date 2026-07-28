@@ -30,7 +30,7 @@ import {
 import {
   creerRoutine, renommer, ajouterSeance, supprimerSeance, ajouterExercice,
   supprimerExerciceIndex, deplacerExercice, definirSeries, dupliquerRoutine,
-  seanceDepuisLog,
+  seanceDepuisLog, estimerDureeSeance,
 } from "../engine/routines.js";
 import { FORMULE_1RM, classementRecords, detecterRecords } from "../engine/records.js";
 import { construireExport, validerImport, appliquerImport, nomFichierBackup } from "../engine/backup.js";
@@ -85,11 +85,29 @@ import { grilleMois, moisAdjacent, NOMS_JOURS_COURTS } from "../engine/calendar.
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
-/* ---------- petits utilitaires DOM ---------- */
+/* ---------- petits utilitaires DOM ----------
+   `$` et `h` renvoient volontairement `any` : ce sont trois lignes de plomberie
+   DOM dont le résultat est aussitôt utilisé comme `<input>`, `<video>`, élément
+   porteur de propriétés maison… Les typer en `Element` obligerait à un cast à
+   chaque appel — du bruit sans bénéfice à l'exécution. La vérification de types
+   qui compte vit dans `src/engine/*` et `src/data/*`, qui sont purs et typés. */
+/** @type {(s: string, r?: ParentNode) => any} */
 const $ = (s, r = document) => r.querySelector(s);
 const view = $("#view");
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+/**
+ * Crée un élément depuis une chaîne HTML.
+ * @param {string} html
+ * @returns {any} l'élément racine
+ */
 function h(html) { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; }
+/**
+ * Branche un écouteur sur tous les descendants correspondant au sélecteur.
+ * @param {ParentNode} root
+ * @param {string} sel
+ * @param {string} ev
+ * @param {(e:any)=>void} fn
+ */
 function on(root, sel, ev, fn) { root.querySelectorAll(sel).forEach((n) => n.addEventListener(ev, fn)); }
 
 /* ---------- thème ---------- */
@@ -209,7 +227,7 @@ function animerStats(root) {
 window.addEventListener("popstate", (e) => {
   // 1) Une feuille est ouverte → le retour la ferme (et ré-affirme l'onglet
   //    courant pour ne pas naviguer en même temps).
-  const sh = document.querySelector(".sheet");
+  const sh = $(".sheet");
   if (sh) {
     if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
     if (typeof sh.__resolve === "function") sh.__resolve(sh.__cancel); // dialogue → renvoie l'annulation
@@ -897,6 +915,7 @@ function ouvrirBibliothequeProgrammes() {
   const liste = h(`<div class="stack" style="margin-top:10px"></div>`);
   const compteur = h(`<div class="spread" style="margin-top:10px"><span class="muted small" id="bibN"></span><button class="linklike" id="bibReset" hidden>Tout effacer</button></div>`);
 
+  /** @type {[string, string, [string, string][]][]} */
   const GROUPES = [
     ["objectif", "Objectif", [["prise_muscle", "Prise de muscle"], ["perte_graisse", "Perte de gras"], ["force", "Force"], ["recomposition", "Remise en forme"]]],
     ["niveau", "Niveau", [["debutant", "Débutant"], ["intermediaire", "Intermédiaire"], ["avance", "Avancé"]]],
@@ -1386,6 +1405,7 @@ function vCatalogue(v) {
   const silCorps = h(`<div class="cat-sil-body"></div>`);
   if (!CAT_SIL) silCorps.hidden = true; else silBox.classList.add("on");
   // Le muscle filtré est mis en avant, les autres restent neutres.
+  /** @type {Record<string, number>} */
   const inten = {};
   if (CAT_FILTRE.muscle) inten[CAT_FILTRE.muscle] = 1;
   silCorps.innerHTML = muscleHeatmap(inten);
@@ -1418,7 +1438,7 @@ function vCatalogue(v) {
     res.innerHTML = "";
     if (!tous.length) {
       res.append(etatVide(IC.search, "Aucun exercice ne correspond", "Les filtres se cumulent : retire le matériel ou le muscle pour élargir.",
-        { action: { label: "Réinitialiser les filtres", onClick: () => { CAT_FILTRE = { q: "" }; render(); } } }));
+        { action: { label: "Réinitialiser les filtres", onClick: () => { CAT_FILTRE = { q: "", muscle: "", equip: "" }; render(); } } }));
       return;
     }
     res.append(h(`<div class="muted small" style="margin-bottom:4px">${tous.length} résultat${tous.length > 1 ? "s" : ""}</div>`));
@@ -1454,6 +1474,7 @@ function reposAnat(nom) {
 /* Résolution de média par nom de mouvement (réutilise la bibliothèque existante,
    incluant les 250 exercices wger) pour couvrir les mouvements du programme
    Anatoly qui n'ont pas de réf directe. Ordre = priorité. */
+/** @type {[RegExp, string][]} */
 const ANAT_MEDIA = [
   [/prise invers|reverse/i, "wger-dd6e8753-reverse-grip-barbell-curls"],
   [/curl barre/i, "wger-42227131-biceps-curls-with-sz-bar"],
@@ -2872,6 +2893,7 @@ function ouvrirEtatMusculaire() {
     if (!cat) continue;
     parCat[cat] = Math.min(parCat[cat] ?? 100, etat[cle].readiness);
   }
+  /** @type {Record<string, number>} */
   const intensites = {};
   for (const [cat, r] of Object.entries(parCat)) intensites[cat] = (100 - r) / 100;
   const carte = h(`<div class="card sil-inter" style="margin:12px 0">${muscleHeatmap(intensites)}
@@ -3023,6 +3045,7 @@ function outilFC() {
 /* ---------- 2. Macros par morphotype ---------- */
 function outilMorphotype() {
   const p = Etat.data.profil || {};
+  /** @type {{poids:number, morpho:string, objectif:"prise_masse"|"seche"}} */
   const st = { poids: p.poidsKg || 75, morpho: Etat.data.reglages.morphotype || "mesomorphe", objectif: "prise_masse" };
   const box = h(`<div class="stack"></div>`);
   const res = h(`<div class="stack"></div>`);
@@ -3043,7 +3066,9 @@ function outilMorphotype() {
   ligne.append(champNum("Poids (kg)", st.poids, (v) => { st.poids = +v || 0; maj(); }, { decimal: true }));
   box.append(ligne);
   const objs = h(`<div class="row"></div>`);
-  [["prise_masse", "Prise de masse"], ["seche", "Sèche"]].forEach(([k, lab]) => {
+  /** @type {["prise_masse"|"seche", string][]} */
+  const OBJECTIFS_MACROS = [["prise_masse", "Prise de masse"], ["seche", "Sèche"]];
+  OBJECTIFS_MACROS.forEach(([k, lab]) => {
     const b = h(`<button class="chip ${st.objectif === k ? "on" : ""}">${lab}</button>`);
     b.addEventListener("click", () => {
       st.objectif = k;
@@ -3426,7 +3451,7 @@ function bulleCoach(role, contenu) {
 async function envoyerQuestionCoach(question) {
   const q = (question || "").trim();
   if (!q) return;
-  const champ = document.querySelector("#coachInput");
+  const champ = $("#coachInput");
   if (champ) champ.value = "";
   bulleCoach("moi", esc(q));
 
@@ -3507,7 +3532,7 @@ function ouvrirCoach() {
   inner.append(fil);
 
   const barre = h(`<form class="coach-barre"><input id="coachInput" type="text" autocomplete="off" placeholder="Pose ta question…" aria-label="Ta question"><button class="primary" type="submit" aria-label="Envoyer">${IC.send}</button></form>`);
-  barre.addEventListener("submit", (e) => { e.preventDefault(); envoyerQuestionCoach(document.querySelector("#coachInput").value); });
+  barre.addEventListener("submit", (e) => { e.preventDefault(); envoyerQuestionCoach($("#coachInput").value); });
   inner.append(barre);
 
   sheet.querySelector("#coachX").addEventListener("click", fermerCoach);
@@ -3517,7 +3542,7 @@ function ouvrirCoach() {
   bulleCoach("coach", repondreAssistant("aide"));
   // Si le mode IA est activé, on le prépare en tâche de fond.
   if (Etat.data.reglages.coachIA) activerCoachIA(true);
-  document.querySelector("#coachInput")?.focus();
+  $("#coachInput")?.focus();
 }
 
 /**
@@ -3712,6 +3737,7 @@ const CHAMPS_CORPS = [
   { cle: "cuisse", label: "Cuisse (cm)" },
 ];
 const PERIODES = [{ j: 0, label: "Tout" }, { j: 30, label: "30 j" }, { j: 90, label: "90 j" }, { j: 180, label: "6 mois" }];
+/** @type {{type:string, exerciceId:string|null, metrique:"1rm"|"poids"|"reps"|"volume", champCorps:string, periode:number}} */
 let PROG_CHART = { type: "exercice", exerciceId: null, metrique: "1rm", champCorps: "poidsKg", periode: 0 };
 
 function carteProgression(v) {
@@ -3835,6 +3861,7 @@ function carteMuscleHeatmap(v) {
   const vm = volumeParMuscle(source, getExercise);
   if (!vm.length) return;
   const max = Math.max(...vm.map((x) => x.v), 1);
+  /** @type {Record<string, number>} */
   const intensites = {};
   for (const x of vm) intensites[x.muscle] = x.v / max;
   const card = h(`<div class="card stack"><h2 class="row" style="margin:0;gap:8px">${mi(IC.map, "mi-blue")}Carte musculaire</h2><div class="small muted">Zones travaillées ${recents.length ? "(30 derniers jours)" : "(tout l'historique)"} · plus c'est vif, plus c'est sollicité</div></div>`);
