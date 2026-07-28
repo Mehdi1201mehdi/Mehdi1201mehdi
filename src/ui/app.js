@@ -4344,6 +4344,10 @@ function vSet(v) {
 async function amorcerApp() {
   await Etat.init();
   appliquerTheme();
+  // État réseau INITIAL : les écouteurs `online`/`offline` ne se déclenchent
+  // qu'au changement. Ouvrir l'app déjà hors connexion — le cas normal dans une
+  // salle en sous-sol — ne montrait donc jamais la bannière.
+  majEtatReseau();
   if (Etat.data.profil) {
     $("#tabs").hidden = false;
     // Raccourcis d'app (appui long sur l'icône) : ?vue=train / ?vue=food …

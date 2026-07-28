@@ -263,7 +263,9 @@ function famille(exo) {
  * @param {string[]} muscles groupes principaux retenus
  * @param {Record<string,any>} etat
  * @param {any[]} catalogue exercices disponibles (déjà filtrés matériel)
- * @param {{niveau?:string, dureeMin?:number}} profil
+ * @param {{niveau?:string, dureeMin?:number, accessoires?:string[]}} profil
+ *        `accessoires` : muscles candidats au travail complémentaire s'il reste
+ *        du temps (renseigné par `genererProchaineSeance`).
  * @returns {{exercices:any[], dureeEstimee:number, compatibilite:number}}
  */
 export function construireSeance(muscles, etat, catalogue, profil = {}) {

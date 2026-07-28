@@ -651,7 +651,10 @@ body.guide-open{overflow:hidden}
 .menu-sheet .plusitem.on .pm-ic{background:var(--accent-soft);color:var(--accent)}
 
 /* ---- États de l'application ---- */
-.netbar,.updbar{position:fixed;left:50%;transform:translateX(-50%);z-index:var(--z-toast);
+/* Centrage par `margin:auto` et NON par `translateX(-50%)` : l'animation
+   `revealUp` anime `transform` et écrasait la translation de centrage, ce qui
+   collait la bannière contre le bord droit. */
+.netbar,.updbar{position:fixed;left:0;right:0;margin:0 auto;width:max-content;z-index:var(--z-toast);
   bottom:calc(96px + env(safe-area-inset-bottom));max-width:92vw;
   padding:var(--space-3) var(--space-4);border-radius:14px;font-size:var(--fs-label);font-weight:700;
   display:flex;align-items:center;gap:var(--space-3);text-align:center;
@@ -853,6 +856,11 @@ body.guide-open{overflow:hidden}
 /* Toast non bloquant */
 .toast{position:fixed;left:50%;bottom:calc(104px + env(safe-area-inset-bottom));transform:translate(-50%,16px) scale(.96);z-index:var(--z-toast);background:color-mix(in srgb,var(--surface-2) 80%,transparent);backdrop-filter:blur(18px) saturate(1.4);-webkit-backdrop-filter:blur(18px) saturate(1.4);color:var(--ink);border:1px solid color-mix(in srgb,var(--line) 90%,transparent);border-radius:16px;padding:11px 18px;font-weight:700;font-size:.9rem;box-shadow:0 14px 40px rgba(0,0,0,.5),0 1px 0 rgba(255,255,255,.06) inset;opacity:0;transition:opacity .3s var(--ease),transform .3s var(--ease);max-width:90vw;text-align:center;white-space:pre-line}
 .toast.show{opacity:1;transform:translate(-50%,0) scale(1)}
+/* Une bannière persistante occupe déjà le bas de l'écran : le toast passe
+   au-dessus, et la page gagne la place correspondante pour qu'aucun contenu ne
+   reste définitivement masqué dessous (le mode hors ligne peut durer). */
+body:has(#netBar) .toast,body:has(#updBar) .toast{bottom:calc(164px + env(safe-area-inset-bottom))}
+body:has(#netBar),body:has(#updBar){padding-bottom:calc(166px + env(safe-area-inset-bottom))}
 .sheet-top{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0 12px;background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:blur(12px)}
 .media{position:relative;width:100%;aspect-ratio:4/5;max-height:62vh;background:radial-gradient(circle at 50% 35%,var(--surface-2),var(--surface));border:1px solid var(--line);border-radius:20px;overflow:hidden;display:flex;align-items:center;justify-content:center}
 .media img,.media video{width:100%;height:100%;object-fit:contain;display:block}
