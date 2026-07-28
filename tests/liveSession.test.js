@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import {
   nouvelleSession, nouvelleSerie, ajouterSerie, retirerDerniereSerie,
   serialiser, restaurer, estReprenable, dureeSecondes, reconcilier,
+  cyclerType, rirDepuisRpe, rpeDepuisRir, reposApresSerie,
+  exercicesDuSuperset, groupeSupersetLibre, GROUPES_SUPERSET,
 } from "../src/engine/liveSession.js";
 
 const seanceExemple = {
@@ -27,7 +29,7 @@ test("nouvelleSession : crée une entrée par exercice avec le bon nb de séries
 });
 
 test("nouvelleSerie : vierge, reps par défaut", () => {
-  assert.deepEqual(nouvelleSerie(), { charge: "", reps: "", rir: "", dureeSec: null, done: false });
+  assert.deepEqual(nouvelleSerie(), { charge: "", reps: "", rir: "", dureeSec: null, done: false, type: "normale" });
   assert.equal(nouvelleSerie(30).dureeSec, 30);
 });
 
@@ -118,4 +120,91 @@ test("reconcilier : complète l'état live si la séance a changé pendant la s�
   // robustesse : entrées invalides
   assert.equal(reconcilier(null, seance), null);
   assert.doesNotThrow(() => reconcilier(live, null));
+});
+
+/* ================== OPTIONS AVANCÉES : types de séries & supersets ================== */
+
+test("cyclerType : normale → drop → rest-pause → normale, valeur inconnue ramenée à normale", () => {
+  assert.equal(cyclerType("normale"), "drop");
+  assert.equal(cyclerType("drop"), "rest_pause");
+  assert.equal(cyclerType("rest_pause"), "normale");
+  assert.equal(cyclerType(undefined), "drop");   // undefined ≡ normale
+  assert.equal(cyclerType("n'importe quoi"), "drop");
+});
+
+test("rirDepuisRpe / rpeDepuisRir : conversion réciproque, jamais de NaN", () => {
+  assert.equal(rirDepuisRpe(8), 2);
+  assert.equal(rirDepuisRpe("9,5"), 0.5);   // virgule décimale française
+  assert.equal(rpeDepuisRir(2), 8);
+  assert.equal(rirDepuisRpe(""), null);
+  assert.equal(rirDepuisRpe("abc"), null);
+  assert.equal(rirDepuisRpe(null), null);
+  // bornes : une saisie aberrante ne doit pas produire de valeur hors échelle
+  assert.equal(rirDepuisRpe(-5), 10);
+  assert.equal(rirDepuisRpe(42), 0);
+});
+
+test("reposApresSerie : drop set et rest-pause imposent leur pause courte", () => {
+  assert.deepEqual(reposApresSerie({ type: "drop", reposSec: 180 }),
+    { sec: 15, enchainer: false, raison: "Drop set" });
+  assert.deepEqual(reposApresSerie({ type: "rest_pause", reposSec: 180 }),
+    { sec: 20, enchainer: false, raison: "Rest-pause" });
+});
+
+test("reposApresSerie : série normale → repos prescrit, secours à 60 s", () => {
+  assert.equal(reposApresSerie({ type: "normale", reposSec: 120 }).sec, 120);
+  assert.equal(reposApresSerie({}).sec, 60);
+  assert.equal(reposApresSerie({ reposSec: 0 }).sec, 60);
+  assert.equal(reposApresSerie({ reposSec: -5 }).sec, 60);
+});
+
+test("reposApresSerie : dans un superset on enchaîne, le repos vient après le dernier", () => {
+  const enchaine = reposApresSerie({ type: "normale", reposSec: 90, suivantSuperset: "curl" });
+  assert.equal(enchaine.enchainer, true);
+  assert.equal(enchaine.sec, 0);
+  // dernier de la boucle : plus de partenaire → repos normal
+  assert.equal(reposApresSerie({ type: "normale", reposSec: 90, suivantSuperset: null }).sec, 90);
+  // un drop set reste prioritaire, même dans un superset
+  assert.equal(reposApresSerie({ type: "drop", reposSec: 90, suivantSuperset: "curl" }).enchainer, false);
+});
+
+test("exercicesDuSuperset : rend les membres dans l'ordre de la séance", () => {
+  const live = { data: {
+    a: { supersetGroupe: "A" }, b: { supersetGroupe: null },
+    c: { supersetGroupe: "A" }, d: { supersetGroupe: "B" },
+  } };
+  assert.deepEqual(exercicesDuSuperset(live, ["a", "b", "c", "d"], "A"), ["a", "c"]);
+  assert.deepEqual(exercicesDuSuperset(live, ["c", "a"], "A"), ["c", "a"]); // suit l'ordre donné
+  assert.deepEqual(exercicesDuSuperset(live, ["a", "b"], null), []);
+  assert.deepEqual(exercicesDuSuperset(null, ["a"], "A"), []);
+});
+
+test("groupeSupersetLibre : premier identifiant disponible, null quand tout est pris", () => {
+  assert.equal(groupeSupersetLibre({ data: {} }), "A");
+  assert.equal(groupeSupersetLibre({ data: { x: { supersetGroupe: "A" } } }), "B");
+  const plein = { data: Object.fromEntries(GROUPES_SUPERSET.map((g, i) => [`e${i}`, { supersetGroupe: g }])) };
+  assert.equal(groupeSupersetLibre(plein), null);
+});
+
+test("restaurer : conserve type de série, superset et colonne d'effort", () => {
+  const live = nouvelleSession(seanceExemple);
+  live.data.pompes.series[0].type = "drop";
+  live.data.pompes.supersetGroupe = "A";
+  live.data.pompes.showRir = true;
+  live.data.pompes.series[0].charge = 40;
+  const rt = restaurer(serialiser(live));
+  assert.equal(rt.data.pompes.series[0].type, "drop");
+  assert.equal(rt.data.pompes.supersetGroupe, "A");
+  assert.equal(rt.data.pompes.showRir, true);
+  // showRir non renseigné = null (suit le mode), pas false
+  assert.equal(rt.data.gainage.showRir, null);
+});
+
+test("restaurer : un type ou un groupe corrompu est ramené à une valeur sûre", () => {
+  const brut = { seanceId: "s1", debut: "2026-07-17T08:00:00Z", data: {
+    pompes: { exId: "pompes", supersetGroupe: "ZZZ", series: [{ charge: 10, type: "explosif" }] },
+  } };
+  const rt = restaurer(brut);
+  assert.equal(rt.data.pompes.series[0].type, "normale");
+  assert.equal(rt.data.pompes.supersetGroupe, null);
 });

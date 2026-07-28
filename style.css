@@ -453,6 +453,17 @@ button.linklike{background:transparent;border:none;min-height:44px;display:inlin
 .setrow.vdone{background:linear-gradient(90deg,color-mix(in srgb,var(--ok) 15%,transparent),transparent 62%)}
 .setrow.vdone .serie{color:var(--ok)}
 .setrow .head{color:var(--ink-soft);font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;text-align:center;font-weight:800}
+/* Mode avancé : le numéro de série devient une cible tactile (type de série) */
+.exocard.adv .setrow{grid-template-columns:46px 1fr 1fr 1fr 48px}
+.setrow .sertype{width:100%;min-height:46px;padding:0;background:var(--surface-2);border-color:transparent;
+  color:var(--ink-soft);font-weight:850;font-size:1rem;font-variant-numeric:tabular-nums;line-height:1.05}
+.setrow .sertype.on{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent);
+  border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
+.setrow .sertag{display:block;font-size:.55rem;letter-spacing:.05em;font-weight:800;line-height:1;margin-top:1px}
+.setrow.serie-drop:not(.vdone){background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 12%,transparent),transparent 58%)}
+.setrow.serie-rest_pause:not(.vdone){background:linear-gradient(90deg,var(--amber-soft),transparent 58%)}
+.ss-tag{display:inline-block;margin-top:3px;padding:1px 7px;border-radius:999px;font-size:var(--fs-caption);
+  font-weight:800;letter-spacing:.04em;background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent)}
 
 nav.tabs{position:fixed;bottom:0;left:0;right:0;z-index:var(--z-nav);pointer-events:none;
   background:color-mix(in srgb,var(--elevated) 92%,transparent);backdrop-filter:blur(20px) saturate(1.4);-webkit-backdrop-filter:blur(20px) saturate(1.4);

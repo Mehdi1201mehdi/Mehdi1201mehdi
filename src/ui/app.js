@@ -24,7 +24,8 @@ import { Etat, seanceDuJour, planningJours } from "../store/state.js";
 import {
   nouvelleSession, ajouterSerie, retirerDerniereSerie,
   serialiser, restaurer, estReprenable, dureeSecondes,
-  reconcilier,
+  reconcilier, TYPES_SERIE, GROUPES_SUPERSET, cyclerType, rirDepuisRpe,
+  exercicesDuSuperset, groupeSupersetLibre, reposApresSerie,
 } from "../engine/liveSession.js";
 import {
   creerRoutine, renommer, ajouterSeance, supprimerSeance, ajouterExercice,
@@ -1573,7 +1574,7 @@ function vTrain(v) {
   v.append(head);
   $("#goGuide", head).addEventListener("click", ouvrirGuide);
   arreterChrono(); majChrono(); SESSION_TMR = setInterval(majChrono, 1000);
-  seance.exercices.forEach((e) => v.append(carteExoLive(e)));
+  seance.exercices.forEach((e) => v.append(carteExoLive(e, seance)));
   const bAdd = h(`<button class="chip" style="margin-top:8px"><span class="cic">${IC.plus}</span>Ajouter un exercice</button>`);
   bAdd.addEventListener("click", () => ajouterExerciceLive(seance));
   v.append(bAdd);
@@ -1618,7 +1619,32 @@ function progressionSeance(seance) {
   }
   return { tot, faits, pct: tot ? faits / tot : 0 };
 }
-function carteExoLive(e) {
+/** L'interface avancée est-elle active ? (options supplémentaires en séance) */
+function modeAvance() { return Etat.data.reglages.modeAvance === true; }
+/** Libellé de la métrique d'effort choisie : RIR (défaut) ou RPE. */
+function metriqueEffort() { return modeAvance() && Etat.data.reglages.metrique === "rpe" ? "RPE" : "RIR"; }
+
+/**
+ * Exercice à enchaîner sans repos après la série `i` de `exId`, s'il fait
+ * partie d'un superset et qu'un partenaire a encore cette série à faire.
+ * Renvoie null en dehors d'un superset ou quand le tour est bouclé.
+ */
+function prochainSuperset(seance, exId, i) {
+  const st = LIVE.data[exId];
+  if (!st || !st.supersetGroupe) return null;
+  const ordre = seance.exercices.map((x) => x.exerciceId);
+  const membres = exercicesDuSuperset(LIVE, ordre, st.supersetGroupe);
+  if (membres.length < 2) return null;
+  const depart = membres.indexOf(exId);
+  for (let k = 1; k < membres.length; k++) {
+    const id = membres[(depart + k) % membres.length];
+    const s = LIVE.data[id] && LIVE.data[id].series[i];
+    if (s && !s.done) return id;
+  }
+  return null;
+}
+
+function carteExoLive(e, seance) {
   const st = LIVE.data[e.exerciceId];
   if (!st) return h(`<div class="card"><div class="muted small">${esc(nomExo(e.exerciceId))} — état indisponible pour cette séance.</div></div>`);
   const exo = getExercise(st.exId);
@@ -1640,6 +1666,7 @@ function carteExoLive(e) {
   const vign = h(`<button class="exo-vign" aria-label="Voir la démonstration de ${esc(exo.nom)}">${vignetteExo(exo)}</button>`);
   vign.addEventListener("click", () => ouvrirDetail(exo));
   const titre = h(`<div class="exo-titre"><h3>${esc(exo.nom)}</h3></div>`);
+  if (st.supersetGroupe) titre.append(h(`<span class="ss-tag">Superset ${esc(st.supersetGroupe)}</span>`));
   titre.append(badgesMuscles(exo));
   tete.append(vign, titre, h(`<span class="pill exo-vol">${st.series.length} × ${enTemps ? (st.series[0].dureeSec + " s") : (plage[0] + "–" + plage[1])}</span>`));
   c.append(tete);
@@ -1647,8 +1674,10 @@ function carteExoLive(e) {
   // Ligne de contexte unique, dépliable : repos, charge conseillée, objectif.
   const objectif = !enTemps && sug.chargeKg
     ? `${sug.chargeKg} kg × ${plage[0]}–${plage[1]}` : null;
+  const tempo = modeAvance() && (t?.tempo || exo.tempoDefaut) ? (t?.tempo || exo.tempoDefaut) : null;
   const metaTxt = `<span class="cic">${IC.clock}</span>repos ${formatRepos(t?.reposSec || 60)}`
-    + (objectif ? ` · <span class="cic">${IC.dumbbell}</span>objectif <b class="sug">${objectif}</b>` : "");
+    + (objectif ? ` · <span class="cic">${IC.dumbbell}</span>objectif <b class="sug">${objectif}</b>` : "")
+    + (tempo ? ` · tempo <b class="sug">${esc(tempo)}</b>` : "");
   const meta = h(`<button class="exometa muted small" aria-expanded="false">${metaTxt}<span class="cic exometa-i">${IC.info}</span></button>`);
   const conseil = h(`<div class="notice small" hidden>${esc(sug.message)}</div>`);
   meta.addEventListener("click", () => {
@@ -1657,22 +1686,40 @@ function carteExoLive(e) {
     meta.setAttribute("aria-expanded", String(ouvert));
   });
   c.append(meta, conseil);
-  // Tableau des séries : Série · Précédent (ou RIR) · Kg · Reps · Validé
-  const col2 = st.showRir ? "RIR" : "Précédent";
+  // Tableau des séries : Série · Précédent (ou RIR/RPE) · Kg · Reps · Validé.
+  // En mode avancé la colonne d'effort est affichée d'emblée ; en débutant, la
+  // colonne « Précédent » suffit et l'écran reste à quatre informations.
+  const avance = modeAvance();
+  if (avance) c.classList.add("adv");
+  const showEffort = st.showRir != null ? st.showRir : avance;
+  const col2 = showEffort ? metriqueEffort() : "Précédent";
   c.append(h(`<div class="setrow"><span class="head">Série</span><span class="head">${col2}</span><span class="head">${enTemps ? "Sec" : "Kg"}</span><span class="head">${enTemps ? "Durée" : "Reps"}</span><span class="head">✓</span></div>`));
   st.series.forEach((s, i) => {
     const dp = derniere && derniere.series[i];
     const prev = dp ? (enTemps ? `${dp.dureeSec || 0}s` : `${dp.chargeKg || 0}×${dp.reps || 0}`) : "—";
-    const col2El = st.showRir
-      ? `<input inputmode="numeric" placeholder="2" value="${s.rir}" data-f="rir" aria-label="RIR série ${i + 1}">`
+    const col2El = showEffort
+      ? `<input inputmode="decimal" placeholder="${metriqueEffort() === "RPE" ? "8" : "2"}" value="${s.rir}" data-f="rir" aria-label="${metriqueEffort()} série ${i + 1}">`
       : `<span class="prev muted">${prev}</span>`;
-    const row = h(`<div class="setrow${s.done ? " vdone" : ""}">
-      <span class="serie">${i + 1}</span>
+    // En mode avancé le numéro de série devient un bouton : un tap fait défiler
+    // normale → drop set → rest-pause. Aucun sous-menu, aucune colonne en plus.
+    const tSerie = TYPES_SERIE[s.type] || TYPES_SERIE.normale;
+    const numEl = avance
+      ? `<button class="serie sertype ${s.type !== "normale" ? "on" : ""}" aria-label="Type de la série ${i + 1} : ${tSerie.label}. Toucher pour changer">${i + 1}${tSerie.court ? `<span class="sertag">${tSerie.court}</span>` : ""}</button>`
+      : `<span class="serie">${i + 1}</span>`;
+    const row = h(`<div class="setrow${s.done ? " vdone" : ""}${s.type !== "normale" ? " serie-" + s.type : ""}">
+      ${numEl}
       ${col2El}
       <input inputmode="decimal" placeholder="${sug.chargeKg || "—"}" value="${s.charge}" data-f="charge" aria-label="Charge série ${i + 1}">
       <input inputmode="numeric" placeholder="${enTemps ? s.dureeSec : plage[0]}" value="${enTemps ? s.dureeSec : s.reps}" data-f="${enTemps ? "dureeSec" : "reps"}" aria-label="${enTemps ? "Durée" : "Répétitions"} série ${i + 1}">
       <button class="done ${s.done ? "on" : ""}" aria-label="Valider la série ${i + 1}">✓</button></div>`);
     on(row, "input", "input", (ev) => { const f = ev.target.dataset.f; s[f] = ev.target.value; persistLive(); });
+    const bType = row.querySelector(".sertype");
+    if (bType) bType.addEventListener("click", () => {
+      s.type = cyclerType(s.type);
+      persistLive(true);
+      toast(`Série ${i + 1} · ${TYPES_SERIE[s.type].label}`);
+      render();
+    });
     row.querySelector(".done").addEventListener("click", (ev) => {
       s.done = !s.done;
       const btn = ev.currentTarget;
@@ -1680,7 +1727,14 @@ function carteExoLive(e) {
       row.classList.toggle("vdone", s.done);
       if (s.done) { btn.classList.remove("pop"); void btn.offsetWidth; btn.classList.add("pop"); try { if (Etat.data.reglages.vibrations !== false) navigator.vibrate?.(20); } catch (e) {} }
       persistLive(); majProgressionSeance();
-      if (s.done) startTimer(t?.reposSec || 60, `${exo.nom} · série ${i + 1}`);
+      if (!s.done) return;
+      // Repos : court et fixe pour un drop set / rest-pause, nul dans un
+      // superset tant qu'il reste un partenaire à enchaîner.
+      const suivant = seance ? prochainSuperset(seance, e.exerciceId, i) : null;
+      const r = reposApresSerie({ type: s.type, reposSec: t?.reposSec || 60, suivantSuperset: suivant });
+      if (r.enchainer) { toast(`Superset ${st.supersetGroupe} → enchaîne avec ${nomExo(suivant)}`); return; }
+      const suffixe = r.raison === "normal" ? "" : ` · ${r.raison}`;
+      startTimer(r.sec, `${exo.nom} · série ${i + 1}${suffixe}`);
     });
     c.append(row);
   });
@@ -1720,7 +1774,7 @@ function carteExoLive(e) {
 
   const bMenu = h(`<button class="chip exomenu" aria-label="Autres actions pour ${esc(exo.nom)}">⋯</button>`);
   if (st.douleur) bMenu.classList.add("danger");
-  bMenu.addEventListener("click", () => menuExoLive(e, exo, st));
+  bMenu.addEventListener("click", () => menuExoLive(e, exo, st, seance));
   serieActs.append(bMenu);
   c.append(serieActs);
   // Exercice terminé (toutes les séries validées) → état visuel discret.
@@ -1731,7 +1785,7 @@ function carteExoLive(e) {
  * Menu des actions secondaires d'un exercice en séance. Sorti de la carte pour
  * garder l'écran d'entraînement dense et manipulable d'une main.
  */
-function menuExoLive(e, exo, st) {
+function menuExoLive(e, exo, st, seance) {
   const sheet = h(`<div class="sheet menu-sheet"><div class="inner"></div></div>`);
   const inner = sheet.querySelector(".inner");
   const fermer = () => sheet.remove();
@@ -1743,9 +1797,26 @@ function menuExoLive(e, exo, st) {
     return b;
   };
   item(IC.play, "Voir la démonstration", () => ouvrirDetail(exo));
-  item(IC.repeat, st.showRir ? "Masquer la colonne RIR" : "Afficher la colonne RIR", () => {
-    st.showRir = !st.showRir; persistLive(true); render();
+  const effortVisible = st.showRir != null ? st.showRir : modeAvance();
+  item(IC.repeat, `${effortVisible ? "Masquer" : "Afficher"} la colonne ${metriqueEffort()}`, () => {
+    st.showRir = !effortVisible; persistLive(true); render();
   });
+  // Superset : réservé au mode avancé, où l'utilisateur sait ce qu'il enchaîne.
+  if (modeAvance() && seance) {
+    if (st.supersetGroupe) {
+      item(IC.repeat, `Sortir du superset ${st.supersetGroupe}`, () => {
+        const groupe = st.supersetGroupe;
+        st.supersetGroupe = null;
+        // Un superset à un seul membre n'a plus de sens : on le dissout.
+        const ordre = seance.exercices.map((x) => x.exerciceId);
+        const restants = exercicesDuSuperset(LIVE, ordre, groupe);
+        if (restants.length < 2) restants.forEach((id) => { LIVE.data[id].supersetGroupe = null; });
+        persistLive(true); toast("Superset dissous"); render();
+      });
+    } else {
+      item(IC.swap, "Grouper en superset", () => choisirPartenaireSuperset(e.exerciceId, seance));
+    }
+  }
   item(IC.swap, "Remplacer l'exercice", () => remplacer(e.exerciceId));
   item(IC.alert, st.douleur ? "Retirer la douleur signalée" : "Signaler une douleur", () => {
     st.douleur = !st.douleur; persistLive(true);
@@ -1760,6 +1831,37 @@ function menuExoLive(e, exo, st) {
   document.body.append(sheet);
 }
 
+/**
+ * Choix du partenaire de superset : la liste des autres exercices de la séance.
+ * Rejoindre un exercice déjà groupé agrandit son groupe (tri-set) plutôt que
+ * d'en créer un second, ce qui serait incompréhensible à l'usage.
+ */
+function choisirPartenaireSuperset(exId, seance) {
+  const autres = seance.exercices.map((x) => x.exerciceId).filter((id) => id !== exId && LIVE.data[id]);
+  if (!autres.length) { info("Ajoute au moins un deuxième exercice à la séance pour créer un superset.", { titre: "Superset" }); return; }
+  const sheet = h(`<div class="sheet menu-sheet"><div class="inner"></div></div>`);
+  const inner = sheet.querySelector(".inner");
+  const fermer = () => sheet.remove();
+  inner.append(h(`<div class="sheet-top"><h2 style="margin:0;font-size:1.1rem">Enchaîner avec…</h2><button class="chip" id="ssX">✕</button></div>`));
+  inner.append(h(`<div class="muted small" style="margin-bottom:8px">Les exercices groupés s'enchaînent sans repos ; le minuteur ne se déclenche qu'après le dernier du groupe.</div>`));
+  autres.forEach((id) => {
+    const g = LIVE.data[id].supersetGroupe;
+    const b = h(`<button class="plusitem"><span class="pm-ic mi-blue">${IC.swap}</span><span class="pm-main"><b>${esc(nomExo(id))}</b>${g ? `<br><span class="muted small">déjà dans le superset ${esc(g)}</span>` : ""}</span><span class="chev">›</span></button>`);
+    b.addEventListener("click", () => {
+      fermer();
+      const groupe = g || groupeSupersetLibre(LIVE);
+      if (!groupe) { toast("Quatre supersets au maximum dans une séance."); return; }
+      LIVE.data[exId].supersetGroupe = groupe;
+      LIVE.data[id].supersetGroupe = groupe;
+      persistLive(true); toast(`Superset ${groupe} créé`); render();
+    });
+    inner.append(b);
+  });
+  sheet.querySelector("#ssX").addEventListener("click", fermer);
+  sheet.addEventListener("click", (ev) => { if (ev.target === sheet) fermer(); });
+  document.body.append(sheet);
+}
+
 /** Ajoute un exercice au vol pendant la séance (choix dans le catalogue). */
 function ajouterExerciceLive(seance) {
   choisirExercice((exId) => {
@@ -1770,8 +1872,8 @@ function ajouterExerciceLive(seance) {
     const nb = e.series.filter((s) => s.type !== "echauffement").length || 3;
     LIVE.data[exId] = {
       exId,
-      series: Array.from({ length: nb }, () => ({ charge: "", reps: "", rir: "", dureeSec: enTemps ? (e.series.find((s) => s.dureeSec)?.dureeSec || 40) : null, done: false })),
-      douleur: false,
+      series: Array.from({ length: nb }, () => ({ charge: "", reps: "", rir: "", dureeSec: enTemps ? (e.series.find((s) => s.dureeSec)?.dureeSec || 40) : null, done: false, type: "normale" })),
+      douleur: false, showRir: null, supersetGroupe: null,
     };
     persistLive(true); render();
   });
@@ -1847,9 +1949,24 @@ function terminer() {
   const exercices = [];
   for (const exId in LIVE.data) {
     const st = LIVE.data[exId];
+    // La colonne d'effort saisit soit un RIR, soit un RPE : l'historique, lui,
+    // ne stocke que du RIR (RIR = 10 − RPE) pour que le moteur de fatigue et
+    // les statistiques restent comparables d'une séance à l'autre.
+    const enRpe = metriqueEffort() === "RPE";
     const series = st.series.filter((s) => s.done || s.reps || s.charge || s.dureeSec)
-      .map((s) => ({ chargeKg: s.charge === "" ? null : +s.charge, reps: s.reps === "" ? null : +s.reps, rir: s.rir === "" ? null : +s.rir, dureeSec: s.dureeSec || null }));
-    if (series.length || st.douleur) exercices.push({ exerciceId: exId, series, douleur: st.douleur });
+      .map((s) => ({
+        chargeKg: s.charge === "" ? null : +s.charge,
+        reps: s.reps === "" ? null : +s.reps,
+        rir: s.rir === "" ? null : (enRpe ? rirDepuisRpe(s.rir) : +s.rir),
+        dureeSec: s.dureeSec || null,
+        type: s.type && s.type !== "normale" ? s.type : undefined,
+      }));
+    if (series.length || st.douleur) {
+      exercices.push({
+        exerciceId: exId, series, douleur: st.douleur,
+        supersetGroupe: st.supersetGroupe || undefined,
+      });
+    }
   }
   const fin = new Date().toISOString();
   const debut = LIVE.debut || fin;
@@ -3975,6 +4092,27 @@ function vSet(v) {
       toast("Programme régénéré 💪"); render();
     });
     c.append(bRegen);
+    b.append(c);
+  });
+
+  // Interface progressive : le mode débutant garde l'écran de séance minimal,
+  // le mode avancé débloque les options sans rien retirer au premier.
+  section(v, "p-mode", "Mode d'interface", (b) => {
+    const c = h(`<div class="card stack"></div>`);
+    const av = modeAvance();
+    c.append(chipsInline([[false, "Débutant"], [true, "Avancé"]],
+      (val) => av === val,
+      (val) => { Etat.data.reglages.modeAvance = val; Etat.sauver(); render(); }));
+    c.append(h(`<div class="muted small">${av
+      ? "Pendant la séance : colonne d'effort visible, types de séries (drop set, rest-pause) en touchant le numéro de série, supersets et tempo."
+      : "Pendant la séance : charge, répétitions et validation. Rien d'autre à l'écran."}</div>`));
+    if (av) {
+      c.append(h(`<div class="eyebrow" style="margin-top:10px">Métrique d'effort</div>`));
+      c.append(chipsInline([["rir", "RIR"], ["rpe", "RPE"]],
+        (val) => (Etat.data.reglages.metrique || "rir") === val,
+        (val) => { Etat.data.reglages.metrique = val; Etat.sauver(); render(); }));
+      c.append(h(`<div class="muted small">RIR = répétitions gardées en réserve (2 = tu aurais pu en faire 2 de plus). RPE = effort perçu sur 10. L'historique convertit en RIR pour rester comparable.</div>`));
+    }
     b.append(c);
   });
 

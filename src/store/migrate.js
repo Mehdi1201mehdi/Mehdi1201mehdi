@@ -32,6 +32,10 @@ export function etatVide() {
     mediaCache: {},           // exId -> URL de média résolue
     reglages: {
       theme: "dark", unites: "metrique", sons: true, vibrations: true,
+      // Interface progressive : en mode débutant l'écran de séance reste
+      // volontairement minimal (charge, reps, validation). Le mode avancé
+      // débloque RIR/RPE, types de séries et supersets, sans rien retirer.
+      modeAvance: false, metrique: "rir",
     },
   };
 }

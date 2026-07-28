@@ -17,6 +17,100 @@
  *               dureeSec:number|null, done:boolean }
  */
 
+/**
+ * TYPES DE SÉRIE avancés.
+ *
+ * Une série « normale » suit le repos prescrit par l'exercice. Un drop set et
+ * un rest-pause sont au contraire des prolongements de la série précédente :
+ * la pause y est très courte et volontairement fixe, sans quoi la technique
+ * n'a plus de sens. Les libellés restent courts : ils s'affichent dans la
+ * cellule du numéro de série, large de 28 px sur un téléphone.
+ */
+export const TYPES_SERIE = {
+  normale: { label: "Normale", court: "", reposSec: null },
+  drop: { label: "Drop set", court: "D", reposSec: 15 },
+  rest_pause: { label: "Rest-pause", court: "RP", reposSec: 20 },
+};
+export const CLES_TYPE_SERIE = Object.keys(TYPES_SERIE);
+
+/** Identifiants de groupe de superset proposés, dans l'ordre d'attribution. */
+export const GROUPES_SUPERSET = ["A", "B", "C", "D"];
+
+/** Type de série valide, `"normale"` en secours. */
+function typeValide(t) {
+  return CLES_TYPE_SERIE.includes(t) ? t : "normale";
+}
+
+/** Type suivant dans le cycle normale → drop → rest-pause → normale. */
+export function cyclerType(type) {
+  const i = CLES_TYPE_SERIE.indexOf(typeValide(type));
+  return CLES_TYPE_SERIE[(i + 1) % CLES_TYPE_SERIE.length];
+}
+
+/**
+ * Convertit un RPE (échelle 1–10, effort perçu) en RIR (répétitions en
+ * réserve) : RIR = 10 − RPE. Renvoie null si la valeur est inexploitable, pour
+ * ne jamais injecter de NaN dans l'historique.
+ */
+export function rirDepuisRpe(rpe) {
+  const v = typeof rpe === "string" ? parseFloat(rpe.replace(",", ".")) : rpe;
+  if (!Number.isFinite(v)) return null;
+  return Math.max(0, Math.min(10, Math.round((10 - v) * 10) / 10));
+}
+
+/** Réciproque : RPE = 10 − RIR. */
+export function rpeDepuisRir(rir) {
+  const v = typeof rir === "string" ? parseFloat(rir.replace(",", ".")) : rir;
+  if (!Number.isFinite(v)) return null;
+  return Math.max(0, Math.min(10, Math.round((10 - v) * 10) / 10));
+}
+
+/**
+ * Exercices d'un même superset, dans l'ordre de la séance.
+ *
+ * @param {any} live       état live
+ * @param {string[]} ordre identifiants d'exercices dans l'ordre d'affichage
+ * @param {string} groupe  identifiant de groupe ("A", "B"…)
+ * @returns {string[]}
+ */
+export function exercicesDuSuperset(live, ordre, groupe) {
+  if (!live || !live.data || !groupe) return [];
+  return (ordre || []).filter((id) => live.data[id] && live.data[id].supersetGroupe === groupe);
+}
+
+/** Premier identifiant de groupe encore libre, ou null si les 4 sont pris. */
+export function groupeSupersetLibre(live) {
+  const pris = new Set(Object.values((live && live.data) || {}).map((st) => st && st.supersetGroupe).filter(Boolean));
+  return GROUPES_SUPERSET.find((g) => !pris.has(g)) || null;
+}
+
+/**
+ * Décide du repos qui suit la validation d'une série.
+ *
+ * Trois règles, dans cet ordre :
+ *  1. une série drop / rest-pause impose sa propre pause courte ;
+ *  2. dans un superset, on enchaîne sans repos tant qu'il reste un exercice du
+ *     groupe à faire — le repos n'arrive qu'après le dernier ;
+ *  3. sinon, le repos prescrit par l'exercice.
+ *
+ * @param {object} opts
+ * @param {string} [opts.type]        type de la série validée
+ * @param {number} [opts.reposSec]    repos prescrit par l'exercice
+ * @param {string|null} [opts.suivantSuperset]  exercice à enchaîner, s'il y en a un
+ * @returns {{sec:number, enchainer:boolean, raison:string}}
+ */
+export function reposApresSerie(opts = {}) {
+  const type = typeValide(opts.type);
+  const prescrit = Number.isFinite(opts.reposSec) && opts.reposSec > 0 ? opts.reposSec : 60;
+  if (type !== "normale") {
+    return { sec: TYPES_SERIE[type].reposSec, enchainer: false, raison: TYPES_SERIE[type].label };
+  }
+  if (opts.suivantSuperset) {
+    return { sec: 0, enchainer: true, raison: "superset" };
+  }
+  return { sec: prescrit, enchainer: false, raison: "normal" };
+}
+
 /** Crée l'état live d'une séance à partir d'un gabarit de séance. */
 export function nouvelleSession(seance, maintenant = new Date().toISOString()) {
   const data = {};
@@ -28,6 +122,8 @@ export function nouvelleSession(seance, maintenant = new Date().toISOString()) {
       exId: e.exerciceId,
       series: Array.from({ length: nb }, () => nouvelleSerie(enTemps ? (serieTemps.dureeSec || 40) : null)),
       douleur: false,
+      showRir: null,      // null = suit le mode (masquée en débutant, visible en avancé)
+      supersetGroupe: null,
     };
   }
   return { seanceId: seance.id, debut: maintenant, fini: false, data };
@@ -35,7 +131,7 @@ export function nouvelleSession(seance, maintenant = new Date().toISOString()) {
 
 /** Une série live vierge (en temps si `dureeSec` fourni, sinon en reps). */
 export function nouvelleSerie(dureeSec = null) {
-  return { charge: "", reps: "", rir: "", dureeSec: dureeSec, done: false };
+  return { charge: "", reps: "", rir: "", dureeSec: dureeSec, done: false, type: "normale" };
 }
 
 /**
@@ -81,12 +177,18 @@ export function restaurer(brut) {
     data[exId] = {
       exId: st.exId || exId,
       douleur: !!st.douleur,
+      // Préférences d'affichage et groupe de superset : elles font partie de la
+      // séance en cours, les perdre à la reprise reviendrait à réinitialiser
+      // l'écran sous les doigts de l'utilisateur.
+      showRir: st.showRir == null ? null : !!st.showRir,
+      supersetGroupe: GROUPES_SUPERSET.includes(st.supersetGroupe) ? st.supersetGroupe : null,
       series: st.series.map((s) => ({
         charge: s && s.charge != null ? s.charge : "",
         reps: s && s.reps != null ? s.reps : "",
         rir: s && s.rir != null ? s.rir : "",
         dureeSec: s && typeof s.dureeSec === "number" ? s.dureeSec : null,
         done: !!(s && s.done),
+        type: typeValide(s && s.type),
       })),
     };
   }
@@ -132,6 +234,8 @@ export function reconcilier(live, seance) {
     live.data[id] = {
       exId: id,
       douleur: false,
+      showRir: null,      // null = suit le mode (masquée en débutant, visible en avancé)
+      supersetGroupe: null,
       series: Array.from({ length: nb }, () => nouvelleSerie(serieTemps ? (serieTemps.dureeSec || 40) : null)),
     };
   }
