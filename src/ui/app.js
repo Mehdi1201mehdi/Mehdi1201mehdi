@@ -580,7 +580,12 @@ function vDash(v) {
 
   // Moteur automatique : « Ton corps » + prochaine séance déjà construite.
   // C'est désormais l'action n°1 de l'application.
-  const moteurActif = Etat.data.reglages.moteurAuto !== false && (Etat.data.logs || []).length >= 1;
+  // Le moteur s'affiche TOUJOURS (sauf désactivation explicite). Le conditionner
+  // à un historique existant le rendait invisible tant qu'aucune séance n'avait
+  // été terminée : la fonctionnalité principale n'était jamais découverte.
+  // Sans historique, tous les muscles sont frais et il propose une première
+  // séance complète — c'est exactement ce qu'on veut voir en arrivant.
+  const moteurActif = Etat.data.reglages.moteurAuto !== false && !!Etat.data.profil;
   if (moteurActif) carteMoteur(v);
 
   // Entraînement du jour du programme. Masqué quand le moteur pilote : les deux
