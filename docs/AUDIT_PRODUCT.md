@@ -78,3 +78,65 @@ importante · **P3** polish.
 - **Apprentissage local** du moteur : ajuster les seuils de récupération selon
   les performances réelles observées. Le paramètre `ressenti` existe déjà mais
   aucun écran ne le renseigne.
+
+---
+
+## Audit d'usage — outil personnel
+
+Grille appliquée : *personal-tool-builder* (dogfooding, « start ugly »,
+anti-patterns). Coach Perso est un outil **mono-utilisateur**. Le test n'est
+donc pas « est-ce une bonne fonctionnalité » mais « Mehdi s'en sert-il, à quelle
+fréquence, et que faisait-il avant à la main ».
+
+**Surface mesurée** : 11 vues, 9 écrans secondaires, 22 modules moteur,
+4 443 lignes d'interface, 3 311 lignes de moteur, 12 réglages, 6 calculateurs.
+
+### La boucle quotidienne
+
+Ouvrir → commencer la séance → saisir charge/reps → valider → terminer.
+C'est le seul chemin emprunté **chaque jour d'entraînement**. Tout ce qui
+l'allonge coûte cher ; tout le reste ne se paie qu'une fois de temps en temps.
+Les corrections qui comptent le plus dans cet audit portent toutes sur cette
+boucle : menu « ⋯ », capsule de repos, « Machine occupée », pré-remplissage,
+démonstration dans la vignette.
+
+### Ce qui gagne sa place
+
+| Fonction | Fréquence réelle | Ce qu'elle remplace |
+|---|---|---|
+| Saisie de séance | chaque séance | carnet papier / notes |
+| Minuteur de repos | chaque série | chronomètre du téléphone |
+| Historique et records | chaque séance | rien — impossible à tenir de tête |
+| Séance automatique | chaque séance | décider quoi faire en arrivant |
+| Machine occupée | souvent, en salle | improviser |
+| Démonstration d'exercice | à l'apprentissage | chercher sur YouTube |
+
+### Surface spéculative
+
+À conserver — la règle du projet interdit de retirer une fonction qui marche —
+mais à ne pas enrichir davantage sans besoin constaté :
+
+- **Mode débutant / avancé.** Un seul utilisateur, un seul niveau : il choisira
+  un mode et ne rouvrira jamais l'autre. Le coût est déjà payé, mais toute
+  future option « selon le mode » double le travail pour un seul lecteur.
+- **Coach IA local.** Plus gros téléchargement de l'app de deux ordres de
+  grandeur, connexion obligatoire au premier usage, **jamais vérifié sur le
+  Poco M6**, et il double un assistant déterministe qui, lui, marche hors ligne.
+  C'est l'exemple type de la sur-ingénierie d'un outil personnel.
+- **6 calculateurs.** Le 1RM sert régulièrement. FC cible, macros par
+  morphotype, composition US Navy, durée estimée et test vélo relèvent de la
+  curiosité ponctuelle, pas de l'usage hebdomadaire.
+- **Filtre « Niveau » de la bibliothèque.** Se règle une fois pour toutes.
+
+### Ce que cet audit NE peut pas mesurer
+
+Le critère central de la grille — « t'en sers-tu vraiment ? » — est le seul
+qu'on ne puisse pas évaluer depuis le dépôt. Tous les états de test de ce
+projet utilisent un historique **synthétique**. Les priorités ci-dessus restent
+donc des hypothèses.
+
+L'app sait déjà produire la réponse : *Profil → Sauvegarde complète (JSON)*
+contient l'historique réel. Séances effectivement réalisées, exercices
+réellement joués, écrans réellement atteints : c'est ce fichier, et lui seul,
+qui doit arbitrer la suite. Tant qu'il n'a pas été relu, toute nouvelle
+fonctionnalité est construite pour un utilisateur imaginaire.
