@@ -576,6 +576,15 @@ body.guide-open{overflow:hidden}
 .menu-sheet .plusitem.danger .pm-ic{background:color-mix(in srgb,var(--danger) 16%,transparent);color:var(--danger)}
 .menu-sheet .plusitem.on .pm-ic{background:var(--accent-soft);color:var(--accent)}
 
+/* ---- Catalogue : recherche par silhouette ---- */
+.cat-sil{padding:2px 14px;margin-top:10px}
+.cat-sil-head{width:100%;background:none;border:0;padding:12px 0;min-height:48px;color:var(--ink)}
+.cat-sil-head .sect-chev{width:18px;height:18px;color:var(--ink-soft);transition:transform .2s var(--ease)}
+.cat-sil.on .sect-chev{transform:rotate(180deg);color:var(--accent)}
+.cat-sil-body{padding-bottom:10px;animation:revealUp .24s var(--ease) both}
+.cat-sil-body g[data-m]{cursor:pointer}
+@media (prefers-reduced-motion: reduce){.cat-sil-body{animation:none}.cat-sil-head .sect-chev{transition:none}}
+
 /* ---- Séance : vignette, badges musculaires, alternatives ---- */
 .exo-tete{display:flex;align-items:flex-start;gap:11px}
 .exo-vign{position:relative;flex:0 0 auto;width:52px;height:52px;padding:5px;border-radius:14px;

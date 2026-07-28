@@ -42,6 +42,8 @@ importante · **P3** polish.
 | Séance | Pas de repère visuel par exercice | Identification lente | Vignette 52 px : silhouette du muscle + icône de matériel, générée localement (hors ligne, instantanée) |
 | Séance | Muscles écrits en phrase | Lecture lente | Badges musculaires, principal en accent, un appui explique le rôle |
 | État musculaire | Silhouette décorative | On ne pouvait pas interroger un muscle | Silhouette interactive : toucher un muscle ouvre sa fiche |
+| Onboarding | 7 étapes avant la première séance | Abandon possible avant même de s'entraîner | Ramené à **5 étapes**. « Priorités & limitations » et « Récupération » gardent des valeurs par défaut prudentes et se règlent dans Profil → « Affiner mon entraînement ». Aucune donnée perdue, demandée au bon moment |
+| Catalogue | Filtre par pastilles uniquement | Difficile de chercher « le muscle là » sans connaître son nom | Recherche par silhouette : toucher un muscle filtre la liste (343 → 67 pour les biceps) |
 | Catalogue | Bouton « ℹ️ » en bout de ligne | Cible tactile étroite, emoji dans l'iconographie | Ligne entière cliquable (≥ 56 px) |
 | Accueil | En-tête de 3 lignes sans information | ~90 px perdus au-dessus du contenu utile | Une ligne + série en pastille |
 | Progrès | Carte héro répétant la grille de stats | Redondance | Ligne d'objectif hebdomadaire compacte |
@@ -70,9 +72,6 @@ importante · **P3** polish.
 
 ## Reste à faire
 
-- **Onboarding** : 7 étapes aujourd'hui, la cible produit est 5. Aucune donnée
-  collectée n'est inutile, mais « Priorités & limitations » et « Récupération »
-  pourraient être fusionnées ou déplacées après la première séance.
 - **Coach IA** (facultatif, désactivé par défaut) : jamais vérifié en conditions
   réelles, le téléchargement du modèle est bloqué en environnement de
   développement.

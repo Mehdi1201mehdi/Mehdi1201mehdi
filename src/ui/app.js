@@ -308,9 +308,12 @@ const STEPS = [
   { t: "Ton niveau", pourquoi: "Le niveau filtre les exercices trop techniques et ajuste le volume.", champ: renderStepNiveau },
   { t: "Ta disponibilité", pourquoi: "Le nombre de jours choisit le découpage (corps entier, haut/bas…), la durée limite le nombre d'exercices.", champ: renderStepDispo },
   { t: "Ton matériel", pourquoi: "On ne te proposera que des exercices réalisables avec ce que tu as.", champ: renderStepMateriel },
-  { t: "Priorités & limitations", pourquoi: "Les muscles prioritaires passent en premier. Les limitations déclenchent des variantes plus sûres.", champ: renderStepPrefs },
-  { t: "Récupération", pourquoi: "Sommeil et récupération ajustent le volume pour éviter le surmenage.", champ: renderStepRecup },
 ];
+// Cinq étapes, pas plus : l'objectif est de commencer à s'entraîner vite.
+// Les préférences fines (muscles prioritaires, limitations, récupération) ont
+// des valeurs par défaut prudentes et se règlent ensuite dans Profil →
+// « Affiner mon entraînement ». Aucune donnée n'est perdue, elle est
+// simplement demandée au bon moment.
 
 function vOnboarding(v) {
   if (!DRAFT) draftInit();
@@ -1257,6 +1260,7 @@ function controlesMedia(media, el, estVideo) {
 /* ======================================================================
    CATALOGUE / RECHERCHE D'EXERCICES
    ====================================================================== */
+let CAT_SIL = false; // silhouette de recherche dépliée dans le catalogue
 let CAT_FILTRE = { q: "", muscle: "", equip: "" };
 function vCatalogue(v) {
   if (!catalogueEtenduCharge()) chargerCatalogueEtendu().then(() => render());
@@ -1278,6 +1282,29 @@ function vCatalogue(v) {
     }
     return box;
   };
+  // Recherche par silhouette : toucher un muscle sur le corps filtre la liste.
+  // Plus direct qu'un bandeau de 12 pastilles quand on cherche « le muscle
+  // là », sans savoir comment il s'appelle.
+  const silBox = h(`<div class="card cat-sil"></div>`);
+  const silHead = h(`<button class="spread cat-sil-head" aria-expanded="${CAT_SIL ? "true" : "false"}"><span class="sect-t">Chercher sur le corps${CAT_FILTRE.muscle ? `<span class="sect-r muted">${esc(MUSCLE_LABELS[CAT_FILTRE.muscle] || CAT_FILTRE.muscle)}</span>` : ""}</span><span class="sect-chev">${IC.chevron}</span></button>`);
+  const silCorps = h(`<div class="cat-sil-body"></div>`);
+  if (!CAT_SIL) silCorps.hidden = true; else silBox.classList.add("on");
+  // Le muscle filtré est mis en avant, les autres restent neutres.
+  const inten = {};
+  if (CAT_FILTRE.muscle) inten[CAT_FILTRE.muscle] = 1;
+  silCorps.innerHTML = muscleHeatmap(inten);
+  silCorps.append(h(`<div class="muted small" style="text-align:center;margin-top:4px">Touche un muscle pour filtrer</div>`));
+  silCorps.addEventListener("click", (ev) => {
+    const g = ev.target.closest("g[data-m]");
+    if (!g) return;
+    const m = g.getAttribute("data-m");
+    CAT_FILTRE.muscle = CAT_FILTRE.muscle === m ? "" : m;
+    render();
+  });
+  silHead.addEventListener("click", () => { CAT_SIL = !CAT_SIL; render(); });
+  silBox.append(silHead, silCorps);
+  v.append(silBox);
+
   v.append(h(`<div class="eyebrow" style="margin-top:10px">Muscle</div>`));
   v.append(filtreLigne(muscles, "muscle", MUSCLE_LABELS));
   v.append(h(`<div class="eyebrow" style="margin-top:8px">Matériel</div>`));
@@ -3808,6 +3835,47 @@ function vSet(v) {
   bOutils.addEventListener("click", () => ouvrirOutils());
   outils.append(bOutils);
   v.append(outils);
+
+  // Affiner l'entraînement : les réglages retirés de l'onboarding pour le
+  // raccourcir à 5 étapes. Ils gardent des valeurs par défaut prudentes.
+  section(v, "p-affiner", "Affiner mon entraînement", (b) => {
+    const c = h(`<div class="card stack"></div>`);
+    c.append(h(`<div class="muted small">Optionnel. Ces réglages précisent la génération de programme et le choix des exercices.</div>`));
+    c.append(h(`<div class="eyebrow" style="margin-top:8px">Muscles prioritaires</div>`));
+    chips(c, MUSCLES.filter((m) => m !== "corps_entier").map((m) => [m, MUSCLE_LABELS[m]]),
+      (val) => (p.musclesPrioritaires || []).includes(val),
+      (val) => {
+        p.musclesPrioritaires = (p.musclesPrioritaires || []).includes(val)
+          ? p.musclesPrioritaires.filter((x) => x !== val) : [...(p.musclesPrioritaires || []), val];
+        Etat.sauver();
+      });
+    c.append(h(`<div class="eyebrow" style="margin-top:12px">Limitations / douleurs déclarées</div>`));
+    const LIMS = [["dos", "Dos"], ["epaule", "Épaule"], ["genou", "Genou"], ["poignet", "Poignet"], ["cheville", "Cheville"], ["coude", "Coude"], ["hanche", "Hanche"]];
+    chips(c, LIMS, (val) => (p.limitations || []).includes(val),
+      (val) => {
+        p.limitations = (p.limitations || []).includes(val)
+          ? p.limitations.filter((x) => x !== val) : [...(p.limitations || []), val];
+        Etat.sauver();
+      });
+    c.append(h(`<div class="warn small" style="margin-top:10px">${mi(IC.cross, "mi-amber")}Cette app ne remplace pas un professionnel de santé. En cas de douleur, blessure ou maladie, demande un avis médical.</div>`));
+    c.append(h(`<div class="eyebrow" style="margin-top:12px">Récupération</div>`));
+    field(c, "Qualité de récupération", chipsInline([1, 2, 3, 4, 5].map((n) => [n, `${n}`]),
+      (val) => p.recuperation === val, (val) => { p.recuperation = val; Etat.sauver(); }),
+      "1 = épuisé en permanence, 5 = toujours frais.");
+    const som = h(`<input inputmode="decimal" value="${p.sommeilH ?? 7}" aria-label="Sommeil moyen en heures">`);
+    som.addEventListener("input", () => { p.sommeilH = +som.value || 7; Etat.sauver(); });
+    field(c, "Sommeil moyen (h)", som);
+    field(c, "Niveau de stress", chipsInline([1, 2, 3, 4, 5].map((n) => [n, `${n}`]),
+      (val) => p.stress === val, (val) => { p.stress = val; Etat.sauver(); }));
+    const bRegen = h(`<button class="secondary big" style="margin-top:10px">Régénérer mon programme avec ces réglages</button>`);
+    bRegen.addEventListener("click", async () => {
+      if (!await confirmer("Régénérer le programme avec ces réglages ? Ton historique est conservé.", { ok: "Régénérer" })) return;
+      Etat.data.programme = genererProgramme(p); Etat.sauver();
+      toast("Programme régénéré 💪"); render();
+    });
+    c.append(bRegen);
+    b.append(c);
+  });
 
   // Coach IA (facultatif) — désactivé par défaut, l'app reste déterministe.
   v.append(carteCoachIA());

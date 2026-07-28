@@ -36,7 +36,7 @@ Légende : ✅ opérationnel · ⚠️ partiel · ❌ absent · 🔒 volontairem
 | Démonstration animée maison | ✅ | Fiche, mode guidé |
 | Historique par exercice | ✅ | Fiche → Historique |
 | Favoris | ❌ | — |
-| Recherche par silhouette | ⚠️ | Filtre par muscle, pas de sélection sur silhouette |
+| Recherche par silhouette | ✅ | Catalogue → « Chercher sur le corps » |
 
 ## Programmes
 
