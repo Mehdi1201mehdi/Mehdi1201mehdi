@@ -688,7 +688,25 @@ body.guide-open{overflow:hidden}
 .exo-vign{position:relative;flex:0 0 auto;width:52px;height:52px;padding:5px;border-radius:14px;
   background:var(--surface-2);border:1px solid var(--hair);display:grid;place-items:center;min-height:52px}
 .exo-vign .mini-silhouette{width:100%;height:100%;display:block}
-.exo-matos{position:absolute;right:-4px;bottom:-4px;width:20px;height:20px;border-radius:7px;
+/* Démonstration animée dans la vignette : recouvre la silhouette, qui
+   réapparaît si l'image ne charge pas. Fond opaque pour que rien ne
+   transparaisse au travers d'un GIF détouré. */
+.exo-gif{position:absolute;inset:3px;width:calc(100% - 6px);height:calc(100% - 6px);
+  object-fit:cover;border-radius:11px;display:block;opacity:0;transition:opacity .2s var(--ease)}
+/* Révélée seulement une fois chargée : la silhouette reste visible tant que la
+   démonstration n'est pas arrivée, plutôt qu'un carré vide sur réseau lent. */
+.exo-gif.ok{opacity:1;background:var(--surface-2)}
+.alt-v .exo-gif{inset:2px;width:calc(100% - 4px);height:calc(100% - 4px);border-radius:9px}
+/* Même vignette dans toutes les listes d'exercices, en version compacte */
+.exo-vign.sm{width:42px;height:42px;min-height:42px;padding:3px;border-radius:12px}
+.exo-vign.sm .exo-gif{inset:2px;width:calc(100% - 4px);height:calc(100% - 4px);border-radius:10px}
+.exo-vign.sm .exo-matos{width:17px;height:17px;border-radius:6px;right:0;bottom:0}
+.exo-vign.sm .exo-matos svg{width:9px;height:9px}
+.exline .exo-vign{margin-right:2px}
+.exo-pick{align-items:center}
+/* Badge matériel : posé DANS la vignette. Il débordait de 4 px, ce qui le
+   faisait rogner dans les listes à défilement et signalait un dépassement. */
+.exo-matos{position:absolute;right:0;bottom:0;width:20px;height:20px;border-radius:7px;
   background:var(--accent);color:var(--on-accent);display:grid;place-items:center;border:2px solid var(--surface)}
 .exo-matos svg{width:11px;height:11px;display:block}
 .exo-titre{flex:1;min-width:0}

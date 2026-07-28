@@ -1089,7 +1089,7 @@ function ligneExoEditor(s, e, i) {
   const t = e.series[0] || {};
   const enTemps = !!t.dureeSec;
   const row = h(`<div class="card flat" style="margin:6px 0"></div>`);
-  row.append(h(`<div class="spread"><b>${i + 1}. ${esc(exo ? exo.nom : e.exerciceId)}</b></div>`));
+  row.append(h(`<div class="row" style="gap:10px;align-items:center">${vignetteHTML(exo, "sm")}<b style="flex:1;min-width:0">${i + 1}. ${esc(exo ? exo.nom : e.exerciceId)}</b></div>`));
   const ctr = h(`<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px"></div>`);
   const inNb = h(`<label class="small">Séries <input type="number" min="1" max="10" value="${e.series.length}" style="width:52px" /></label>`);
   const inRepos = h(`<label class="small">Repos(s) <input type="number" min="0" max="600" step="15" value="${t.reposSec || 90}" style="width:64px" /></label>`);
@@ -1247,7 +1247,9 @@ function ouvrirDetail(exo) {
       }
       const s = h(`<div class="stack"></div>`);
       alts.forEach((a) => {
-        const card = h(`<div class="altcard"><div class="spread"><b class="small">${esc(a.etiquette)}</b><button class="chip" data-alt="${esc(a.exercice.id)}">Ouvrir</button></div><div class="small">${esc(a.exercice.nom)} — <span class="muted">${esc(a.explication)}</span></div></div>`);
+        const card = h(`<div class="altcard"><div class="spread"><b class="small">${esc(a.etiquette)}</b><button class="chip" data-alt="${esc(a.exercice.id)}">Ouvrir</button></div>
+          <div class="row" style="gap:10px;align-items:center;margin-top:6px">${vignetteHTML(a.exercice, "sm")}
+          <span class="small" style="flex:1;min-width:0">${esc(a.exercice.nom)} — <span class="muted">${esc(a.explication)}</span></span></div></div>`);
         card.querySelector("[data-alt]").addEventListener("click", () => { fermer(); ouvrirDetail(getExercise(a.exercice.id)); });
         s.append(card);
       });
@@ -1446,6 +1448,7 @@ function vCatalogue(v) {
       // Toute la ligne est cliquable : cible tactile bien plus large qu'un
       // petit bouton en bout de ligne.
       const row = h(`<button class="exline">
+        ${vignetteHTML(e, "sm")}
         <span class="meta"><span class="nm">${esc(e.nom)}</span>
           <span class="muted small">${e.musclesPrincipaux.map((m) => MUSCLE_LABELS[m] || m).join(", ")} · ${e.equipement.map((q) => EQUIPMENT_LABELS[q] || q).join(", ")}${e.source === "wger" ? ` · <span class="tag">wger</span>` : ""}</span></span>
         <span class="chev" aria-hidden="true">›</span></button>`);
@@ -1503,7 +1506,8 @@ function carteAnatoly(ex, num) {
   const gif = ref ? GIFS[ref] : null;
   const c = h(`<div class="card anat-ex${exo ? " tap" : ""}"></div>`);
   const top = h(`<div class="anat-ex-top"></div>`);
-  if (gif) top.append(h(`<img class="anat-thumb" src="${esc(gif)}" alt="" loading="lazy" decoding="async">`));
+  if (exo) top.append(h(vignetteHTML(exo)));
+  else if (gif) top.append(h(`<img class="anat-thumb" src="${esc(gif)}" alt="" loading="lazy" decoding="async">`));
   const body = h(`<div style="flex:1;min-width:0"></div>`);
   body.append(h(`<div class="anat-nom"><span class="anat-num">${num}</span>${esc(ex.nom)}</div>`));
   body.append(h(`<div class="anat-meta"><span class="badge accent">${ex.series} × ${esc(ex.reps)}</span><span class="anat-rest">⏱ ${reposAnat(ex.nom)}</span></div>`));
@@ -1581,7 +1585,7 @@ function formatRepos(sec) {
 }
 function carteExoApercu(e, num) {
   const exo = getExercise(e.exerciceId);
-  const gif = GIFS[e.exerciceId];
+  const gif = urlDemo(exo);
   const t = e.series.find((s) => s.type === "travail") || e.series[0];
   const nb = e.series.filter((s) => s.type !== "echauffement").length || e.series.length;
   const reps = t?.dureeSec ? `${t.dureeSec} s` : t?.repsCible ? `${t.repsCible[0]}–${t.repsCible[1]}` : "—";
@@ -1589,7 +1593,8 @@ function carteExoApercu(e, num) {
   const nom = exo ? exo.nom : e.exerciceId;
   const c = h(`<div class="card anat-ex${exo ? " tap" : ""}"></div>`);
   const top = h(`<div class="anat-ex-top"></div>`);
-  if (gif) top.append(h(`<img class="anat-thumb" src="${esc(gif)}" alt="" loading="lazy" decoding="async">`));
+  if (exo) top.append(h(vignetteHTML(exo)));
+  else if (gif) top.append(h(`<img class="anat-thumb" src="${esc(gif)}" alt="" loading="lazy" decoding="async">`));
   const body = h(`<div style="flex:1;min-width:0"></div>`);
   body.append(h(`<div class="anat-nom"><span class="anat-num">${num}</span>${esc(nom)}</div>`));
   body.append(h(`<div class="anat-meta"><span class="badge accent">${nb} × ${esc(reps)}</span><span class="anat-rest">⏱ repos ${esc(repos)}</span></div>`));
@@ -2019,7 +2024,8 @@ function choisirExercice(onPick) {
     const res = chercherCatalogue({ q: search.value }).slice(0, 40);
     if (!res.length) { liste.append(etatVide(IC.search, "Aucun exercice trouvé", "Essaie un mot du mouvement (« développé », « tirage ») ou du muscle (« dos »).")); return; }
     res.forEach((exo) => {
-      const b = h(`<button class="big" style="justify-content:space-between;text-align:left;margin:4px 0">
+      const b = h(`<button class="big exo-pick" style="justify-content:flex-start;gap:10px;text-align:left;margin:4px 0">
+        ${vignetteHTML(exo, "sm")}
         <span><b>${esc(exo.nom)}</b><br><span class="muted small">${(exo.musclesPrincipaux || []).map((m) => MUSCLE_LABELS[m] || m).join(", ")}</span></span></button>`);
       b.addEventListener("click", () => { fermer(); onPick(exo.id); });
       liste.append(b);
@@ -2043,7 +2049,7 @@ async function remplacer(exId) {
     onMount: (inner, close) => {
       const liste = h(`<div class="stack" style="margin-bottom:8px"></div>`);
       alts.forEach((a, i) => {
-        const b = h(`<button class="big" style="justify-content:flex-start;text-align:left;margin:3px 0"><span><b>${esc(a.exercice.nom)}</b><br><span class="muted small">${esc(a.etiquette)}</span></span></button>`);
+        const b = h(`<button class="big exo-pick" style="justify-content:flex-start;gap:10px;text-align:left;margin:3px 0">${vignetteHTML(a.exercice, "sm")}<span><b>${esc(a.exercice.nom)}</b><br><span class="muted small">${esc(a.etiquette)}</span></span></button>`);
         b.addEventListener("click", () => close(i));
         liste.append(b);
       });
@@ -2603,6 +2609,16 @@ const IC_MATOS = {
  * matériel. Générée localement, donc instantanée et disponible hors ligne —
  * là où une image distante mettrait du temps et occuperait tout l'écran.
  */
+/**
+ * URL de démonstration connue SANS aller sur le réseau : cache local d'abord,
+ * puis la table embarquée, puis la miniature du catalogue. Null si inconnue —
+ * on ne déclenche jamais de recherche en ligne pour une vignette.
+ */
+function urlDemo(exo) {
+  if (!exo) return null;
+  return Etat.data.mediaCache?.[exo.id] || GIFS[exo.id] || (exo.media && exo.media.miniature) || null;
+}
+
 function vignetteExo(exo) {
   const muscles = (exo.musclesPrincipaux || []).slice(0, 2);
   const eq = exo.equipement || [];
@@ -2611,8 +2627,45 @@ function vignetteExo(exo) {
   else if (eq.includes("halteres") || eq.includes("kettlebell")) matos = "halteres";
   else if (eq.includes("poulie") || eq.includes("elastiques")) matos = "poulie";
   else if (eq.includes("machine_leviers") || eq.includes("machine_guidee") || eq.includes("smith")) matos = "machine";
-  return `${muscles.length ? miniSilhouette(muscles) : ""}<span class="exo-matos" aria-hidden="true">${IC_MATOS[matos]}</span>`;
+  // La démonstration EST l'information utile : on la montre directement dans la
+  // vignette plutôt que d'obliger à ouvrir la fiche. La silhouette reste
+  // dessous et réapparaît si l'image ne charge pas (hors ligne, exercice sans
+  // média). Animation ignorée si l'utilisateur a demandé moins de mouvement.
+  const url = REDUIRE_MOTION ? null : urlDemo(exo);
+  const img = url
+    ? `<img class="exo-gif" src="${esc(url)}" alt="" loading="lazy" decoding="async">`
+    : "";
+  return `${muscles.length ? miniSilhouette(muscles) : ""}${img}`
+    + `<span class="exo-matos" aria-hidden="true">${IC_MATOS[matos]}</span>`;
 }
+
+/**
+ * Vignette prête à poser dans n'importe quelle liste d'exercices. Une seule
+ * apparence partout : catalogue, séance, aperçu, remplacement, alternatives.
+ * @param {any} exo
+ * @param {string} [cls] modificateur de taille (`sm`)
+ */
+function vignetteHTML(exo, cls = "") {
+  if (!exo) return "";
+  return `<span class="exo-vign ${cls}" aria-hidden="true">${vignetteExo(exo)}</span>`;
+}
+
+/** Préférence système « moins de mouvement » (lue une fois au démarrage). */
+const REDUIRE_MOTION = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || false;
+
+// La démonstration ne se montre qu'une fois RÉELLEMENT chargée, et se retire si
+// elle échoue : dans les deux cas la silhouette placée dessous reste visible,
+// jamais un carré vide. `load` et `error` ne remontent pas — d'où l'écoute en
+// phase de capture, un seul couple d'écouteurs pour toute l'application.
+const estVignette = (t) => t && t.tagName === "IMG" && t.classList.contains("exo-gif");
+document.addEventListener("load", (ev) => {
+  const t = /** @type {any} */ (ev.target);
+  if (estVignette(t)) t.classList.add("ok");
+}, true);
+document.addEventListener("error", (ev) => {
+  const t = /** @type {any} */ (ev.target);
+  if (estVignette(t)) t.remove();
+}, true);
 
 /**
  * Badges des muscles travaillés : principal en accent, secondaires en discret.
@@ -2833,9 +2886,11 @@ function ouvrirDetailAuto(gen) {
       const cibles = Object.entries(x.coeffs).sort((a, b) => b[1] - a[1]).slice(0, 3)
         .map(([m, v2]) => `${LABELS_MOTEUR[m]} ${Math.round(v2 * 100)} %`).join(" · ");
       const row = h(`<div class="card tap" style="padding:11px;margin-bottom:8px">
+        <div class="row" style="gap:10px;align-items:flex-start">${vignetteHTML(x.exo, "sm")}
+        <div style="flex:1;min-width:0">
         <div class="spread"><b>${i + 1}. ${esc(x.exo.nom)}</b><span class="pill">${x.series} séries</span></div>
         <div class="muted small" style="margin-top:3px">${esc(cibles)}</div>
-        <div class="muted small">Compatibilité ${x.score} %${x.accessoire ? " · accessoire" : ""}</div></div>`);
+        <div class="muted small">Compatibilité ${x.score} %${x.accessoire ? " · accessoire" : ""}</div></div></div></div>`);
       row.addEventListener("click", () => ouvrirDetail(x.exo));
       inner.append(row);
     });
