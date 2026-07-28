@@ -2,7 +2,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PROGRAMMES_SALLE, programmeSalleParId } from "../src/data/programmes-salle.js";
-import { PROGRAMMES } from "../src/data/programmes.js";
 import { getExercise, CATALOGUE } from "../src/data/exercises.js";
 import { SALLE_EXERCISES } from "../src/data/exercises-salle.js";
 import { MUSCLES, EQUIPMENTS } from "../src/models.js";
@@ -43,7 +42,7 @@ test("PROGRAMMES_SALLE : chaque exercice référencé existe", () => {
 });
 
 test("PROGRAMMES_SALLE : métadonnées et volumes cohérents", () => {
-  const ids = new Set(PROGRAMMES.map((p) => p.id)); // pas de collision avec l'autre famille
+  const ids = new Set();
   for (const p of PROGRAMMES_SALLE) {
     assert.ok(!ids.has(p.id), `identifiant en collision : ${p.id}`);
     ids.add(p.id);

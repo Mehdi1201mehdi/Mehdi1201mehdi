@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   nouvelleSession, nouvelleSerie, ajouterSerie, retirerDerniereSerie,
-  serialiser, restaurer, estReprenable, dureeSecondes,
+  serialiser, restaurer, estReprenable, dureeSecondes, reconcilier,
 } from "../src/engine/liveSession.js";
 
 const seanceExemple = {
@@ -90,4 +90,32 @@ test("dureeSecondes : différence en secondes, robustesse", () => {
   assert.equal(dureeSecondes("2026-07-17T08:00:00Z", "2026-07-17T08:45:30Z"), 2730);
   assert.equal(dureeSecondes("2026-07-17T08:00:00Z", "2026-07-17T07:00:00Z"), null); // fin < début
   assert.equal(dureeSecondes("pas une date", "2026-07-17T08:00:00Z"), null);
+});
+
+test("reconcilier : complète l'état live si la séance a changé pendant la séance", () => {
+  const seance = { id: "s1", exercices: [
+    { exerciceId: "squat-barre", series: [{ type: "travail", repsCible: [8, 12], reposSec: 90 }] },
+    { exerciceId: "pompes", series: [{ type: "travail", repsCible: [10, 20], reposSec: 60 }] },
+    { exerciceId: "gainage-frontal", series: [{ type: "travail", dureeSec: 40, reposSec: 45 }] },
+  ] };
+  // état sauvegardé AVANT que « pompes » et « gainage » soient ajoutés
+  const live = { seanceId: "s1", debut: "2026-07-20T10:00:00Z", fini: false, data: {
+    "squat-barre": { exId: "squat-barre", douleur: false, series: [{ charge: "80", reps: "10", rir: "", dureeSec: null, done: true }] },
+  } };
+  reconcilier(live, seance);
+  // les trois exercices ont désormais un état
+  assert.deepEqual(Object.keys(live.data).sort(), ["gainage-frontal", "pompes", "squat-barre"]);
+  // la saisie existante est intacte
+  assert.equal(live.data["squat-barre"].series[0].charge, "80");
+  assert.equal(live.data["squat-barre"].series[0].done, true);
+  // l'exercice chronométré reçoit bien une durée, pas des répétitions
+  assert.equal(live.data["gainage-frontal"].series[0].dureeSec, 40);
+  assert.equal(live.data["pompes"].series[0].dureeSec, null);
+  // idempotent : un second appel ne change rien
+  const avant = JSON.stringify(live);
+  reconcilier(live, seance);
+  assert.equal(JSON.stringify(live), avant);
+  // robustesse : entrées invalides
+  assert.equal(reconcilier(null, seance), null);
+  assert.doesNotThrow(() => reconcilier(live, null));
 });

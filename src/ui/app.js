@@ -24,6 +24,7 @@ import { Etat, seanceDuJour, planningJours } from "../store/state.js";
 import {
   nouvelleSession, ajouterSerie, retirerDerniereSerie,
   serialiser, restaurer, estReprenable, dureeSecondes,
+  reconcilier,
 } from "../engine/liveSession.js";
 import {
   creerRoutine, renommer, ajouterSeance, supprimerSeance, ajouterExercice,
@@ -69,7 +70,6 @@ import {
   maxDepuisSerie, grilleMax, composition, adipositeNavy, categorieAdiposite,
   TESTS_VELO, testVeloParCle, comparerTestsVelo,
 } from "../engine/outils.js";
-import { PROGRAMMES } from "../data/programmes.js";
 import { PROGRAMMES_SALLE } from "../data/programmes-salle.js";
 import { grilleMois, moisAdjacent, NOMS_JOURS_COURTS } from "../engine/calendar.js";
 
@@ -783,7 +783,7 @@ function vProg(v) {
 
   // ---- Bibliothèque de programmes : une seule entrée, la liste s'ouvre en
   // feuille. 23 cartes empilées ici allongeaient l'écran de 3 000 px.
-  const nbPgm = PROGRAMMES.length + PROGRAMMES_SALLE.length;
+  const nbPgm = PROGRAMMES_SALLE.length;
   const bBib = h(`<button class="card wcard sil warm-cta" style="width:100%;margin-top:18px;text-align:left"><span class="mi mi-indigo" style="width:34px;height:34px">${IC.layers}</span><span class="g"><b>Bibliothèque de programmes</b><br><span class="muted small">${nbPgm} programmes prêts à installer · débutant à avancé</span></span><span class="chev" aria-hidden="true">›</span></button>`);
   bBib.addEventListener("click", ouvrirBibliothequeProgrammes);
   v.append(bBib);
@@ -823,7 +823,7 @@ function vProg(v) {
  * Sortie de l'écran Programme pour ne pas l'allonger inutilement.
  */
 function ouvrirBibliothequeProgrammes() {
-  const tous = [...PROGRAMMES, ...PROGRAMMES_SALLE];
+  const tous = [...PROGRAMMES_SALLE];
   let filtre = "tous";
   const sheet = h(`<div class="sheet"><div class="inner"></div></div>`);
   const inner = sheet.querySelector(".inner");
@@ -1514,6 +1514,9 @@ function vTrain(v) {
   }
   const seance = trouverSeance(LIVE.seanceId);
   if (!seance) { LIVE = null; persistLive(true); render(); return; }
+  // Le gabarit a pu changer pendant la séance : on complète l'état live pour
+  // les exercices ajoutés depuis, sinon leur carte n'a aucun état à afficher.
+  reconcilier(LIVE, seance);
   // En-tête de séance : nom + chrono + progression (séries validées / total)
   const pr = progressionSeance(seance);
   const nbExos = seance.exercices.length;
@@ -1571,6 +1574,7 @@ function progressionSeance(seance) {
 }
 function carteExoLive(e) {
   const st = LIVE.data[e.exerciceId];
+  if (!st) return h(`<div class="card"><div class="muted small">${esc(nomExo(e.exerciceId))} — état indisponible pour cette séance.</div></div>`);
   const exo = getExercise(st.exId);
   if (!exo) {
     const c = h(`<div class="card"><div class="spread"><b>${esc(st.exId)}</b><button class="chip danger" aria-label="Retirer">🗑️</button></div><div class="muted small">Exercice indisponible.</div></div>`);

@@ -108,6 +108,36 @@ export function restaurer(brut) {
  * @param {any} sessionEnCours
  * @param {(seanceId:string)=>any} trouverSeance  résolveur id → séance | null
  */
+/**
+ * Réconcilie une séance live avec la définition ACTUELLE de la séance.
+ *
+ * Nécessaire parce que le gabarit peut avoir changé pendant qu'une séance était
+ * en cours (exercice ajouté au programme, séance modifiée sur un autre écran) :
+ * sans cela, l'interface cherche un état inexistant pour ce nouvel exercice.
+ * Les exercices déjà saisis sont conservés tels quels ; ceux qui ne sont plus
+ * dans la séance sont gardés eux aussi (on ne jette jamais une saisie).
+ *
+ * @param {any} live    état live (modifié en place)
+ * @param {any} seance  gabarit de séance courant
+ * @returns {any} le même état live, complété
+ */
+export function reconcilier(live, seance) {
+  if (!live || !live.data || !seance || !Array.isArray(seance.exercices)) return live;
+  for (const e of seance.exercices) {
+    const id = e && e.exerciceId;
+    if (!id || live.data[id]) continue;
+    const utiles = (e.series || []).filter((s) => s.type !== "echauffement");
+    const nb = utiles.length || 3;
+    const serieTemps = (e.series || []).find((s) => s.dureeSec);
+    live.data[id] = {
+      exId: id,
+      douleur: false,
+      series: Array.from({ length: nb }, () => nouvelleSerie(serieTemps ? (serieTemps.dureeSec || 40) : null)),
+    };
+  }
+  return live;
+}
+
 export function estReprenable(sessionEnCours, trouverSeance) {
   const live = restaurer(sessionEnCours);
   if (!live || live.fini) return false;

@@ -66,6 +66,49 @@ Thème clair : voir `:root[data-theme="light"]`. Anatomie : `--anat-body/-line/-
   `.cal-cell.empty` (collision historique corrigée).
 - Data-viz : `anneauSVG`, `svgLine`, `svgBars`, `gaugeIMC` — s'animent à l'ouverture.
 
+### Ajoutés lors de la refonte de densité
+
+- `.sect` / `.sect-head` / `.sect-body` — **section repliable** (Progrès,
+  Profil). En-tête cliquable ≥ 52 px, chevron pivotant, résumé optionnel à
+  droite du titre. C'est l'outil principal pour raccourcir un écran sans rien
+  retirer : l'essentiel reste ouvert, le reste est à un tap.
+- `.exocard` / `.exometa` / `.exomenu` — carte d'exercice **en séance**.
+  `.exometa` est une ligne unique (muscle · repos · charge conseillée)
+  dépliable d'un tap ; `.exomenu` (« ⋯ ») ouvre les actions secondaires
+  (démo, RIR, douleur, remplacer, retirer). Pendant l'effort, une seule
+  rangée d'actions reste visible.
+- `.dash-hi` / `.streak-chip` — en-tête d'écran compact sur une ligne, avec la
+  série en cours en pastille.
+- `.histo-mini` / `.histo-row` — liste dense (séances récentes). Préférer une
+  liste à une pile de cartes quand les éléments se ressemblent.
+- `.daytabs` / `.daytab` — onglets de jour (Anatoly), même logique que le
+  ruban de jours du Programme : **un jour à la fois**.
+- `.objweek` — ligne d'objectif hebdomadaire avec barre de progression.
+- `.exline` — ligne de catalogue **entièrement cliquable** (≥ 56 px) plutôt
+  qu'un petit bouton en bout de ligne.
+- `.guide` / `.guide-*` — lecteur de séance guidé et séquences de mobilité
+  (plein écran, minuteur en anneau).
+- `.out-field` / `.out-big` / `.zone-row` / `.velo-row` — calculatrices.
+- `.coach-fil` / `.coach-bulle` / `.coach-barre` — fil de discussion du Coach.
+- `.pgm-card` / `.filtres-pgm` — bibliothèque de programmes et ses filtres.
+
+## Règles de densité (refonte UX)
+
+Mesurées à 390 px, hauteur de page. Une page qui dépasse **~2,5 écrans** doit
+être réorganisée, pas seulement stylée.
+
+1. **Un seul CTA dominant par écran.** Les autres actions sont discrètes.
+2. **Une carte doit avoir une raison d'exister.** Si plusieurs éléments se
+   ressemblent, en faire une liste dense, pas une pile de cartes.
+3. **Jamais deux fois la même information** sur deux écrans (la carte
+   musculaire était rendue sur l'Accueil *et* sur Progrès : corrigé).
+4. **Jamais deux navigations concurrentes** pour la même chose (Anatoly avait
+   un bandeau de semaines *et* des flèches : corrigé).
+5. **Listes longues : affichage progressif.** Le catalogue rendait
+   343 exercices d'un coup (8 écrans) ; il en rend 20, avec « Voir plus ».
+6. **Pendant une séance, la fonction prime sur la décoration** : pas de pavé
+   de texte, pas de bloc décoratif, cibles larges.
+
 ## Règles anti-« généré par IA »
 
 - Pas de noir pur, pas de gris sur couleur, texte toujours teinté.

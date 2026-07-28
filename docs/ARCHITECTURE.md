@@ -22,82 +22,138 @@ serveur ; le futur coach IA passera par un proxy serveur (aucune clé dans l'app
 
 ## Modules logiques → fichiers
 
-1. Profil utilisateur → `src/models.js`, `src/store/state.js`
-2. Catalogue d'exercices → `src/data/exercises.js`
-3. Moteur de contraintes → `src/engine/constraints.js`
-4. Moteur de programmation → `src/engine/generator.js`
-5. Moteur de progression → `src/engine/progression.js`
-6. Moteur de remplacement → `src/engine/replacement.js`
-7. Historique des performances → `src/store/state.js` (`logs`)
-8. Coach conversationnel → *(Phase 2 — proxy serveur + function calling)*
-9. Synchronisation santé → *(Phase 3 — HealthKit / Health Connect via wrapper natif optionnel)*
-10. Interface / PWA → `src/ui/app.js`, `index.html`, `style.css`, `sw.js`, `manifest.webmanifest`
+| Domaine | Fichier(s) |
+|---|---|
+| Profil, types, validation | `src/models.js`, `src/store/state.js` |
+| Catalogue d'exercices | `src/data/exercises.js` (base originale) + `exercises-salle.js` (machines/poulies) + `exercises-extra.js` (250 exercices wger, chargés à la demande) |
+| Génération de programme | `src/engine/generator.js`, `constraints.js` |
+| Progression des charges | `src/engine/progression.js` |
+| Remplacement d'exercice | `src/engine/replacement.js` |
+| Séance active | `src/engine/liveSession.js` |
+| Routines perso | `src/engine/routines.js` |
+| Programmes prêts à installer | `src/data/programmes-salle.js` (18 programmes) |
+| Échauffement / étirement | `src/data/mobilite.js` |
+| Statistiques, records | `src/engine/stats.js`, `records.js` |
+| Défis & régularité | `src/engine/defis.js` |
+| Assistant déterministe | `src/engine/assistant.js` |
+| Calculatrices (FC, macros, 1RM, composition, test vélo) | `src/engine/outils.js` |
+| Nutrition | `src/engine/nutrition.js`, `src/data/foods.js` |
+| Force / powerlifting | `src/engine/powerlifting.js` |
+| Sauvegarde, export | `src/engine/backup.js`, `export.js` |
+| Anatomie (SVG) | `src/ui/anatomy.js`, `src/data/anatomy-paths.js` |
+| Interface, PWA | `src/ui/app.js`, `index.html`, `style.css`, `sw.js`, `manifest.webmanifest` |
+| Coach IA **facultatif** | `src/integrations/coachIA.js` — désactivé par défaut, voir plus bas |
+
+Le moteur (`src/engine/*`) est **pur** : aucun accès au DOM ni au stockage.
+C'est ce qui le rend testable (`node --test tests/*.test.js`).
+
+## Écrans (`src/ui/app.js`)
+
+Barre de navigation : **Accueil · Programme · Séance · Progrès · Profil**.
+Écrans secondaires atteints depuis le Profil ou l'Accueil : Nutrition,
+Catalogue, Programme Anatoly, Coach, Outils de calcul.
+
+Composants transverses :
+- `section()` — section repliable (Progrès, Profil), état mémorisé en mémoire.
+- Feuilles plein écran (`.sheet`) — détail d'exercice, Coach, Outils,
+  bibliothèque de programmes, menu d'actions d'un exercice en séance.
+- Mode guidé (`.guide`) — lecteur de séance pas à pas et séquences de
+  mobilité, avec minuteur intégré.
 
 ## Arborescence
 
 ```
-index.html               Coquille de l'app (PWA)
-style.css                Design system (thèmes clair/sombre, accessibilité)
-manifest.webmanifest     Manifeste PWA (installation)
-sw.js                    Service worker (cache hors ligne)
-assets/icons/icon.svg    Icône de l'app
-package.json             Scripts de test / typecheck
+index.html               Coquille de l'app (PWA) + CSP
+style.css                Design system (tokens, thèmes, composants)
+manifest.webmanifest     Manifeste PWA
+sw.js                    Service worker — réseau d'abord (app), cache d'abord (médias)
 src/
   models.js              Types, énumérations, validation de profil
-  data/exercises.js      Base d'exercices originale (référentiel)
-  engine/
-    constraints.js       Filtrage matériel / limitations / niveau
-    generator.js         Génération déterministe de programme
-    progression.js       Double progression + journal d'audit
-    replacement.js       Remplacement par contraintes (3 alternatives)
-    index.js             Agrégat du moteur
-  store/state.js         État + persistance locale + planning
-  ui/app.js              Écrans : onboarding, dashboard, programme, séance, progrès, réglages
-tests/                   Tests du moteur (node --test) — cas sportifs du cahier des charges
-docs/ARCHITECTURE.md     Ce document
+  data/                  Catalogues d'exercices, aliments, programmes, mobilité, anatomie
+  engine/                Logique métier PURE (testée)
+  integrations/          Sources externes : OpenFoodFacts, ExerciseDB, coach IA facultatif
+  store/                 État, IndexedDB, migrations de schéma
+  ui/                    app.js (écrans) + anatomy.js (SVG musculaire)
+tests/                   Tests du moteur (node --test)
+docs/                    Cette documentation
 ```
 
-## Modèle de données local (`localStorage`, clé `coachperso.ia.v1`)
+## Modèle de données local
 
-- `profil` : identité, objectif, niveau, jours, durée, lieu, équipements,
-  muscles prioritaires, exercices aimés/refusés, limitations, récupération…
-- `programme` : split + séances → exercices → séries (charge/reps/durée/RIR/tempo/repos)
-- `logs[]` : séances réalisées `{ id (uuid idempotent), date, seanceId, exercices[] }`
-- `metrics[]` : poids / mensurations `{ id, date, poidsKg, … }`
-- `reglages` : thème, unités, sons, vibrations
+IndexedDB (`src/store/db.js`) avec **miroir localStorage**, clé
+`coachperso.ia.v1`. Schéma courant : **v2** (`src/store/migrate.js`).
 
-Chaque log porte un **UUID idempotent** : base prête pour une synchro
-optionnelle ultérieure sans doublons.
+| Clé | Contenu |
+|---|---|
+| `profil` | identité, objectif, niveau, jours, durée, équipements, limitations |
+| `programme` | split + séances → exercices → séries |
+| `programmesPerso[]` | routines créées à la main ou installées depuis la bibliothèque |
+| `exercicesPerso[]` | exercices créés par l'utilisateur |
+| `sessionEnCours` | séance interrompue, pour la reprise |
+| `logs[]` | séances réalisées `{ id, date, seanceId, exercices[] }` |
+| `metrics[]` | poids / mensurations |
+| `foodlog{}` / `waterlog{}` | `"YYYY-MM-DD"` → aliments / millilitres |
+| `reviews[]` | bilans d'ajustement |
+| `testsVelo[]` | relevés du test cardio sur vélo |
+| `mediaCache{}` | `exId` → URL de média résolue |
+| `reglages` | thème, unités, sons, vibrations, pouls de repos, morphotype, coach IA |
 
-## Plan par phases
+`normaliserEtat()` complète les clés manquantes et corrige les types abîmés
+sans jamais supprimer de données. Toute nouvelle clé doit y être ajoutée.
 
-- **Phase 1 (en cours)** ✅ : moteur déterministe (génération, progression,
-  remplacement) + tests, base d'exercices, onboarding, dashboard, programme,
-  **mode séance** (saisie + minuteur + suggestions), progrès de base, PWA
-  hors ligne installable.
-- **Phase 2** : coach IA (proxy serveur + outils contrôlés + propositions
-  validées), statistiques avancées & graphiques, exercice-détail enrichi,
-  extension de la base vers 150+ exercices.
-- **Phase 3** : synchronisation santé (Apple Health / Health Connect via
-  wrapper natif optionnel), notifications locales, export/import avancé.
-- **Phase 4** : durcissement, sauvegarde chiffrée optionnelle, finitions,
-  éventuel empaquetage natif (Capacitor) si tu veux une vraie app store.
+**Réconciliation de séance** : `reconcilier(live, seance)` complète l'état
+d'une séance reprise si le gabarit a changé entre-temps (exercice ajouté au
+programme pendant la séance). Sans cela, l'interface cherchait un état
+inexistant et plantait.
 
-## Ce qui fonctionne réellement vs simulé (honnêteté)
+## État réel des fonctionnalités
 
-- **Fonctionne** : génération de programme déterministe et testée, filtrage par
-  matériel/limitations, progression (double progression) avec audit,
-  remplacement d'exercice, mode séance avec minuteur, persistance locale, PWA
-  hors ligne, onboarding complet, catalogue d'exercices (~287, dont ~37 curés
-  en français utilisés par le moteur + 250 importés de wger.de, noms traduits
-  en français), icônes PNG haute résolution (192/512/maskable) déjà générées.
-- **Pas encore là** : coach IA conversationnel (Phase 2), synchro santé
-  (Phase 3), graphiques avancés, descriptions détaillées des 250 exercices
-  wger (encore en anglais, seuls les noms sont traduits).
+**Déterministe, testé, hors ligne** (le cœur de l'app) :
+génération de programme, filtrage matériel/limitations, double progression
+avec audit, remplacement d'exercice, séance active (saisie, minuteur, reprise
+après fermeture), mode guidé pas à pas, échauffement et étirements guidés,
+statistiques, records et 1RM estimé, défis et régularité, récupération
+musculaire, carte musculaire SVG, nutrition et hydratation, suivi du poids et
+des mensurations, calculatrices (FC cible, macros par morphotype, durée de
+séance, maximum estimé, composition corporelle, test cardio vélo),
+bibliothèque de 18 programmes installables, assistant de questions,
+sauvegarde/restauration, PWA installable.
 
-## Reste à configurer manuellement
+**Catalogue** : ~343 exercices — 37 originaux + 56 de salle rédigés pour ce
+projet (chargés d'emblée, donc disponibles hors ligne), plus 250 importés de
+wger.de chargés à la demande (descriptions encore en anglais, noms traduits).
 
-1. **Activer GitHub Pages** (Settings → Pages → Deploy from a branch) pour
-   obtenir le lien permanent et installer l'app sur le téléphone.
-2. (Phase 2) Déployer un petit **proxy IA** et y mettre la clé API côté serveur.
-3. (Optionnel) Générer des **icônes PNG** 192/512 px à partir de `icon.svg`.
+**Réseau requis** (dégradation propre si absent) : recherche d'aliments
+OpenFoodFacts, visuels de démonstration des exercices. Le reste fonctionne
+intégralement hors ligne.
+
+**Facultatif et désactivé par défaut** : le « Coach IA »
+(`src/integrations/coachIA.js`) charge Transformers.js et un petit modèle
+depuis le CDN Hugging Face pour répondre aux questions ouvertes, en local dans
+le navigateur. Tant qu'il n'est pas activé dans le Profil, **rien** n'est
+téléchargé et l'app reste strictement déterministe.
+⚠️ Ce mode déroge à la règle « aucune IA embarquée » de `CLAUDE.md` : c'est un
+choix explicite du propriétaire du projet. Le chargement du modèle n'a jamais
+pu être vérifié en conditions réelles (proxy de développement bloquant
+huggingface.co) — à valider sur un appareil réel.
+
+## Tests
+
+`node --test tests/*.test.js` — 162 tests sur le moteur pur.
+
+Les tests de bout en bout (Playwright) vivent dans le scratchpad de session et
+couvrent : audit de densité par écran, responsive de 360 à 1280 px,
+accessibilité (libellés, focus, reduced-motion), parcours utilisateur, et
+**robustesse sur états réels** (état vierge, ancien schéma sans les clés
+récentes, historique lourd, exercice retiré du catalogue, données abîmées,
+séance interrompue à reprendre).
+
+## Contraintes à ne pas casser
+
+1. **Aucune étape de build** : modules ES natifs servis tels quels par GitHub
+   Pages. Chemins relatifs (`./`), jamais de base absolue.
+2. **Hors ligne** : tout nouveau module doit être ajouté à `ASSETS` dans
+   `sw.js`, et `CACHE` incrémenté à chaque changement d'asset.
+3. **Aucune perte de données** : toute nouvelle clé d'état passe par
+   `normaliserEtat()`.
+4. **Aucun secret dans le dépôt**.

@@ -1,7 +1,7 @@
 /* Service worker — stratégie RÉSEAU D'ABORD pour l'app (toujours la dernière
    version en ligne), cache en secours hors ligne. Les médias de démonstration
    (cross-origin) restent en cache d'abord pour l'usage hors ligne. */
-const CACHE = "coachperso-ia-v79";
+const CACHE = "coachperso-ia-v80";
 const MEDIA_CACHE = "coachperso-media-v1";
 const MEDIA_HOSTS = ["exercisedb.dev", "exercisedb.p.rapidapi.com", "wger.de", "githubusercontent.com", "cloudfront.net"];
 const ASSETS = [
@@ -10,7 +10,7 @@ const ASSETS = [
   "./assets/icons/icon-maskable-512.png", "./assets/icons/apple-touch-icon.png",
   "./assets/fonts/inter-latin.woff2", "./assets/fonts/inter-latin-ext.woff2",
   "./src/ui/app.js", "./src/ui/anatomy.js", "./src/models.js",
-  "./src/data/exercises.js", "./src/data/exercises-extra.js", "./src/data/foods.js", "./src/data/gifs.js", "./src/data/anatoly.js", "./src/data/anatomy-paths.js", "./src/data/mobilite.js", "./src/data/programmes.js", "./src/data/programmes-salle.js", "./src/data/exercises-salle.js",
+  "./src/data/exercises.js", "./src/data/exercises-extra.js", "./src/data/foods.js", "./src/data/gifs.js", "./src/data/anatoly.js", "./src/data/anatomy-paths.js", "./src/data/mobilite.js", "./src/data/programmes-salle.js", "./src/data/exercises-salle.js",
   "./src/engine/index.js", "./src/engine/constraints.js", "./src/engine/generator.js",
   "./src/engine/progression.js", "./src/engine/replacement.js", "./src/engine/review.js",
   "./src/engine/nutrition.js", "./src/engine/calendar.js", "./src/engine/export.js", "./src/engine/liveSession.js", "./src/engine/routines.js",
