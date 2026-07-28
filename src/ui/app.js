@@ -698,6 +698,39 @@ function section(parent, cle, titre, remplir, opts = {}) {
   return wrap;
 }
 
+/**
+ * État vide / erreur normalisé. Un écran sans contenu doit dire ce qui manque
+ * et proposer la sortie, pas afficher une ligne grise.
+ *
+ * @param {string} icone   pictogramme SVG (IC.*)
+ * @param {string} titre   ce qui se passe, en une phrase
+ * @param {string} texte   quoi faire ensuite
+ * @param {{erreur?:boolean, action?:{label:string, onClick:Function}}} [opts]
+ */
+function etatVide(icone, titre, texte, opts = {}) {
+  const el = h(`<div class="empty-state${opts.erreur ? " err" : ""}" role="${opts.erreur ? "alert" : "status"}">
+    <div class="es-ic">${icone}</div><b>${esc(titre)}</b>
+    ${texte ? `<div class="muted small">${esc(texte)}</div>` : ""}</div>`);
+  if (opts.action) {
+    const b = h(`<button class="secondary">${esc(opts.action.label)}</button>`);
+    b.addEventListener("click", () => opts.action.onClick());
+    el.append(b);
+  }
+  return el;
+}
+
+/** `n` squelettes de ligne : montre la forme du contenu attendu pendant l'attente. */
+function squelettes(n = 3) {
+  const f = document.createDocumentFragment();
+  for (let i = 0; i < n; i++) {
+    f.append(h(`<div class="skel-card" aria-hidden="true"><div class="sk-av skeleton"></div>
+      <div class="sk-l"><i class="skeleton" style="width:${60 + (i % 3) * 12}%"></i><i class="skeleton" style="width:${35 + (i % 2) * 15}%"></i></div></div>`));
+  }
+  const wrap = h(`<div role="status" aria-label="Chargement en cours"></div>`);
+  wrap.append(f);
+  return wrap;
+}
+
 function kpi(lab, val) { return h(`<div class="card kpi"><span class="lab">${esc(lab)}</span><b class="num">${esc(val)}</b></div>`); }
 /** Anneau de progression SVG (0..1) avec texte central. Composant réutilisable. */
 function anneauSVG(pct, taille = 76, texte = "") {
@@ -716,8 +749,10 @@ function statCard(icone, valeur, label) {
   return h(`<div class="stat"><div class="ic" aria-hidden="true">${icone}</div><b class="num">${esc(valeur)}</b><span class="lab">${esc(label)}</span></div>`);
 }
 /** État vide soigné (icône + titre + sous-titre). Renvoie une chaîne HTML. */
-function etatVide(icone, titre, sousTitre = "") {
-  return `<div class="emptystate"><div class="emptystate-ic" aria-hidden="true">${icone}</div><b>${esc(titre)}</b>`
+/** Même état vide, en chaîne HTML — pour les rendus qui composent du markup
+    (graphiques SVG). Une seule apparence pour les deux formes. */
+function etatVideHTML(icone, titre, sousTitre = "") {
+  return `<div class="empty-state"><div class="es-ic" aria-hidden="true">${icone}</div><b>${esc(titre)}</b>`
     + (sousTitre ? `<span class="muted small">${esc(sousTitre)}</span>` : "") + `</div>`;
 }
 /** Emoji illustratif par type de matériel (rangée « Matériel requis »). */
@@ -1006,7 +1041,7 @@ function vRoutineEditor(v, routineId) {
   v.append(h(`<h1 style="margin:6px 0">${esc(r.nom)}</h1>`));
   $("#back", v).addEventListener("click", () => { EDIT_ROUTINE = null; render(); });
   $("#ren", v).addEventListener("click", async () => { const n = await demanderTexte("Nom de la routine", r.nom); if (n !== null) { renommer(r, n); Etat.sauver(); render(); } });
-  if (!r.seances.length) v.append(h(`<div class="muted small">Aucune séance. Ajoute-en une pour commencer.</div>`));
+  if (!r.seances.length) v.append(etatVide(IC.calendar, "Routine vide", "Ajoute une première séance, puis ses exercices : elle apparaîtra ensuite dans l'onglet Séance."));
   r.seances.forEach((s) => v.append(carteSeanceEditor(r, s)));
   const bAddS = h(`<button class="primary" style="margin-top:10px"><span class="btn-ico">${IC.plus}</span>Ajouter une séance</button>`);
   bAddS.addEventListener("click", async () => { const n = await demanderTexte("Nom de la séance", `Séance ${r.seances.length + 1}`, { ok: "Ajouter" }); if (n === null) return; ajouterSeance(r, n); Etat.sauver(); render(); });
@@ -1149,11 +1184,13 @@ function ouvrirDetail(exo) {
     <span class="pill">${DIFF_LABEL[diff] || "—"}</span></div>`));
   if (!estRealisable(exo)) inner.append(h(`<div class="warn small" style="margin-top:10px">⚠️ Pas réalisable avec ton matériel / tes limitations actuels.</div>`));
 
-  // Onglets : Info · Instructions · Conseils · Historique
+  // Sections dépliables plutôt que des onglets : tout le contenu d'un exercice
+  // est balayable d'un seul défilement, et l'état d'ouverture est mémorisé d'une
+  // fiche à l'autre (on rouvre toujours celle qu'on consulte réellement).
   const rendus = {
-    Info: () => {
+    Muscles: () => {
       const f = h(`<div class="stack"></div>`);
-      const anat = h(`<div class="sec"><h3>Muscles sollicités</h3></div>`);
+      const anat = h(`<div class="sec" style="margin-top:0"></div>`);
       anat.append(diagrammeMuscles(exo));
       const legende = [
         ...(exo.musclesPrincipaux || []).map((m) => `<span class="pill" style="background:#EF4444;color:#fff">${esc(MUSCLE_LABELS[m] || m)}</span>`),
@@ -1171,30 +1208,36 @@ function ouvrirDetail(exo) {
       f.append(dl);
       return f;
     },
-    Instructions: () => {
-      if (!(exo.instructions || []).length) return h(`<div class="muted small">Pas d'instructions détaillées pour cet exercice.</div>`);
-      return h(`<ol class="small det-steps">${exo.instructions.map((x) => `<li>${esc(x)}</li>`).join("")}</ol>`);
-    },
-    Conseils: () => {
+    Technique: () => {
       const f = h(`<div class="stack"></div>`);
+      if ((exo.instructions || []).length) {
+        f.append(h(`<ol class="small det-steps">${exo.instructions.map((x) => `<li>${esc(x)}</li>`).join("")}</ol>`));
+      }
       if (exo.respiration) f.append(h(`<div class="sec"><h3>Respiration</h3><div class="breath"><span class="in">↧ Inspirer</span><span class="out">↥ Expirer</span></div><div class="small muted" style="margin-top:6px">${esc(exo.respiration)}</div></div>`));
       if ((exo.erreurs || []).length) f.append(h(`<div class="sec"><h3>Erreurs fréquentes</h3><div class="small muted">✖ ${exo.erreurs.map(esc).join(" · ")}</div></div>`));
       if (exo.securite) f.append(h(`<div class="sec"><h3>Sécurité</h3><div class="warn small">🛟 ${esc(exo.securite)}</div></div>`));
-      if (alts.length) {
-        const s = h(`<div class="sec"><h3>Remplacement intelligent</h3></div>`);
-        alts.forEach((a) => {
-          const card = h(`<div class="altcard"><div class="spread"><b class="small">${esc(a.etiquette)}</b><button class="chip" data-alt="${esc(a.exercice.id)}">Ouvrir</button></div><div class="small">${esc(a.exercice.nom)} — <span class="muted">${esc(a.explication)}</span></div></div>`);
-          card.querySelector("[data-alt]").addEventListener("click", () => { fermer(); ouvrirDetail(getExercise(a.exercice.id)); });
-          s.append(card);
-        });
-        f.append(s);
+      if (!f.children.length) {
+        return h(`<div class="empty-state"><div class="es-ic">${IC.info}</div><b>Pas de consignes détaillées</b><div class="muted small">Regarde la démonstration en haut de la fiche : elle montre l'amplitude et le rythme.</div></div>`);
       }
-      if (!f.children.length) return h(`<div class="muted small">Pas de conseils spécifiques pour cet exercice.</div>`);
       return f;
     },
-    Historique: () => {
+    Alternatives: () => {
+      if (!alts.length) {
+        return h(`<div class="empty-state"><div class="es-ic">${IC.swap}</div><b>Aucune alternative compatible</b><div class="muted small">Avec le matériel et les limitations déclarés dans ton profil, cet exercice n'a pas d'équivalent proche.</div></div>`);
+      }
+      const s = h(`<div class="stack"></div>`);
+      alts.forEach((a) => {
+        const card = h(`<div class="altcard"><div class="spread"><b class="small">${esc(a.etiquette)}</b><button class="chip" data-alt="${esc(a.exercice.id)}">Ouvrir</button></div><div class="small">${esc(a.exercice.nom)} — <span class="muted">${esc(a.explication)}</span></div></div>`);
+        card.querySelector("[data-alt]").addEventListener("click", () => { fermer(); ouvrirDetail(getExercise(a.exercice.id)); });
+        s.append(card);
+      });
+      return s;
+    },
+    Progression: () => {
       const hh = historiqueExercice(exo.id);
-      if (!hh.nbSeances) return h(`<div class="muted small">Aucune donnée pour l'instant. Réalise cet exercice en séance pour suivre ta progression ici.</div>`);
+      if (!hh.nbSeances) {
+        return h(`<div class="empty-state"><div class="es-ic">${IC.activity}</div><b>Pas encore de données</b><div class="muted small">Réalise cet exercice en séance : charge max, 1RM estimé et historique apparaîtront ici.</div></div>`);
+      }
       const f = h(`<div class="stack"></div>`);
       const g = h(`<div class="statgrid"></div>`);
       g.append(statCard(IC.dumbbell, `${hh.maxCharge} kg`, "Charge max"));
@@ -1211,19 +1254,18 @@ function ouvrirDetail(exo) {
       return f;
     },
   };
-  const tabsBar = h(`<div class="xtabs"></div>`);
-  const panel = h(`<div class="xpanel"></div>`);
-  const afficher = (nom) => {
-    tabsBar.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.t === nom));
-    panel.innerHTML = ""; panel.append(rendus[nom]());
-  };
-  ["Info", "Instructions", "Conseils", "Historique"].forEach((nom) => {
-    const b = h(`<button data-t="${nom}">${nom}</button>`);
-    b.addEventListener("click", () => afficher(nom));
-    tabsBar.append(b);
+  const corpsFiche = h(`<div class="fiche-sect"></div>`);
+  const nbSeances = historiqueExercice(exo.id).nbSeances;
+  const SECTIONS = [
+    ["Technique", "Technique", (exo.instructions || []).length ? `${exo.instructions.length} étapes` : "", true],
+    ["Muscles", "Muscles sollicités", (exo.musclesPrincipaux || []).map((m) => MUSCLE_LABELS[m] || m).join(", "), true],
+    ["Progression", "Progression", nbSeances ? `${nbSeances} séance${nbSeances > 1 ? "s" : ""}` : "aucune donnée", false],
+    ["Alternatives", "Alternatives", alts.length ? `${alts.length} proposée${alts.length > 1 ? "s" : ""}` : "aucune", false],
+  ];
+  SECTIONS.forEach(([cle, titre, resume, ouvert]) => {
+    section(corpsFiche, `fx-${cle}`, titre, (b) => b.append(rendus[cle]()), { ouvert, resume });
   });
-  inner.append(tabsBar, panel);
-  afficher("Info");
+  inner.append(corpsFiche);
 
   sheet.querySelector("#x").addEventListener("click", fermer);
   document.body.append(sheet);
@@ -1232,9 +1274,12 @@ function ouvrirDetail(exo) {
 
 /** Charge le média (GIF/vidéo) avec cache local, repli anatomie. */
 async function chargerMedia(exo, media) {
-  const heroAnatomie = () => {
+  const heroAnatomie = (raison = "") => {
     media.style.aspectRatio = "auto"; media.innerHTML = "";
     const box = h(`<div style="padding:14px;width:100%"></div>`);
+    // Toujours dire POURQUOI on est retombé sur le schéma anatomique : un
+    // visuel de repli sans explication passe pour un bug.
+    if (raison) box.append(h(`<div class="muted small" style="text-align:center;margin-bottom:8px">${esc(raison)}</div>`));
     if (exo.patron) box.append(h(animDemo(exo, { grand: true })));
     box.append(diagrammeMuscles(exo));
     const btn = h(`<button class="chip" style="margin:10px auto 0;display:block">🔄 Recharger la démonstration</button>`);
@@ -1254,12 +1299,26 @@ async function chargerMedia(exo, media) {
     if (res && res.gifUrl) { url = res.gifUrl; Etat.data.mediaCache[exo.id] = url; Etat.sauver(); }
   }
   if (!media.isConnected) return;           // feuille fermée entre-temps
-  if (!url) { heroAnatomie(); return; }
+  if (!url) {
+    heroAnatomie(navigator.onLine === false
+      ? "Hors ligne : démonstration vidéo indisponible."
+      : "Aucune démonstration trouvée pour cet exercice.");
+    return;
+  }
 
   const estVideo = /\.(mp4|webm|mov)$/i.test(url);
   const el = estVideo ? h(`<video autoplay loop muted playsinline></video>`) : h(`<img decoding="async" alt="Démonstration : ${esc(exo.nom)}">`);
-  el.addEventListener(estVideo ? "loadeddata" : "load", () => media.querySelector(".spin")?.remove());
-  el.addEventListener("error", heroAnatomie);
+  // Une requête qui n'aboutit jamais ne déclenche NI `load` NI `error` : sans
+  // ce garde-fou, la fiche restait sur son indicateur de chargement à l'infini.
+  let regle = false;
+  const finir = (fn) => { if (regle) return; regle = true; clearTimeout(tmo); fn(); };
+  const tmo = setTimeout(() => finir(() => {
+    if (media.isConnected) heroAnatomie("La démonstration n'a pas pu être chargée (connexion lente ou indisponible).");
+  }), 9000);
+  el.addEventListener(estVideo ? "loadeddata" : "load", () => finir(() => media.querySelector(".spin")?.remove()));
+  el.addEventListener("error", () => finir(() => heroAnatomie(
+    navigator.onLine === false ? "Hors ligne : démonstration non téléchargée." : "Démonstration indisponible."
+  )));
   el.src = url;
   media.insertBefore(el, media.firstChild);
   media.append(controlesMedia(media, el, estVideo));
@@ -1356,7 +1415,11 @@ function vCatalogue(v) {
     const tous = chercherCatalogue(CAT_FILTRE);
     const list = tous.slice(0, montres);
     res.innerHTML = "";
-    if (!tous.length) { res.append(h(`<div class="notice small">Aucun exercice ne correspond. Élargis les filtres.</div>`)); return; }
+    if (!tous.length) {
+      res.append(etatVide(IC.search, "Aucun exercice ne correspond", "Les filtres se cumulent : retire le matériel ou le muscle pour élargir.",
+        { action: { label: "Réinitialiser les filtres", onClick: () => { CAT_FILTRE = { q: "" }; render(); } } }));
+      return;
+    }
     res.append(h(`<div class="muted small" style="margin-bottom:4px">${tous.length} résultat${tous.length > 1 ? "s" : ""}</div>`));
     for (const e of list) {
       // Toute la ligne est cliquable : cible tactile bien plus large qu'un
@@ -1932,7 +1995,7 @@ function choisirExercice(onPick) {
   const refresh = () => {
     liste.innerHTML = "";
     const res = chercherCatalogue({ q: search.value }).slice(0, 40);
-    if (!res.length) { liste.append(h(`<div class="muted small">Aucun exercice trouvé.</div>`)); return; }
+    if (!res.length) { liste.append(etatVide(IC.search, "Aucun exercice trouvé", "Essaie un mot du mouvement (« développé », « tirage ») ou du muscle (« dos »).")); return; }
     res.forEach((exo) => {
       const b = h(`<button class="big" style="justify-content:space-between;text-align:left;margin:4px 0">
         <span><b>${esc(exo.nom)}</b><br><span class="muted small">${(exo.musclesPrincipaux || []).map((m) => MUSCLE_LABELS[m] || m).join(", ")}</span></span></button>`);
@@ -3549,9 +3612,9 @@ function vNutrition(v) {
     (Etat.data.foodlog[jour] ||= []).push({ name: f.n, g, ...m, src: f.src, repas: CUR_REPAS });
     Etat.sauver(); render();
   };
-  const afficherResultats = (list) => {
+  const afficherResultats = (list, quandVide) => {
     res.innerHTML = "";
-    if (!list.length) { res.append(h(`<div class="muted small" style="margin-top:6px">Aucun résultat.</div>`)); return; }
+    if (!list.length) { res.append(quandVide || etatVide(IC.search, "Aucun aliment trouvé", "Essaie un mot plus simple (« riz », « poulet ») ou saisis le code-barres du produit.")); return; }
     for (const f of list.slice(0, 12)) {
       const line = h(`<div class="exline"><div class="meta"><div class="nm small">${esc(f.n)} <span class="tag">${esc(f.src)}${f.note ? " · " + esc(f.note) : ""}</span></div>
         <div class="muted small">${f.kcal} kcal · P${f.p} · G${f.c} · L${f.l} /100 g</div></div>
@@ -3584,19 +3647,34 @@ function vNutrition(v) {
   };
   dessinerLog();
 
+  // Recherche : résultats locaux immédiats, puis complément en ligne. Pendant
+  // l'attente réseau on montre des squelettes plutôt qu'un faux résultat.
   $("#foodGo", v).addEventListener("click", async () => {
     const q = $("#foodQ", v).value.trim(); if (!q) return;
-    let liste = chercherFoods(q);
-    afficherResultats(liste.length ? liste : [{ n: "Recherche en ligne…", kcal: 0, p: 0, c: 0, l: 0, src: "info" }]);
+    const liste = chercherFoods(q);
+    if (liste.length) afficherResultats(liste);
+    else { res.innerHTML = ""; res.append(squelettes(3)); }
+    const attente = liste.length ? h(`<div class="muted small" style="margin-top:6px">Recherche en ligne…</div>`) : null;
+    if (attente) res.append(attente);
     const enligne = await offRechercher(q);
-    afficherResultats([...liste, ...enligne]);
+    attente?.remove();
+    afficherResultats([...liste, ...enligne], etatVide(
+      navigator.onLine === false ? IC.cross : IC.search,
+      navigator.onLine === false ? "Hors ligne" : "Aucun aliment trouvé",
+      navigator.onLine === false
+        ? "Seule la base locale est consultable sans connexion. Essaie un aliment courant (« riz », « poulet »)."
+        : "Essaie un mot plus simple, ou saisis le code-barres du produit.",
+      { erreur: navigator.onLine === false }));
   });
   $("#codeGo", v).addEventListener("click", async () => {
     const code = $("#foodCode", v).value.trim(); if (!code) return;
-    res.innerHTML = `<div class="muted small" style="margin-top:6px">Recherche du produit…</div>`;
+    res.innerHTML = ""; res.append(squelettes(1));
     const prod = await parCodeBarres(code);
-    afficherResultats(prod ? [prod] : []);
-    if (!prod) res.innerHTML = `<div class="notice small">Produit introuvable ou hors ligne : utilise la recherche par nom (base locale).</div>`;
+    afficherResultats(prod ? [prod] : [], etatVide(IC.cross, "Produit introuvable",
+      navigator.onLine === false
+        ? "La recherche par code-barres a besoin d'une connexion. Utilise la recherche par nom (base locale)."
+        : "Ce code n'est pas dans Open Food Facts. Cherche le produit par son nom.",
+      { erreur: true, action: { label: "Chercher par nom", onClick: () => $("#foodQ", v).focus() } }));
   });
 
   v.append(h(`<div class="warn small">${mi(IC.cross, "mi-amber")}Repères nutritionnels généraux, pas un régime médical. En cas de pathologie, trouble alimentaire ou doute, consulte un professionnel de santé ou un diététicien.</div>`));
@@ -3786,7 +3864,7 @@ function rangeeMuscles(muscles) {
 }
 
 function svgLine(points, label = "") {
-  if (points.length < 2) return etatVide("📈", "Ta courbe arrive bientôt", "Enregistre au moins 2 séances pour voir ta tendance se dessiner.");
+  if (points.length < 2) return etatVideHTML("📈", "Ta courbe arrive bientôt", "Enregistre au moins 2 séances pour voir ta tendance se dessiner.");
   const W = 600, H = 150, pad = 30;
   const ys = points.map((p) => p.v), ymin = Math.min(...ys), ymax = Math.max(...ys), yr = (ymax - ymin) || 1;
   const X = (i) => pad + (W - 2 * pad) * i / (points.length - 1), Y = (val) => H - pad - (H - 2 * pad) * (val - ymin) / yr;
@@ -3835,7 +3913,7 @@ function gaugeIMC(imc, taille = 96) {
     <text x="50%" y="64%" text-anchor="middle" dominant-baseline="central" font-size="10" font-weight="700" fill="var(--ink-soft)">IMC</text></svg>`;
 }
 function svgBars(bars, label = "") {
-  if (!bars.length) return etatVide("📊", "Rien à afficher pour l'instant", "Tes volumes apparaîtront ici après ta première séance.");
+  if (!bars.length) return etatVideHTML("📊", "Rien à afficher pour l'instant", "Tes volumes apparaîtront ici après ta première séance.");
   const W = 600, H = 155, pad = 30, n = bars.length, gap = (W - 2 * pad) / n, bw = gap * 0.6;
   const vmax = Math.max(...bars.map((b) => b.v), 1);
   const rects = bars.map((b, i) => {
