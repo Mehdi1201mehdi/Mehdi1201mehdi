@@ -22,6 +22,7 @@ export function etatVide() {
     programmesPerso: [],      // routines créées à la main (illimitées) — étape 4
     exercicesPerso: [],       // exercices créés par l'utilisateur — étape 4
     sessionEnCours: null,     // séance en cours, pour la reprise après refresh — étape 4
+    seanceAuto: null,         // dernière séance générée par le moteur automatique
     logs: [],                 // séances réalisées
     metrics: [],              // poids / mensurations
     foodlog: {},              // "YYYY-MM-DD" -> [aliments]
@@ -64,6 +65,7 @@ export function normaliserEtat(brut) {
   out.mediaCache = brut.mediaCache && typeof brut.mediaCache === "object" ? brut.mediaCache : {};
   // sessionEnCours : conservée telle quelle si présente (objet), sinon null.
   out.sessionEnCours = brut.sessionEnCours && typeof brut.sessionEnCours === "object" ? brut.sessionEnCours : null;
+  out.seanceAuto = brut.seanceAuto && typeof brut.seanceAuto === "object" ? brut.seanceAuto : null;
 
   out.version = SCHEMA_VERSION;
   return out;

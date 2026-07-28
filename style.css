@@ -576,6 +576,23 @@ body.guide-open{overflow:hidden}
 .menu-sheet .plusitem.danger .pm-ic{background:color-mix(in srgb,var(--danger) 16%,transparent);color:var(--danger)}
 .menu-sheet .plusitem.on .pm-ic{background:var(--accent-soft);color:var(--accent)}
 
+/* ---- Moteur automatique : carte corps + prochaine séance ---- */
+.moteur{border-color:color-mix(in srgb,var(--accent) 26%,var(--hair));
+  background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 7%,var(--surface)),var(--surface))}
+.moteur-head{width:100%;background:none;border:0;padding:6px 0;min-height:44px;color:var(--ink)}
+.moteur-head .chev{font-size:.72rem;font-weight:700;color:var(--accent-ink)}
+.moteur-tri{display:flex;gap:8px}
+.moteur-tri>span{flex:1;text-align:center;padding:8px 4px;border-radius:12px;background:var(--surface-2)}
+.moteur-tri b{display:block;font-size:1.25rem;line-height:1;font-weight:850}
+.moteur-tri span span{display:block;font-size:.63rem;color:var(--ink-soft);font-weight:600;margin-top:3px}
+.moteur-sep{height:1px;background:var(--hair);margin:2px 0}
+.moteur-exos{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.moteur-exos .pill{font-size:.68rem}
+/* Écran État musculaire */
+.msc-row{padding:9px 0;border-bottom:1px solid var(--line)}
+.msc-row:last-child{border-bottom:0}
+.msc-bar{height:7px;margin-top:5px}
+
 /* ---- Outils de calcul ---- */
 .out-item{align-items:center;gap:12px;margin:0}
 .out-item .mi{flex:0 0 auto;border-radius:12px;display:grid;place-items:center;background:var(--surface-2)}

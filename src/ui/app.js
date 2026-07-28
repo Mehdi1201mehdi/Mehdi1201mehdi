@@ -48,6 +48,9 @@ const niveauCourt = (niv) => NIVEAU_COURT[niv] || LEVEL_LABELS[niv] || niv;
 /** Toutes les séances jouables : programme généré + routines perso. */
 function toutesSeances() {
   const out = [];
+  // Séance générée par le moteur automatique : présente pour que la reprise
+  // après fermeture et l'enregistrement fonctionnent comme pour les autres.
+  if (Etat.data.seanceAuto) out.push({ seance: Etat.data.seanceAuto, source: { nom: "Automatique" } });
   if (Etat.data.programme) for (const s of Etat.data.programme.seances) out.push({ seance: s, source: Etat.data.programme });
   for (const r of Etat.data.programmesPerso || []) for (const s of r.seances) out.push({ seance: s, source: r });
   return out;
@@ -71,6 +74,10 @@ import {
   TESTS_VELO, testVeloParCle, comparerTestsVelo,
 } from "../engine/outils.js";
 import { PROGRAMMES_SALLE } from "../data/programmes-salle.js";
+import { CLES_MOTEUR, LABELS_MOTEUR, DEF_MOTEUR, FIN_VERS_CATALOGUE } from "../data/muscles-moteur.js";
+import { coefficientsPour } from "../data/exercise-muscle-map.js";
+import { etatMusculaire, zoneDisponibilite, cibleVolumeHebdo } from "../engine/fatigue.js";
+import { genererProchaineSeance, resumeCorps, PLAN_PARAMS } from "../engine/planner.js";
 import { grilleMois, moisAdjacent, NOMS_JOURS_COURTS } from "../engine/calendar.js";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -568,7 +575,14 @@ function vDash(v) {
     ${_serie > 0 ? `<span class="streak-chip" title="Série en cours">${IC.flame}<b class="num">${_serie}</b><span>j</span></span>` : ""}
   </div>`));
 
-  // Entraînement du jour — carte unique et dominante : c'est l'action n°1.
+  // Moteur automatique : « Ton corps » + prochaine séance déjà construite.
+  // C'est désormais l'action n°1 de l'application.
+  const moteurActif = Etat.data.reglages.moteurAuto !== false && (Etat.data.logs || []).length >= 1;
+  if (moteurActif) carteMoteur(v);
+
+  // Entraînement du jour du programme. Masqué quand le moteur pilote : les deux
+  // cartes se concurrençaient. Le programme reste entièrement accessible dans
+  // son onglet, rien n'est retiré.
   const wc = h(`<div class="card wkcard"></div>`);
   if (sj) {
     const muscles = (sj.groupesCibles || []).map((m) => MUSCLE_LABELS[m] || m).slice(0, 3).join(" · ");
@@ -593,7 +607,7 @@ function vDash(v) {
     b.addEventListener("click", () => { LIVE = null; APERCU = null; nav("train"); });
     wc.append(b);
   }
-  v.append(wc);
+  if (!moteurActif) v.append(wc);
 
   // Ma semaine — bande compacte, juste sous l'action principale.
   v.append(h(`<div class="eyebrow dash-lbl">Ma semaine</div>`));
@@ -2147,6 +2161,225 @@ function seqRender() {
   };
   draw();
   SEQ.tmr = setInterval(() => { if (SEQ.paused) return; SEQ.left--; if (SEQ.left <= 0) { seqAvancer(1); return; } draw(); }, 1000);
+}
+
+
+/* ======================================================================
+   MOTEUR AUTOMATIQUE — état musculaire et prochaine séance
+   Toute la logique vit dans engine/fatigue.js et engine/planner.js (pur,
+   testé). Ici on ne fait que brancher : lire l'historique, afficher, et
+   convertir la proposition en séance réellement démarrable.
+   ====================================================================== */
+
+/** Cache de la proposition, recalculé à chaque rendu de l'accueil. */
+let AUTO = null;
+
+/** Exercices réalisables avec le matériel et les limitations de l'utilisateur. */
+function catalogueDispo() {
+  return CATALOGUE.filter(estRealisable);
+}
+
+/** Calcule (ou recalcule) la prochaine séance automatique. */
+function calculerAuto(maintenant = Date.now()) {
+  const p = Etat.data.profil || {};
+  AUTO = genererProchaineSeance(
+    Etat.data.logs || [], getExercise, catalogueDispo(),
+    { niveau: p.niveau, dureeMin: p.dureeSeanceMin || 60, ressenti: Etat.data.reglages.ressenti || 0 },
+    maintenant,
+  );
+  return AUTO;
+}
+
+/**
+ * Convertit la proposition du moteur en séance au format de l'application,
+ * pour qu'elle soit démarrable, reprenable et enregistrable comme une autre.
+ */
+function seanceDepuisAuto(gen) {
+  const seance = {
+    id: "auto-" + Date.now(),
+    nom: gen.nom,
+    indexJour: 0,
+    groupesCibles: [...new Set(gen.muscles.map((m) => FIN_VERS_CATALOGUE[m]).filter(Boolean))],
+    exercices: [],
+    dureeEstimeeMin: gen.dureeEstimee,
+    auto: true,
+  };
+  for (const x of gen.exercices) {
+    const exo = x.exo;
+    const enTemps = exo.typeExercice === "gainage" || exo.typeExercice === "cardio";
+    const plage = exo.repsPertinent || [8, 12];
+    seance.exercices.push({
+      exerciceId: exo.id,
+      role: x.accessoire ? "isolation" : "principal",
+      justification: `Sélectionné automatiquement · compatibilité ${x.score} %`,
+      supersetGroupe: null,
+      series: Array.from({ length: x.series }, () => ({
+        type: "travail",
+        repsCible: enTemps ? null : plage,
+        dureeSec: enTemps ? (exo.dureeSec || 40) : null,
+        distanceM: null, rirCible: 2, rpeCible: null, tempo: null,
+        reposSec: x.iso ? 60 : 105, chargeKg: null,
+      })),
+    });
+  }
+  return seance;
+}
+
+/** Démarre la séance proposée (elle devient la séance en cours). */
+function demarrerAuto() {
+  if (!AUTO || AUTO.repos || !AUTO.exercices.length) return;
+  const seance = seanceDepuisAuto(AUTO);
+  // Conservée dans l'état pour que `trouverSeance` la retrouve après un
+  // rechargement (reprise de séance) et pour l'enregistrement final.
+  Etat.data.seanceAuto = seance;
+  Etat.sauver();
+  APERCU = null;
+  LIVE = nouvelleSession(seance);
+  persistLive(true);
+  // On bascule explicitement sur l'onglet Séance : `demarrer()` se contente de
+  // re-rendre la vue courante, ce qui laissait l'utilisateur sur l'Accueil.
+  nav("train");
+}
+
+/** Couleur d'une disponibilité, cohérente avec les zones du moteur. */
+function couleurDispo(r) {
+  if (r >= 90) return "var(--ok)";
+  if (r >= 75) return "var(--accent)";
+  if (r >= 60) return "var(--amber)";
+  if (r >= 40) return "var(--orange)";
+  return "var(--danger)";
+}
+
+/**
+ * Carte « Ton corps » + prochaine séance, sur l'Accueil.
+ * C'est le point d'entrée du mode automatique : la séance est DÉJÀ construite.
+ */
+function carteMoteur(v) {
+  const logs = Etat.data.logs || [];
+  const gen = calculerAuto();
+  const res = resumeCorps(gen.etat);
+
+  const c = h(`<div class="card stack moteur"></div>`);
+  // Résumé du corps
+  const head = h(`<button class="spread moteur-head"><span class="eyebrow">Ton corps</span><span class="chev">État musculaire ›</span></button>`);
+  head.addEventListener("click", () => ouvrirEtatMusculaire());
+  c.append(head);
+  const tri = h(`<div class="moteur-tri"></div>`);
+  tri.append(h(`<span><b class="num" style="color:var(--ok)">${res.prets}</b><span>prêts</span></span>`));
+  tri.append(h(`<span><b class="num" style="color:var(--amber)">${res.recup}</b><span>en récup.</span></span>`));
+  tri.append(h(`<span><b class="num" style="color:var(--danger)">${res.sollicites}</b><span>sollicités</span></span>`));
+  c.append(tri);
+
+  c.append(h(`<div class="moteur-sep"></div>`));
+
+  if (gen.repos) {
+    c.append(h(`<div class="eyebrow">Aujourd'hui</div>`));
+    c.append(h(`<h2 style="margin:2px 0 4px;font-size:1.25rem">Repos conseillé</h2>`));
+    c.append(h(`<div class="muted small">${esc(gen.raison)}</div>`));
+    const b = h(`<button class="secondary big" style="margin-top:10px"><span class="btn-ico">${IC.play}</span>S'entraîner quand même</button>`);
+    b.addEventListener("click", () => { LIVE = null; APERCU = null; nav("train"); });
+    c.append(b);
+  } else {
+    c.append(h(`<div class="spread"><span class="eyebrow">Prochaine séance</span><span class="badge accent">${gen.compatibilite} % compatible</span></div>`));
+    c.append(h(`<h2 style="margin:2px 0 3px;font-size:1.3rem">${esc(gen.nom)}</h2>`));
+    c.append(h(`<div class="muted small">${gen.exercices.length} exercices · ~${gen.dureeEstimee} min · choisis automatiquement</div>`));
+    // Aperçu des exercices retenus
+    const liste = h(`<div class="moteur-exos"></div>`);
+    gen.exercices.slice(0, 6).forEach((x) => liste.append(h(`<span class="pill">${esc(x.exo.nom)} ${x.series}×</span>`)));
+    c.append(liste);
+    const b = h(`<button class="primary big" style="margin-top:11px"><span class="btn-ico">${IC.play}</span>Commencer la prochaine séance</button>`);
+    b.addEventListener("click", demarrerAuto);
+    c.append(b);
+    const bMod = h(`<button class="linklike" style="margin-top:8px">Pourquoi cette séance ? · Modifier</button>`);
+    bMod.addEventListener("click", () => ouvrirDetailAuto(gen));
+    c.append(bMod);
+  }
+  v.append(c);
+}
+
+/** Feuille : justification de la décision + possibilité de modifier. */
+function ouvrirDetailAuto(gen) {
+  const sheet = h(`<div class="sheet"><div class="inner"></div></div>`);
+  const inner = sheet.querySelector(".inner");
+  inner.append(h(`<div class="sheet-top"><h2 style="margin:0">${esc(gen.nom)}</h2><button class="chip" id="aX">✕ Fermer</button></div>`));
+  inner.append(h(`<div class="row" style="margin:6px 0 12px"><span class="badge accent">${gen.compatibilite} % compatible</span><span class="pill">~${gen.dureeEstimee} min</span><span class="pill">${gen.exercices.length} exercices</span></div>`));
+
+  inner.append(h(`<div class="eyebrow">Pourquoi cette séance ?</div>`));
+  const why = h(`<div class="card stack" style="margin:8px 0 14px"></div>`);
+  gen.explications.forEach((e) => why.append(h(`<div class="small">• ${esc(e)}</div>`)));
+  inner.append(why);
+
+  if (gen.exercices.length) {
+    inner.append(h(`<div class="eyebrow" style="margin-bottom:8px">Exercices retenus</div>`));
+    gen.exercices.forEach((x, i) => {
+      const cibles = Object.entries(x.coeffs).sort((a, b) => b[1] - a[1]).slice(0, 3)
+        .map(([m, v2]) => `${LABELS_MOTEUR[m]} ${Math.round(v2 * 100)} %`).join(" · ");
+      const row = h(`<div class="card tap" style="padding:11px;margin-bottom:8px">
+        <div class="spread"><b>${i + 1}. ${esc(x.exo.nom)}</b><span class="pill">${x.series} séries</span></div>
+        <div class="muted small" style="margin-top:3px">${esc(cibles)}</div>
+        <div class="muted small">Compatibilité ${x.score} %${x.accessoire ? " · accessoire" : ""}</div></div>`);
+      row.addEventListener("click", () => ouvrirDetail(x.exo));
+      inner.append(row);
+    });
+    const b = h(`<button class="primary big" style="margin-top:6px"><span class="btn-ico">${IC.play}</span>Commencer cette séance</button>`);
+    b.addEventListener("click", () => { sheet.remove(); demarrerAuto(); });
+    inner.append(b);
+    const bm = h(`<button class="secondary big" style="margin-top:8px">Choisir une autre séance</button>`);
+    bm.addEventListener("click", () => { sheet.remove(); LIVE = null; APERCU = null; nav("train"); });
+    inner.append(bm);
+  }
+  sheet.querySelector("#aX").addEventListener("click", () => sheet.remove());
+  document.body.append(sheet);
+}
+
+/** Écran « État musculaire » : les 18 groupes, barres + silhouettes. */
+function ouvrirEtatMusculaire() {
+  const gen = AUTO || calculerAuto();
+  const etat = gen.etat;
+  const p = Etat.data.profil || {};
+  const sheet = h(`<div class="sheet"><div class="inner"></div></div>`);
+  const inner = sheet.querySelector(".inner");
+  inner.append(h(`<div class="sheet-top"><h2 style="margin:0">État musculaire</h2><button class="chip" id="eX">✕ Fermer</button></div>`));
+  inner.append(h(`<div class="muted small">Indices de disponibilité estimés à partir de tes séances : volume, proximité de l'échec et temps écoulé. Ce ne sont pas des mesures physiologiques.</div>`));
+
+  // Silhouettes colorées par disponibilité (la plus basse d'un groupe l'emporte)
+  const parCat = {};
+  for (const cle of CLES_MOTEUR) {
+    const cat = FIN_VERS_CATALOGUE[cle];
+    if (!cat) continue;
+    parCat[cat] = Math.min(parCat[cat] ?? 100, etat[cle].readiness);
+  }
+  const intensites = {};
+  for (const [cat, r] of Object.entries(parCat)) intensites[cat] = (100 - r) / 100;
+  inner.append(h(`<div class="card" style="margin:12px 0">${muscleHeatmap(intensites)}
+    <div class="muted small" style="text-align:center;margin-top:6px">Plus une zone est vive, plus elle est sollicitée</div></div>`));
+
+  // Liste triée par disponibilité croissante : ce qui récupère en premier
+  const rows = CLES_MOTEUR.map((cle) => ({ cle, ...etat[cle] })).sort((a, b) => a.readiness - b.readiness);
+  const liste = h(`<div class="card stack"></div>`);
+  rows.forEach((m) => {
+    const z = zoneDisponibilite(m.readiness);
+    const cible = cibleVolumeHebdo(m.cle, p.niveau || "intermediaire", DEF_MOTEUR);
+    const row = h(`<div class="msc-row">
+      <div class="spread small"><b>${esc(LABELS_MOTEUR[m.cle])}</b><span class="num" style="color:${couleurDispo(m.readiness)};font-weight:800">${Math.round(m.readiness)} %</span></div>
+      <div class="bar msc-bar"><div style="width:${Math.round(m.readiness)}%;background:${couleurDispo(m.readiness)}"></div></div>
+      <div class="spread muted" style="font-size:.7rem;margin-top:3px"><span>${esc(z.nom)}</span><span>${m.weeklyEquivalentSets}/${cible} séries cette semaine</span></div>
+    </div>`);
+    liste.append(row);
+  });
+  inner.append(liste);
+
+  // Classement des priorités : ce que le moteur entraînerait ensuite
+  inner.append(h(`<div class="eyebrow" style="margin:16px 0 8px">Priorités du moteur</div>`));
+  const prio = h(`<div class="card stack"></div>`);
+  gen.classement.slice(0, 8).forEach((l, i) => {
+    prio.append(h(`<div class="spread small"><span><span class="anat-num">${i + 1}</span>${esc(l.nom)}</span><span class="muted">${l.priority} pts · ${Math.round(l.readiness)} % dispo</span></div>`));
+  });
+  inner.append(prio);
+  inner.append(h(`<div class="hint">La priorité combine disponibilité (45 %), déficit de volume hebdomadaire (30 %), ancienneté de la dernière sollicitation (15 %) et équilibre général (10 %).</div>`));
+
+  sheet.querySelector("#eX").addEventListener("click", () => sheet.remove());
+  document.body.append(sheet);
 }
 
 /* ======================================================================
