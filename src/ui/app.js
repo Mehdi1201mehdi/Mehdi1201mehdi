@@ -2954,12 +2954,36 @@ function couleurDispo(r) {
  * Carte « Ton corps » + prochaine séance, sur l'Accueil.
  * C'est le point d'entrée du mode automatique : la séance est DÉJÀ construite.
  */
+/** Groupes visibles de face / de dos dans les silhouettes anatomiques. */
+const GROUPES_FACE = ["pectoraux", "abdominaux", "biceps", "triceps", "trapezes", "epaules", "quadriceps", "mollets", "avant_bras"];
+
+/**
+ * Silhouette orientée selon les muscles ciblés : une séance de dos affichée de
+ * face ne surlignerait rien du tout.
+ */
+function silhouetteAuto(muscles) {
+  const face = (muscles || []).filter((m) => GROUPES_FACE.includes(m)).length;
+  return miniSilhouette(muscles, face >= (muscles || []).length - face ? "front" : "back");
+}
+
+/**
+ * Sous-titre de la carte héro. Le moteur nomme souvent la séance par ses
+ * muscles ; répéter la même liste juste en dessous n'apprend rien. On affiche
+ * alors la durée et le nombre d'exercices, information réellement nouvelle.
+ */
+function sousTitreHero(nom, muscles) {
+  const liste = muscles.slice(0, 3).join(" • ");
+  const norm = (x) => x.toLowerCase().replace(/[^a-zà-ÿ]/g, "");
+  if (!liste || norm(liste) === norm(nom || "")) return "Choisie d'après ta récupération";
+  return liste;
+}
+
 function carteMoteur(v) {
   const logs = Etat.data.logs || [];
   const gen = calculerAuto();
   const res = resumeCorps(gen.etat);
 
-  const c = h(`<div class="card stack moteur"></div>`);
+  const c = h(`<div class="card stack moteur hero"></div>`);
   // Résumé du corps
   const head = h(`<button class="spread moteur-head"><span class="eyebrow">Ton corps</span><span class="chev">État musculaire ›</span></button>`);
   head.addEventListener("click", () => ouvrirEtatMusculaire());
@@ -2980,17 +3004,28 @@ function carteMoteur(v) {
     b.addEventListener("click", () => { LIVE = null; APERCU = null; nav("train"); });
     c.append(b);
   } else {
-    c.append(h(`<div class="spread"><span class="eyebrow">Prochaine séance</span><span class="badge accent">${gen.compatibilite} % compatible</span></div>`));
-    c.append(h(`<h2 style="margin:2px 0 3px;font-size:1.3rem">${esc(gen.nom)}</h2>`));
-    c.append(h(`<div class="muted small">${gen.exercices.length} exercices · ~${gen.dureeEstimee} min · choisis automatiquement</div>`));
-    // Aperçu des exercices retenus
-    const liste = h(`<div class="moteur-exos"></div>`);
-    gen.exercices.slice(0, 6).forEach((x) => liste.append(h(`<span class="pill">${esc(x.exo.nom)} ${x.series}×</span>`)));
-    c.append(liste);
-    const b = h(`<button class="primary big" style="margin-top:11px"><span class="btn-ico">${IC.play}</span>Commencer la prochaine séance</button>`);
+    // Composition « séance du jour » : badge, titre fort, muscles ciblés,
+    // trois chiffres, et la silhouette des groupes visés en fond discret.
+    const muscles = (gen.muscles || []).map((m) => LABELS_MOTEUR[m] || m);
+    const nbSeries = gen.exercices.reduce((n, x) => n + (x.series || 0), 0);
+    const hero = h(`<div class="hero-seance">
+      <div class="hero-fig" aria-hidden="true">${silhouetteAuto((gen.muscles || []).map((m) => FIN_VERS_CATALOGUE[m]).filter(Boolean))}</div>
+      <div class="hero-top"><span class="tagline">Séance du jour</span><span class="badge accent">${gen.compatibilite} % compatible</span></div>
+      <div class="hero-corps">
+        <h2 class="hero-titre">${esc(gen.nom)}</h2>
+        <div class="hero-sub">${esc(sousTitreHero(gen.nom, muscles))}</div>
+        <div class="hero-chiffres">
+          <span><b class="num">${gen.exercices.length}</b><span>Exercices</span></span>
+          <span><b class="num">${nbSeries}</b><span>Séries</span></span>
+          <span><b class="num">${gen.dureeEstimee}</b><span>Min</span></span>
+        </div>
+      </div>
+    </div>`);
+    c.append(hero);
+    const b = h(`<button class="primary big hero-cta"><span class="btn-ico">${IC.play}</span>Commencer la séance</button>`);
     b.addEventListener("click", demarrerAuto);
     c.append(b);
-    const bMod = h(`<button class="linklike" style="margin-top:8px">Pourquoi cette séance ? · Modifier</button>`);
+    const bMod = h(`<button class="linklike" style="margin-top:9px">Pourquoi cette séance ? · Modifier</button>`);
     bMod.addEventListener("click", () => ouvrirDetailAuto(gen));
     c.append(bMod);
   }

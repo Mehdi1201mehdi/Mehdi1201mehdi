@@ -38,7 +38,7 @@ export function miniSilhouette(muscles, view = "front") {
   const A = ANATOMY[view];
   const outline = `<path d="${A.outline}" fill="var(--anat-body)"/>`;
   const mus = Object.entries(A.groups).map(([m, paths]) =>
-    `<g fill="${set.has(m) ? "#EF4444" : "var(--anat-muscle)"}">${paths.map((d) => `<path d="${d}"/>`).join("")}</g>`).join("");
+    `<g fill="${set.has(m) ? "var(--anat-primary)" : "var(--anat-muscle)"}">${paths.map((d) => `<path d="${d}"/>`).join("")}</g>`).join("");
   const neutral = A.neutral.map((d) => `<path d="${d}" fill="var(--anat-body)"/>`).join("");
   return `<svg class="mini-silhouette" viewBox="${VIEWBOX[view]}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">${outline}${mus}${neutral}</svg>`;
 }
@@ -52,8 +52,8 @@ export function muscleDiagram(principaux, secondaires) {
   const P = new Set(principaux), S = new Set(secondaires);
   if (P.has("corps_entier")) CORPS_ENTIER.forEach((m) => P.add(m));
   const couleur = (m) => {
-    if (P.has(m)) return { fill: "#EF4444" };
-    if (S.has(m)) return { fill: "#F59E0B" };
+    if (P.has(m)) return { fill: "var(--anat-primary)" };
+    if (S.has(m)) return { fill: "var(--anat-secondary)" };
     return { fill: "var(--anat-muscle)" };
   };
   return `<div class="anat2">${vueSVG("front", couleur, "Vue avant")}${vueSVG("back", couleur, "Vue arrière")}</div>`;
@@ -75,7 +75,7 @@ export function muscleHeatmap(intensites) {
 
   const couleur = (m) => {
     const i = Math.max(0, Math.min(1, base[m] || 0));
-    if (i > 0) return { fill: "#EF4444", op: (0.28 + 0.72 * i).toFixed(2) };
+    if (i > 0) return { fill: "var(--anat-primary)", op: (0.28 + 0.72 * i).toFixed(2) };
     return { fill: "var(--anat-muscle)" };
   };
   return `<div class="anat2">${vueSVG("front", couleur, "Vue avant")}${vueSVG("back", couleur, "Vue arrière")}</div>`;
