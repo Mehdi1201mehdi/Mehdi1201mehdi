@@ -591,12 +591,13 @@ function vDash(v) {
 
   // En-tête personnalisé selon l'heure
   const heure = new Date().getHours();
-  const salut = heure < 12 ? "Bonjour" : heure < 18 ? "Bon après-midi" : "Bonsoir";
+  const salut = heure < 18 ? "Salut" : "Bonsoir";
   // En-tête sur UNE ligne : salutation + série en cours. L'ancien bloc de trois
   // lignes (eyebrow + prénom + « prêt ? ») ne portait aucune information utile.
   const _serie = serieJours(logs);
   v.append(h(`<div class="dash-hi">
-    <div><span class="eyebrow">${salut}</span><h1>${esc(p.prenom || "Athlète")}</h1></div>
+    <div><h1 class="hi-nom">${esc(salut)} <span class="hi-p">${esc(p.prenom || "Athlète")}</span> 👋</h1>
+      <div class="hi-sub">Prêt à atteindre tes objectifs ?</div></div>
     ${_serie > 0 ? `<span class="streak-chip" title="Série en cours">${IC.flame}<b class="num">${_serie}</b><span>j</span></span>` : ""}
   </div>`));
 
@@ -607,8 +608,10 @@ function vDash(v) {
   // été terminée : la fonctionnalité principale n'était jamais découverte.
   // Sans historique, tous les muscles sont frais et il propose une première
   // séance complète — c'est exactement ce qu'on veut voir en arrivant.
+  v.append(carteProgrammeActuel(prog, logs, p));
+
   const moteurActif = Etat.data.reglages.moteurAuto !== false && !!Etat.data.profil;
-  if (moteurActif) carteMoteur(v);
+  if (moteurActif) { v.append(h(`<div class="eyebrow dash-lbl">Aujourd'hui</div>`)); carteMoteur(v); }
 
   // Entraînement du jour du programme. Masqué quand le moteur pilote : les deux
   // cartes se concurrençaient. Le programme reste entièrement accessible dans
@@ -2990,6 +2993,26 @@ function tagsExercice(exo) {
 }
 
 /**
+ * Carte « Programme actuel » : nom du programme, avancement de la semaine et
+ * rythme visé. L'anneau montre les séances faites sur l'objectif hebdomadaire —
+ * une vraie mesure, pas un pourcentage décoratif.
+ */
+function carteProgrammeActuel(prog, logs, profil) {
+  const cible = Math.max(1, profil?.joursParSemaine || 4);
+  const sm = statsSemaine(logs);
+  const pct = Math.min(1, sm.seances / cible);
+  const c = h(`<button class="card prog-actuel" aria-label="Voir le programme"></button>`);
+  c.append(h(`<span class="pa-txt">
+    <span class="eyebrow">Programme actuel</span>
+    <b class="pa-nom">${esc(prog?.nom || "Aucun programme")}</b>
+    <span class="pa-meta">${cible} séance${cible > 1 ? "s" : ""} / semaine · ${sm.seances} faite${sm.seances > 1 ? "s" : ""}</span>
+  </span>`));
+  c.append(h(`<span class="pa-ring">${anneauSVG(pct, 74, `${Math.round(pct * 100)}%`)}</span>`));
+  c.addEventListener("click", () => nav("prog"));
+  return c;
+}
+
+/**
  * Grille « mes chiffres » de l'accueil : séances, tonnage, régularité, records.
  * La régularité compare les séances des 4 dernières semaines à l'objectif
  * hebdomadaire du profil — pas une note arbitraire.
@@ -3040,17 +3063,17 @@ function carteMoteur(v) {
   const res = resumeCorps(gen.etat);
 
   const c = h(`<div class="card stack moteur hero"></div>`);
-  // Résumé du corps
-  const head = h(`<button class="spread moteur-head"><span class="eyebrow">Ton corps</span><span class="chev">État musculaire ›</span></button>`);
-  head.addEventListener("click", () => ouvrirEtatMusculaire());
-  c.append(head);
+  // Le résumé du corps a sa PROPRE carte, placée sous la séance : la carte du
+  // jour commence par la séance elle-même, comme la maquette. Rien n'est retiré,
+  // l'état musculaire reste accessible d'un seul tap.
+  const corps = h(`<button class="card corps-resume" aria-label="Voir l'état musculaire"></button>`);
+  corps.append(h(`<span class="spread moteur-head"><span class="eyebrow">Ton corps</span><span class="chev">État musculaire ›</span></span>`));
   const tri = h(`<div class="moteur-tri"></div>`);
-  tri.append(h(`<span><b class="num" style="color:var(--ok)">${res.prets}</b><span>prêts</span></span>`));
+  tri.append(h(`<span><b class="num" style="color:var(--accent)">${res.prets}</b><span>prêts</span></span>`));
   tri.append(h(`<span><b class="num" style="color:var(--amber)">${res.recup}</b><span>en récup.</span></span>`));
   tri.append(h(`<span><b class="num" style="color:var(--danger)">${res.sollicites}</b><span>sollicités</span></span>`));
-  c.append(tri);
-
-  c.append(h(`<div class="moteur-sep"></div>`));
+  corps.append(tri);
+  corps.addEventListener("click", () => ouvrirEtatMusculaire());
 
   if (gen.repos) {
     c.append(h(`<div class="eyebrow">Aujourd'hui</div>`));
@@ -3086,6 +3109,7 @@ function carteMoteur(v) {
     c.append(bMod);
   }
   v.append(c);
+  v.append(corps);
 }
 
 /** Feuille : justification de la décision + possibilité de modifier. */

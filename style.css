@@ -1016,7 +1016,7 @@ body::after{opacity:.03}
   background:radial-gradient(125% 100% at 105% -8%,var(--accent-soft),transparent 52%),var(--surface);
   border-color:color-mix(in srgb,var(--accent) 34%,transparent);box-shadow:var(--shadow-lg);
 }
-.hero-seance{position:relative;display:block;margin-top:var(--space-3)}
+.hero-seance{position:relative;display:block}
 /* La silhouette habite la carte sans jamais gêner la lecture */
 .hero-fig{position:absolute;right:0;top:50%;transform:translateY(-50%);width:104px;height:152px;
   opacity:.9;pointer-events:none;z-index:0}
@@ -1152,3 +1152,18 @@ nav.tabs button:active{transform:scale(.94)}
 .dc-fig{flex:0 0 auto;width:52px;height:74px;opacity:.85;display:block}
 .dc-fig .mini-silhouette{width:100%;height:100%;display:block}
 @media (max-width:359px){.dc-fig{width:42px;height:60px}}
+
+/* Accueil : salutation et carte « Programme actuel » (fidélité maquette) */
+.hi-nom{font-size:1.52rem;font-weight:900;letter-spacing:-.04em;line-height:1.08}
+.hi-nom .hi-p{color:var(--accent)}
+.hi-sub{margin-top:4px;font-size:var(--fs-label);font-weight:600;color:var(--ink-soft)}
+.prog-actuel{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);
+  width:100%;text-align:left;padding:16px 18px;min-height:auto}
+.pa-txt{display:block;min-width:0}
+.pa-nom{display:block;margin-top:3px;font-size:1.16rem;font-weight:850;letter-spacing:-.03em;line-height:1.2}
+.pa-meta{display:block;margin-top:4px;font-size:var(--fs-caption);font-weight:650;color:var(--ink-soft)}
+.pa-ring{flex:0 0 auto;display:block;line-height:0}
+
+/* Résumé du corps : carte propre sous la séance du jour */
+.corps-resume{display:block;width:100%;text-align:left;padding:16px 18px;min-height:auto}
+.corps-resume .moteur-head{width:100%;margin-bottom:var(--space-3)}
