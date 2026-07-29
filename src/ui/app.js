@@ -1979,7 +1979,12 @@ function menuExoLive(e, exo, st, seance) {
     render();
   }, st.douleur ? "on" : "");
   item(IC.trash, "Retirer de la séance", async () => {
-    if (await confirmer(`Retirer « ${exo.nom} » de la séance ?`, { danger: true, ok: "Retirer" })) retirerExerciceLive(e.exerciceId);
+    // Retirer efface la saisie déjà faite : on le dit, avec le compte exact.
+    const saisies = (st.series || []).filter((x) => x.done || x.charge !== "" || x.reps !== "").length;
+    const msg = saisies
+      ? `Retirer « ${exo.nom} » ? ${saisies} série${saisies > 1 ? "s" : ""} déjà saisie${saisies > 1 ? "s" : ""} ${saisies > 1 ? "seront perdues" : "sera perdue"}.`
+      : `Retirer « ${exo.nom} » de la séance ?`;
+    if (await confirmer(msg, { danger: true, ok: "Retirer" })) retirerExerciceLive(e.exerciceId);
   }, "danger");
   sheet.querySelector("#mX").addEventListener("click", fermer);
   sheet.addEventListener("click", (ev) => { if (ev.target === sheet) fermer(); });
@@ -2100,7 +2105,7 @@ async function remplacer(exId) {
   LIVE.data[nouvel.id] = { ...anc, exId: nouvel.id };
   persistLive(true); render();
 }
-function terminer() {
+async function terminer() {
   const seance = trouverSeance(LIVE.seanceId);
   const exercices = [];
   for (const exId in LIVE.data) {
@@ -2123,6 +2128,20 @@ function terminer() {
         supersetGroupe: st.supersetGroupe || undefined,
       });
     }
+  }
+  // Une séance sans la moindre série n'est pas une séance. L'enregistrer
+  // polluerait l'historique : elle compterait comme un jour d'entraînement pour
+  // le moteur (qui plafonne les jours par semaine) et comme une croix dans le
+  // calendrier d'assiduité, pour un entraînement qui n'a pas eu lieu.
+  if (!exercices.length) {
+    const ok = await confirmer(
+      "Aucune série n'a été validée. Fermer la séance sans rien enregistrer ?",
+      { danger: true, ok: "Fermer sans enregistrer", titre: "Séance vide" });
+    if (!ok) return;
+    LIVE = null; Etat.data.sessionEnCours = null; Etat.sauver();
+    arreterChrono(); stopTimer(); nav("dash");
+    toast("Séance fermée — rien n'a été enregistré");
+    return;
   }
   const fin = new Date().toISOString();
   const debut = LIVE.debut || fin;
