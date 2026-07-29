@@ -816,7 +816,9 @@ function vProg(v) {
   // Semaine du programme : sélecteur de jour en ruban + un seul jour déployé
   // (remplace l'ancien empilement des 7 jours, qui produisait un long
   // enchaînement de cartes quasi identiques).
-  const COULEURS = ["#3B82F6", "#6366F1", "#22C55E", "#F59E0B", "#EF4444", "#06B6D4", "#8B5CF6"];
+  // Nuances de la signature lime : le ruban de la semaine reste monochrome,
+  // comme sur la maquette, tout en distinguant les séances entre elles.
+  const COULEURS = ["#B7E63A", "#C8F55A", "#91C91E", "#A8DE30", "#87BE17", "#D4FF6E", "#7BAA12"];
   const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
   const JOURS_COURTS = ["L", "M", "M", "J", "V", "S", "D"];
   const planning = planningJours(prog.seances.length);
@@ -856,7 +858,7 @@ function vProg(v) {
   v.append(panel);
 
   v.append(h(`<div class="hint" style="margin:12px 0 6px">${esc(prog.justificationGlobale)}</div>`));
-  const bCat = h(`<button class="chip" style="margin:2px 0 10px">🔎 Catalogue d'exercices</button>`);
+  const bCat = h(`<button class="chip" style="margin:2px 0 10px"><span class="cic">${IC.search}</span>Catalogue d'exercices</button>`);
   bCat.addEventListener("click", () => nav("cat"));
   v.append(bCat);
 
@@ -873,17 +875,17 @@ function vProg(v) {
     const nbEx = r.seances.reduce((a, s) => a + s.exercices.length, 0);
     const card = h(`<div class="card"><div class="spread"><b>${esc(r.nom)}</b><span class="pill">${r.seances.length} séance(s)</span></div><div class="muted small">${nbEx} exercice(s)</div></div>`);
     const acts = h(`<div class="row" style="margin-top:8px"></div>`);
-    const bOpen = h(`<button class="chip">✏️ Ouvrir</button>`);
+    const bOpen = h(`<button class="chip"><span class="cic">${IC.edit || IC.forward}</span>Ouvrir</button>`);
     bOpen.addEventListener("click", () => { EDIT_ROUTINE = r.id; render(); });
-    const bDup = h(`<button class="chip">📄 Dupliquer</button>`);
+    const bDup = h(`<button class="chip"><span class="cic">${IC.copy || IC.layers}</span>Dupliquer</button>`);
     bDup.addEventListener("click", () => { Etat.data.programmesPerso.push(dupliquerRoutine(r)); Etat.sauver(); render(); });
-    const bDel = h(`<button class="chip danger" aria-label="Supprimer la routine">🗑️</button>`);
+    const bDel = h(`<button class="chip danger" aria-label="Supprimer la routine"><span class="cic">${IC.trash}</span></button>`);
     bDel.addEventListener("click", async () => { if (await confirmer(`Supprimer la routine « ${r.nom} » ?`, { danger: true, ok: "Supprimer" })) { Etat.data.programmesPerso = Etat.data.programmesPerso.filter((x) => x.id !== r.id); Etat.sauver(); render(); } });
     acts.append(bOpen, bDup, bDel); card.append(acts);
     v.append(card);
   });
   const barre = h(`<div class="row" style="margin-top:8px"></div>`);
-  const bNew = h(`<button class="primary">➕ Nouvelle routine</button>`);
+  const bNew = h(`<button class="primary"><span class="btn-ico">${IC.plus}</span>Nouvelle routine</button>`);
   bNew.addEventListener("click", async () => {
     const nom = await demanderTexte("Nom de la routine", "Ma routine", { ok: "Créer" });
     if (nom === null) return;
@@ -891,7 +893,7 @@ function vProg(v) {
     (Etat.data.programmesPerso ||= []).push(r);
     Etat.sauver(); EDIT_ROUTINE = r.id; render();
   });
-  const bFromLog = h(`<button class="chip">📥 Depuis une séance passée</button>`);
+  const bFromLog = h(`<button class="chip"><span class="cic">${IC.cornerDown}</span>Depuis une séance passée</button>`);
   bFromLog.addEventListener("click", dupliquerSeancePassee);
   barre.append(bNew, bFromLog);
   v.append(barre);
@@ -1057,7 +1059,7 @@ function installerProgrammeClassique(pr) {
 function vRoutineEditor(v, routineId) {
   const r = (Etat.data.programmesPerso || []).find((x) => x.id === routineId);
   if (!r) { EDIT_ROUTINE = null; render(); return; }
-  const head = h(`<div class="spread"><button class="chip" id="back">← Retour</button><button class="chip" id="ren">✏️ Renommer</button></div>`);
+  const head = h(`<div class="spread"><button class="chip" id="back">← Retour</button><button class="chip" id="ren"><span class="cic">${IC.forward}</span>Renommer</button></div>`);
   v.append(head);
   v.append(h(`<h1 style="margin:6px 0">${esc(r.nom)}</h1>`));
   $("#back", v).addEventListener("click", () => { EDIT_ROUTINE = null; render(); });
@@ -1073,13 +1075,13 @@ function carteSeanceEditor(r, s) {
   const c = h(`<details class="card" open></details>`);
   c.append(h(`<summary class="spread"><b>${esc(s.nom)}</b><span class="pill">${s.exercices.length} exos · ~${s.dureeEstimeeMin || 0} min</span></summary>`));
   const acts = h(`<div class="row" style="margin:6px 0"></div>`);
-  const bRen = h(`<button class="chip">✏️ Nom</button>`);
+  const bRen = h(`<button class="chip"><span class="cic">${IC.forward}</span>Nom</button>`);
   bRen.addEventListener("click", async () => { const n = await demanderTexte("Nom de la séance", s.nom); if (n !== null) { renommer(s, n); Etat.sauver(); render(); } });
-  const bDel = h(`<button class="chip danger">🗑️ Séance</button>`);
+  const bDel = h(`<button class="chip danger"><span class="cic">${IC.trash}</span>Séance</button>`);
   bDel.addEventListener("click", async () => { if (await confirmer(`Supprimer la séance « ${s.nom} » ?`, { danger: true, ok: "Supprimer" })) { supprimerSeance(r, s.id); Etat.sauver(); render(); } });
   acts.append(bRen, bDel); c.append(acts);
   s.exercices.forEach((e, i) => c.append(ligneExoEditor(s, e, i)));
-  const bAddE = h(`<button class="chip">➕ Exercice</button>`);
+  const bAddE = h(`<button class="chip"><span class="cic">${IC.plus}</span>Exercice</button>`);
   bAddE.addEventListener("click", () => choisirExercice((exId) => { ajouterExercice(s, exId, { nbSeries: 3 }); Etat.sauver(); render(); }));
   c.append(bAddE);
   return c;
@@ -1115,7 +1117,7 @@ function ligneExoEditor(s, e, i) {
   const nav2 = h(`<div class="row" style="margin-top:6px"></div>`);
   const up = h(`<button class="chip" aria-label="Monter l'exercice">↑</button>`); up.addEventListener("click", () => { deplacerExercice(s, i, -1); Etat.sauver(); render(); });
   const down = h(`<button class="chip" aria-label="Descendre l'exercice">↓</button>`); down.addEventListener("click", () => { deplacerExercice(s, i, 1); Etat.sauver(); render(); });
-  const del = h(`<button class="chip danger" aria-label="Retirer l'exercice">🗑️</button>`); del.addEventListener("click", () => { supprimerExerciceIndex(s, i); Etat.sauver(); render(); });
+  const del = h(`<button class="chip danger" aria-label="Retirer l'exercice"><span class="cic">${IC.trash}</span></button>`); del.addEventListener("click", () => { supprimerExerciceIndex(s, i); Etat.sauver(); render(); });
   nav2.append(up, down, del); row.append(nav2);
   return row;
 }
@@ -1598,6 +1600,7 @@ function carteExoApercu(e, num) {
   else if (gif) top.append(h(`<img class="anat-thumb" src="${esc(gif)}" alt="" loading="lazy" decoding="async">`));
   const body = h(`<div style="flex:1;min-width:0"></div>`);
   body.append(h(`<div class="anat-nom"><span class="anat-num">${num}</span>${esc(nom)}</div>`));
+  if (exo) body.append(h(`<div class="exo-tags">${tagsExercice(exo)}</div>`));
   body.append(h(`<div class="anat-meta"><span class="badge accent">${nb} × ${esc(reps)}</span><span class="anat-rest">⏱ repos ${esc(repos)}</span></div>`));
   top.append(body);
   if (exo) top.append(h(`<span class="chev" aria-hidden="true">›</span>`));
@@ -1691,7 +1694,7 @@ function vTrain(v) {
   const head = h(`<div class="card trainhead stack"></div>`);
   head.append(h(`<div class="spread"><div style="min-width:0"><h1 style="margin:0;font-size:1.3rem">${esc(seance.nom)}</h1><span class="livetimer"><span class="livedot" aria-hidden="true"></span><span class="num" id="seanceTimer">00:00</span></span></div><button class="chip danger" id="abandon">Abandonner</button></div>`));
   head.append(h(`<div class="bar"><div id="seanceProgBar" style="width:${Math.round(pr.pct * 100)}%"></div></div>`));
-  head.append(h(`<div class="spread small" style="margin-top:2px"><span class="muted" id="seanceProgTxt">${pr.faits}/${pr.tot} séries · ${nbExos} exercices</span><button class="linklike" id="goGuide">Mode guidé ›</button></div>`));
+  head.append(h(`<div class="spread small" style="margin-top:7px"><span class="exo-progres" id="seanceProgTxt">Exercice ${exoCourant(seance)} / ${nbExos} · ${pr.faits}/${pr.tot} séries</span><button class="linklike" id="goGuide">Mode guidé ›</button></div>`));
   v.append(head);
   $("#goGuide", head).addEventListener("click", ouvrirGuide);
   arreterChrono(); majChrono(); SESSION_TMR = setInterval(majChrono, 1000);
@@ -1721,6 +1724,19 @@ function carteSeanceChoix(s, sousTitre, aujourdhui) {
   b.addEventListener("click", () => { APERCU = s.id; render(); window.scrollTo(0, 0); });
   return b;
 }
+/**
+ * Rang de l'exercice en cours : le premier dont toutes les séries ne sont pas
+ * validées. Donne le « 2 / 6 » de la maquette sans rien changer à la logique.
+ */
+function exoCourant(seance) {
+  const ex = seance.exercices || [];
+  for (let i = 0; i < ex.length; i++) {
+    const st = LIVE && LIVE.data[ex[i].exerciceId];
+    if (!st || st.series.some((s) => !s.done)) return i + 1;
+  }
+  return ex.length || 1;
+}
+
 /** Met à jour en direct le bandeau de progression sans re-rendre toute la vue. */
 function majProgressionSeance() {
   const seance = LIVE && trouverSeance(LIVE.seanceId);
@@ -1728,7 +1744,7 @@ function majProgressionSeance() {
   const pr = progressionSeance(seance);
   const bar = $("#seanceProgBar"), txt = $("#seanceProgTxt");
   if (bar) bar.style.width = `${Math.round(pr.pct * 100)}%`;
-  if (txt) txt.textContent = `${pr.faits}/${pr.tot} séries · ${seance.exercices.length} exercices`;
+  if (txt) txt.textContent = `Exercice ${exoCourant(seance)} / ${seance.exercices.length} · ${pr.faits}/${pr.tot} séries`;
 }
 /** Progression d'une séance en cours : séries validées / total. */
 function progressionSeance(seance) {
@@ -1770,7 +1786,7 @@ function carteExoLive(e, seance) {
   if (!st) return h(`<div class="card"><div class="muted small">${esc(nomExo(e.exerciceId))} — état indisponible pour cette séance.</div></div>`);
   const exo = getExercise(st.exId);
   if (!exo) {
-    const c = h(`<div class="card"><div class="spread"><b>${esc(st.exId)}</b><button class="chip danger" aria-label="Retirer">🗑️</button></div><div class="muted small">Exercice indisponible.</div></div>`);
+    const c = h(`<div class="card"><div class="spread"><b>${esc(st.exId)}</b><button class="chip danger" aria-label="Retirer"><span class="cic">${IC.trash}</span></button></div><div class="muted small">Exercice indisponible.</div></div>`);
     c.querySelector("button").addEventListener("click", () => retirerExerciceLive(e.exerciceId));
     return c;
   }
@@ -1813,7 +1829,7 @@ function carteExoLive(e, seance) {
   const avance = modeAvance();
   if (avance) c.classList.add("adv");
   const showEffort = st.showRir != null ? st.showRir : avance;
-  const col2 = showEffort ? metriqueEffort() : "Précédent";
+  const col2 = showEffort ? metriqueEffort() : "Préc.";
   c.append(h(`<div class="setrow"><span class="head">Série</span><span class="head">${col2}</span><span class="head">${enTemps ? "Sec" : "Kg"}</span><span class="head">${enTemps ? "Durée" : "Reps"}</span><span class="head">✓</span></div>`));
   // Les suggestions des séries suivantes dépendent de ce qui vient d'être
   // saisi : elles doivent être recalculées à chaque frappe, sinon l'écran
@@ -2954,6 +2970,20 @@ function couleurDispo(r) {
  * Carte « Ton corps » + prochaine séance, sur l'Accueil.
  * C'est le point d'entrée du mode automatique : la séance est DÉJÀ construite.
  */
+/**
+ * Pastilles de contexte d'un exercice : muscle principal, matériel, famille de
+ * mouvement. Uniquement ce qui est réellement connu — pas de pastille vide.
+ */
+function tagsExercice(exo) {
+  const t = [];
+  const m = (exo.musclesPrincipaux || [])[0];
+  if (m) t.push(`<span class="exo-tag m">${esc(MUSCLE_LABELS[m] || m)}</span>`);
+  const eq = (exo.equipement || []).filter((q) => q !== "poids_du_corps")[0] || (exo.equipement || [])[0];
+  if (eq) t.push(`<span class="exo-tag">${esc(EQUIPMENT_LABELS[eq] || eq)}</span>`);
+  if (exo.typeExercice) t.push(`<span class="exo-tag">${esc(exo.typeExercice)}</span>`);
+  return t.join("");
+}
+
 /** Groupes visibles de face / de dos dans les silhouettes anatomiques. */
 const GROUPES_FACE = ["pectoraux", "abdominaux", "biceps", "triceps", "trapezes", "epaules", "quadriceps", "mollets", "avant_bras"];
 
@@ -4529,14 +4559,14 @@ function vSet(v) {
 
   const don = h(`<div class="card stack">
     <div class="small muted">Tout est stocké localement sur cet appareil. Aucune donnée n'est envoyée à un serveur.</div></div>`);
-  const bExp = h(`<button>💾 Sauvegarde complète (JSON)</button>`);
+  const bExp = h(`<button><span class="cic">${IC.download || IC.cornerDown}</span>Sauvegarde complète (JSON)</button>`);
   bExp.addEventListener("click", () => {
     const contenu = JSON.stringify(construireExport(Etat.data), null, 1);
     const blob = new Blob([contenu], { type: "application/json" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = nomFichierBackup(); a.click();
     URL.revokeObjectURL(a.href);
   });
-  const bImp = h(`<button>📥 Restaurer une sauvegarde (JSON)</button>`);
+  const bImp = h(`<button><span class="cic">${IC.cornerDown}</span>Restaurer une sauvegarde (JSON)</button>`);
   const file = h(`<input type="file" accept=".json,application/json" hidden>`);
   bImp.addEventListener("click", () => file.click());
   file.addEventListener("change", (ev) => {

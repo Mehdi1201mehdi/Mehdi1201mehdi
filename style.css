@@ -205,8 +205,9 @@ label.f>span{display:block;font-size:.8rem;font-weight:750;color:var(--ink-soft)
 
 /* ---- Composants premium (dashboard & écrans) ---- */
 /* Carte héro (accueil, séance du jour) */
-.hero{position:relative;overflow:hidden;background:linear-gradient(155deg,color-mix(in srgb,var(--accent) 20%,var(--surface)),var(--surface) 70%);border:1px solid color-mix(in srgb,var(--accent) 24%,var(--line));border-radius:22px;padding:18px;box-shadow:var(--shadow-lg)}
-.hero .glow{position:absolute;right:-40px;top:-40px;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,var(--accent-2),transparent 68%);opacity:.22;pointer-events:none}
+.hero{position:relative;overflow:hidden;background:linear-gradient(155deg,color-mix(in srgb,var(--accent) 13%,var(--surface)),var(--surface) 66%);border:1px solid color-mix(in srgb,var(--accent) 24%,var(--line));border-radius:22px;padding:18px;box-shadow:var(--shadow-lg)}
+.hero .glow{position:absolute;right:-56px;top:-64px;width:220px;height:220px;border-radius:50%;
+  background:radial-gradient(circle,var(--accent) 0%,transparent 72%);opacity:.16;pointer-events:none;filter:blur(6px)}
 .ringstat{display:flex;align-items:center;gap:16px}
 .ringstat svg{flex:0 0 auto}
 .avatar{flex:0 0 auto;width:64px;height:64px;border-radius:20px;display:grid;place-items:center;font-size:1.7rem;font-weight:850;color:#fff;background:var(--grad);box-shadow:var(--shadow-lg)}
@@ -706,8 +707,8 @@ body.guide-open{overflow:hidden}
 
 /* ---- Séance : vignette, badges musculaires, alternatives ---- */
 .exo-tete{display:flex;align-items:flex-start;gap:11px}
-.exo-vign{position:relative;flex:0 0 auto;width:52px;height:52px;padding:5px;border-radius:14px;
-  background:var(--surface-2);border:1px solid var(--hair);display:grid;place-items:center;min-height:52px}
+.exo-vign{position:relative;flex:0 0 auto;width:60px;height:60px;padding:5px;border-radius:16px;
+  background:var(--surface-2);border:1px solid var(--hair);display:grid;place-items:center;min-height:60px}
 .exo-vign .mini-silhouette{width:100%;height:100%;display:block}
 /* Démonstration animée dans la vignette : recouvre la silhouette, qui
    réapparaît si l'image ne charge pas. Fond opaque pour que rien ne
@@ -1040,4 +1041,108 @@ body::after{opacity:.03}
   .hero-corps{padding-right:72px}
 
   .hero-chiffres{gap:var(--space-4)}
+}
+
+/* ============================================================
+   ÉTAPES 6→12 — Programme, cartes exercices, séance, minuteur,
+   progrès, profil. Même langage : noir profond, graphite, lime.
+   ============================================================ */
+
+/* ---- 6. PROGRAMME : sélecteur de jours premium ---- */
+.daystrip{gap:7px;margin:4px 0 18px}
+.daypill{gap:7px;padding:11px 2px;background:var(--surface);border:1px solid var(--hair);
+  transition:background var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease),transform var(--t-fast) var(--ease)}
+.daypill .dp-d{font-size:.68rem;font-weight:850;letter-spacing:.06em}
+.daypill .dp-dot{width:6px;height:6px;background:var(--line)}
+.daypill.has .dp-dot{background:var(--accent)}
+.daypill.today{border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+.daypill.today .dp-d{color:var(--accent)}
+.daypill.on{background:var(--accent-soft);border:1.5px solid var(--accent);box-shadow:none;border-radius:14px}
+.daypill.on .dp-d{color:var(--accent)}
+.daypill.on .dp-dot{background:var(--accent)}
+.daypill:active{transform:scale(.96)}
+
+/* ---- 7. CARTES EXERCICES : [visuel] [infos] [chevron] ---- */
+.anat-ex{padding:14px;border-radius:18px}
+.anat-ex-top{display:flex;gap:13px;align-items:center}
+.anat-ex .exo-vign{width:74px;height:74px;min-height:74px;border-radius:16px;padding:5px;background:var(--surface-2)}
+.anat-ex .exo-vign .exo-gif{inset:4px;width:calc(100% - 8px);height:calc(100% - 8px);border-radius:12px}
+.anat-nom{font-size:1rem;font-weight:850;letter-spacing:-.02em;line-height:1.2}
+.anat-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:7px}
+.anat-rest{font-size:var(--fs-caption);color:var(--ink-soft);font-weight:650}
+/* Pastilles de contexte : muscle, matériel, volume */
+.exo-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.exo-tag{font-size:var(--fs-eyebrow);font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+  padding:3px 8px;border-radius:7px;background:var(--surface-3);color:var(--ink-soft);white-space:nowrap}
+.exo-tag.m{background:var(--accent-soft);color:var(--accent)}
+.anat-ex .chev{color:var(--faint);font-size:1.3rem;flex:0 0 auto}
+.card.tap:active,.anat-ex.tap:active{transform:scale(.985)}
+
+/* ---- 8. SÉANCE ACTIVE ---- */
+.trainhead{background:linear-gradient(155deg,#1A201B,#15191D 64%);border-color:rgba(183,230,58,.2)}
+.trainhead h1{font-size:1.5rem;font-weight:900;letter-spacing:-.04em}
+.livetimer{display:inline-flex;align-items:center;gap:7px;margin-top:5px}
+.livetimer .num{font-size:1.32rem;font-weight:900;font-variant-numeric:tabular-nums;color:var(--accent);letter-spacing:-.02em}
+.livedot{width:8px;height:8px;border-radius:999px;background:var(--accent);box-shadow:0 0 10px var(--accent-glow);
+  animation:battement 2.4s var(--ease) infinite}
+@keyframes battement{0%,100%{opacity:1}50%{opacity:.35}}
+.trainhead .bar{height:7px;border-radius:999px;background:var(--surface-3);overflow:hidden;margin-top:11px}
+.trainhead .bar>div{height:100%;border-radius:999px;background:var(--grad);transition:width var(--t-slow) var(--ease)}
+.exo-progres{font-size:var(--fs-eyebrow);font-weight:850;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
+
+/* Tableau des séries modernisé */
+.setrow input{background:var(--surface-2);border:1px solid var(--hair);border-radius:11px;
+  padding:12px 4px;font-weight:850;font-size:1.04rem}
+.setrow input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.setrow .done{min-height:46px;border-radius:12px;background:var(--surface-2);color:var(--faint);
+  border:1px solid var(--hair);font-size:1.15rem}
+.setrow .done.on{background:var(--grad);color:var(--on-accent);border-color:transparent;
+  box-shadow:0 6px 16px rgba(147,205,29,.22)}
+.setrow.vdone{background:linear-gradient(90deg,var(--accent-soft),transparent 64%)}
+.setrow.vdone .serie{color:var(--accent)}
+.setrow .head{font-size:var(--fs-eyebrow);letter-spacing:.1em;font-weight:850}
+
+/* ---- 9. MINUTEUR DE REPOS ---- */
+#overlay{background:radial-gradient(85% 55% at 50% 28%,rgba(183,230,58,.07),#07090B 62%),#07090B;gap:26px}
+:root[data-theme="light"] #overlay{background:radial-gradient(85% 55% at 50% 28%,var(--accent-soft),var(--bg) 62%),var(--bg)}
+#overlay .ovhead .eyebrow{color:var(--accent);letter-spacing:.14em}
+#overlay .ovhead h2{font-weight:900;letter-spacing:-.03em}
+.ring{width:262px;height:262px;filter:drop-shadow(0 0 28px rgba(183,230,58,.18))}
+.ring .t{font-size:4.4rem;font-weight:900;letter-spacing:-.04em}
+#overlay .ovsub{font-size:var(--fs-body);font-weight:650;color:var(--ink-soft);max-width:30ch}
+#overlay .row{gap:12px}
+#overlay #ovMinus,#overlay #ovPlus{min-width:104px;min-height:50px;border-radius:16px;background:var(--surface-2);
+  border:1px solid var(--hair);color:var(--ink);font-weight:800;letter-spacing:.06em;font-size:.82rem}
+#overlay #ovMinus:active,#overlay #ovPlus:active{transform:scale(.97)}
+#ovSkip{width:min(320px,86vw);min-height:56px;font-size:1rem;letter-spacing:.02em}
+
+/* ---- 10. PROGRÈS ---- */
+.statgrid{gap:12px}
+.stat{background:var(--surface);border:1px solid var(--hair);border-radius:18px;padding:15px}
+.stat b,.statgrid b{font-weight:900;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.msc-row{display:block;padding:11px 0;border-bottom:1px solid var(--hair)}
+.msc-row:last-child{border-bottom:0}
+.msc-bar{height:7px;border-radius:999px;background:var(--surface-3);overflow:hidden;margin-top:6px}
+.msc-bar>div{height:100%;border-radius:999px;transition:width var(--t-slow) var(--ease)}
+/* Récupération musculaire : silhouette + nom + pourcentage + barre */
+.recup-sil{flex:0 0 auto;width:34px;height:48px;display:block}
+.recup-sil .mini-silhouette{width:100%;height:100%;display:block}
+
+/* ---- 11. PROFIL ---- */
+.avatar{border-radius:22px;color:var(--on-accent);font-weight:900;box-shadow:0 12px 32px rgba(147,205,29,.22)}
+.profstats>div{background:var(--surface);border:1px solid var(--hair);border-radius:16px;padding:15px 6px}
+.profstats b{font-size:1.16rem;font-weight:900;letter-spacing:-.03em}
+.sect-head{min-height:54px}
+.sect-t{font-weight:850;letter-spacing:-.02em}
+
+/* ---- 12. FINITIONS : micro-interactions discrètes ---- */
+button:active{transform:scale(.97)}
+nav.tabs button:active{transform:scale(.94)}
+.wcard:active,.exline:active{transform:scale(.985)}
+.view-anim{animation:vueEntre var(--t-base) var(--ease) both}
+@keyframes vueEntre{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){
+  .view-anim{animation:none}
+  .livedot{animation:none}
+  button:active,.wcard:active,.exline:active,.card.tap:active,.daypill:active{transform:none}
 }
