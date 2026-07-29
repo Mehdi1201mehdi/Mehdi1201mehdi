@@ -36,7 +36,7 @@ import { FORMULE_1RM, classementRecords, detecterRecords } from "../engine/recor
 import { construireExport, validerImport, appliquerImport, nomFichierBackup } from "../engine/backup.js";
 import { FORMULES_1RM, estimer1RM, tablePourcentages, disquesParCote } from "../engine/powerlifting.js";
 import {
-  volumeLog, volumeParSemaine, dureeMoyenneMin, volumeParMuscle, recuperationParMuscle, statsSemaine,
+  volumeLog, volumeTotal, volumeParSemaine, dureeMoyenneMin, volumeParMuscle, recuperationParMuscle, statsSemaine,
   METRIQUES_EXO, serieExercice, serieCorps, filtrerDepuis,
 } from "../engine/stats.js";
 
@@ -639,6 +639,11 @@ function vDash(v) {
   }
   if (!moteurActif) v.append(wc);
 
+  // Statistiques d'un coup d'œil — grille 2 colonnes, chiffres dominants.
+  // Toutes les valeurs viennent de l'historique réel, aucune n'est inventée.
+  v.append(h(`<div class="eyebrow dash-lbl">Mes chiffres</div>`));
+  v.append(grilleChiffres(logs));
+
   // Ma semaine — bande compacte, juste sous l'action principale.
   v.append(h(`<div class="eyebrow dash-lbl">Ma semaine</div>`));
   v.append(semaineStrip(logs));
@@ -844,7 +849,7 @@ function vProg(v) {
     const muscles = (s.groupesCibles || []).map((m) => MUSCLE_LABELS[m] || m).slice(0, 3).join(" · ");
     const meta = `${muscles}${muscles ? " · " : ""}${s.exercices.length} exos · ${s.dureeEstimeeMin || 0} min`;
     const d = h(`<div class="daycard${wd === auj ? " today" : ""}"></div>`);
-    d.append(h(`<div class="row" style="align-items:center;gap:13px"><span class="dc-ic" style="background:${col}26;color:${col}">${IC.dumbbell}</span><span class="dc-main"><span class="dc-day">${JOURS[wd - 1]}${wd === auj ? " · Aujourd'hui" : ""}</span><b class="dc-name">${esc(s.nom)}</b><span class="muted small">${esc(meta)}</span></span></div>`));
+    d.append(h(`<div class="dc-head"><span class="dc-ic" style="background:${col}26;color:${col}">${IC.dumbbell}</span><span class="dc-main"><span class="dc-day">${JOURS[wd - 1]}${wd === auj ? " · Aujourd'hui" : ""}</span><b class="dc-name">${esc(s.nom)}</b><span class="muted small">${esc(meta)}</span></span><span class="dc-fig" aria-hidden="true">${silhouetteAuto(s.groupesCibles || [])}</span></div>`));
     s.exercices.forEach((e, i) => d.append(carteExoApercu(e, i + 1)));
     if (wd === auj) {
       const b = h(`<button class="primary big" style="margin-top:11px"><span class="btn-ico">${IC.play}</span>Commencer la séance</button>`);
@@ -2982,6 +2987,27 @@ function tagsExercice(exo) {
   if (eq) t.push(`<span class="exo-tag">${esc(EQUIPMENT_LABELS[eq] || eq)}</span>`);
   if (exo.typeExercice) t.push(`<span class="exo-tag">${esc(exo.typeExercice)}</span>`);
   return t.join("");
+}
+
+/**
+ * Grille « mes chiffres » de l'accueil : séances, tonnage, régularité, records.
+ * La régularité compare les séances des 4 dernières semaines à l'objectif
+ * hebdomadaire du profil — pas une note arbitraire.
+ */
+function grilleChiffres(logs) {
+  const g = h(`<div class="statgrid"></div>`);
+  const nb = logs.length;
+  const tonnes = volumeTotal(logs) / 1000;
+  const volTxt = tonnes >= 1 ? `${tonnes.toFixed(1).replace(".", ",")} T` : `${Math.round(volumeTotal(logs))} kg`;
+  const cible = Math.max(1, (Etat.data.profil?.joursParSemaine || 4) * 4);
+  const recentes = logs.filter((l) => Date.parse(l.date) > Date.now() - 28 * 864e5).length;
+  const regularite = Math.min(100, Math.round((recentes / cible) * 100));
+  const records = classementRecords(logs, nomExo, 99).length;
+  g.append(statCard(IC.dumbbell, String(nb), "Séances"));
+  g.append(statCard(IC.bars, volTxt, "Volume"));
+  g.append(statCard(IC.activity, `${regularite} %`, "Régularité"));
+  g.append(statCard(IC.trophy, String(records), "Records"));
+  return g;
 }
 
 /** Groupes visibles de face / de dos dans les silhouettes anatomiques. */

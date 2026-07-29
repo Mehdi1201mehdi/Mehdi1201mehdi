@@ -645,7 +645,7 @@ body.guide-open{overflow:hidden}
 .dash-hi h1{margin:1px 0 0;font-size:1.45rem;line-height:1.1}
 .dash-hi .eyebrow{font-size:.64rem}
 .streak-chip{display:inline-flex;align-items:center;gap:5px;padding:7px 12px;border-radius:999px;
-  background:rgba(249,115,22,.13);color:var(--orange);font-weight:800}
+  background:var(--accent-soft);color:var(--accent);font-weight:850}
 .streak-chip svg{width:15px;height:15px;display:block}
 .streak-chip b{font-size:1rem;line-height:1}
 .streak-chip span{font-size:.72rem;opacity:.8}
@@ -1146,3 +1146,9 @@ nav.tabs button:active{transform:scale(.94)}
   .livedot{animation:none}
   button:active,.wcard:active,.exline:active,.card.tap:active,.daypill:active{transform:none}
 }
+
+/* Carte séance du programme : la silhouette des groupes visés à droite */
+.dc-head{display:flex;align-items:center;gap:13px}
+.dc-fig{flex:0 0 auto;width:52px;height:74px;opacity:.85;display:block}
+.dc-fig .mini-silhouette{width:100%;height:100%;display:block}
+@media (max-width:359px){.dc-fig{width:42px;height:60px}}
