@@ -71,7 +71,7 @@ Légende : ✅ opérationnel · ⚠️ partiel · ❌ absent · 🔒 volontairem
 | FC cible et zones (Karvonen) | ✅ | Profil → Outils |
 | Macros par morphotype | ✅ | Outils |
 | Durée de séance estimée | ✅ | Outils |
-| Estimation du maximum | ✅ | Outils |
+| Calculateurs de force (7 formules, zones, RPE, barre) | ✅ | Progrès → Calculateurs de force |
 | Composition corporelle (US Navy) | ✅ | Outils |
 | Test cardio vélo avec historique | ✅ | Outils |
 

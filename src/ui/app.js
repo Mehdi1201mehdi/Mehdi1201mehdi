@@ -34,7 +34,11 @@ import {
 } from "../engine/routines.js";
 import { FORMULE_1RM, classementRecords, detecterRecords } from "../engine/records.js";
 import { construireExport, validerImport, appliquerImport, nomFichierBackup } from "../engine/backup.js";
-import { FORMULES_1RM, estimer1RM, tablePourcentages, disquesParCote } from "../engine/powerlifting.js";
+import { disquesParCote, echauffement } from "../engine/powerlifting.js";
+import {
+  estimer1RMComplet, pctPourReps, chargesParZone, tableComplete,
+  chargePourRPE, pctPourRPE, meilleuresSeries, equilibreForce,
+} from "../engine/force.js";
 import {
   volumeLog, volumeTotal, volumeParSemaine, dureeMoyenneMin, volumeParMuscle, recuperationParMuscle, statsSemaine,
   METRIQUES_EXO, serieExercice, serieCorps, filtrerDepuis,
@@ -4098,58 +4102,157 @@ function carteProgression(v) {
   rebuild();
 }
 
-/* ---------- calculateurs force (1RM, %, disques) ---------- */
-let FORCE = { charge: "", reps: "", formule: "epley", cible: "", barre: "20" };
+/* ---------- Calculateurs de force ----------
+   Sept formules plutôt qu'une : elles ne s'accordent pas, et donner un seul
+   chiffre laisserait croire à une précision qui n'existe pas. On affiche donc
+   le consensus, la fourchette, et de quoi programmer réellement ses charges. */
+let FORCE = { charge: "", reps: "", cible: "", barre: "20", rpe: "8", repsRpe: "5" };
 
 function carteForce(v) {
-  const card = h(`<div class="card stack"><h2 style="margin:0">🏋️ Calculateurs force</h2></div>`);
+  const nb = (x) => { const n = parseFloat(String(x).replace(",", ".")); return Number.isFinite(n) ? n : 0; };
+  const rmCourant = () => estimer1RMComplet(nb(FORCE.charge), nb(FORCE.reps));
 
-  // --- 1RM estimé + table de pourcentages ---
-  card.append(h(`<div class="small muted" style="margin-top:2px">1RM estimé & charges de travail</div>`));
-  const l1 = h(`<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"></div>`);
-  const inC = h(`<label class="small">Charge <input inputmode="decimal" placeholder="kg" value="${esc(FORCE.charge)}" style="width:64px" /></label>`);
-  const inR = h(`<label class="small">Reps <input inputmode="numeric" placeholder="ex. 5" value="${esc(FORCE.reps)}" style="width:56px" /></label>`);
-  const selF = h(`<select aria-label="Formule">${Object.entries(FORMULES_1RM).map(([k, f]) => `<option value="${k}"${k === FORCE.formule ? " selected" : ""}>${esc(f.label.split(" :")[0])}</option>`).join("")}</select>`);
-  l1.append(inC, inR, selF); card.append(l1);
-  const out1 = h(`<div style="margin-top:4px"></div>`); card.append(out1);
+  /* --- 1. Point de départ : une série réelle, reprise de l'historique --- */
+  const c1 = h(`<div class="card stack"></div>`);
+  c1.append(h(`<div class="eyebrow">Ta série de référence</div>`));
+  const meilleures = meilleuresSeries(Etat.data.logs || [], getExercise, 8);
+  if (meilleures.length) {
+    c1.append(h(`<div class="muted small">Tes meilleures séries enregistrées — touche pour calculer dessus.</div>`));
+    const ch = h(`<div class="row scrollx" style="margin-top:8px"></div>`);
+    meilleures.forEach((m) => {
+      const b = h(`<button class="chip">${esc(m.nom)} · ${fr(m.kg)}×${m.reps}</button>`);
+      b.addEventListener("click", () => { FORCE.charge = String(m.kg); FORCE.reps = String(m.reps); tout(); });
+      ch.append(b);
+    });
+    c1.append(ch);
+  }
+  const l1 = h(`<div class="row" style="gap:8px;flex-wrap:wrap;align-items:end;margin-top:10px"></div>`);
+  const inC = h(`<label class="small">Charge (kg)<input inputmode="decimal" placeholder="100" value="${esc(FORCE.charge)}" style="width:88px"></label>`);
+  const inR = h(`<label class="small">Répétitions<input inputmode="numeric" placeholder="5" value="${esc(FORCE.reps)}" style="width:88px"></label>`);
+  l1.append(inC, inR); c1.append(l1);
+  v.append(c1);
 
-  const draw1 = () => {
-    const kg = parseFloat(String(FORCE.charge).replace(",", ".")), reps = parseInt(FORCE.reps, 10);
-    if (!(kg > 0) || !(reps > 0)) { out1.innerHTML = `<div class="muted small">Saisis une charge et des répétitions.</div>`; return; }
-    const rm = estimer1RM(kg, reps, FORCE.formule);
-    const tbl = tablePourcentages(rm, [95, 90, 85, 80, 75, 70, 65, 60]);
-    out1.innerHTML = `<div class="notice small"><b>1RM estimé ≈ ${rm} kg</b> · ${esc(FORMULES_1RM[FORCE.formule].label)}</div>`
-      + `<div class="row" style="flex-wrap:wrap;gap:4px;margin-top:6px">${tbl.map((t) => `<span class="tag">${t.pct}% · ${t.kg} kg</span>`).join("")}</div>`
-      + `<div class="hint">Estimation indicative — ne teste jamais un vrai maximum en reprise.</div>`;
+  /* --- 2. 1RM : consensus, fourchette, détail des sept formules --- */
+  const c2 = h(`<div class="card stack"></div>`);
+  v.append(c2);
+
+  /* --- 3. Charges de travail par objectif --- */
+  const c3 = h(`<div class="card stack"></div>`);
+  v.append(c3);
+
+  /* --- 4. Table des pourcentages --- */
+  const c4 = h(`<div class="card stack"></div>`);
+  v.append(c4);
+
+  /* --- 5. Charge à un RPE donné --- */
+  const c5 = h(`<div class="card stack"></div>`);
+  v.append(c5);
+
+  /* --- 6. Chargement de la barre --- */
+  const c6 = h(`<div class="card stack"></div>`);
+  v.append(c6);
+
+  /* --- 7. Équilibre entre mouvements --- */
+  const eq = equilibreForce(meilleures);
+  if (eq.length) {
+    const c7 = h(`<div class="card stack"></div>`);
+    c7.append(h(`<div class="eyebrow">Équilibre entre mouvements</div>`));
+    c7.append(h(`<div class="muted small">Repères indicatifs de force athlétique, calculés sur tes meilleures séries.</div>`));
+    eq.forEach((r) => {
+      const coul = r.verdict === "équilibré" ? "var(--accent)" : r.verdict === "en retard" ? "var(--amber)" : "var(--ink-soft)";
+      c7.append(h(`<div class="spread small" style="margin-top:8px"><span>${esc(r.nom)}</span>
+        <span><b class="num" style="color:${coul}">${r.ratio}</b> <span class="muted">cible ${r.cible} · ${esc(r.verdict)}</span></span></div>`));
+    });
+    v.append(c7);
+  }
+
+  /* --- rendu, recalculé à chaque frappe --- */
+  const tout = () => {
+    const r = rmCourant();
+    const rm = r.consensus;
+
+    c2.innerHTML = "";
+    c2.append(h(`<div class="eyebrow">Maximum estimé (1RM)</div>`));
+    if (!r.valide) {
+      c2.append(h(`<div class="muted small">Saisis une charge et un nombre de répétitions, ou touche une de tes séries ci-dessus.</div>`));
+    } else {
+      c2.append(h(`<div class="out-big"><b class="num">${fr(rm)} kg</b><span>Consensus de ${r.detail.length} formules</span></div>`));
+      c2.append(h(`<div class="muted small">Fourchette ${fr(r.min)} – ${fr(r.max)} kg · écart ${fr(r.ecartPct)} %. ${nb(FORCE.reps)} rép. à ${nb(FORCE.charge)} kg ≈ ${fr(pctPourReps(nb(FORCE.reps)))} % du maximum.</div>`));
+      if (r.avertissement) c2.append(h(`<div class="warn small" style="margin-top:8px">${esc(r.avertissement)}</div>`));
+      const det = h(`<div class="stack" style="margin-top:10px"></div>`);
+      det.append(h(`<div class="eyebrow">Détail par formule</div>`));
+      r.detail.forEach((d) => det.append(h(`<div class="spread small"><span class="muted" title="${esc(d.formule)}">${esc(d.nom)}</span><b class="num">${fr(d.kg)} kg</b></div>`)));
+      c2.append(det);
+      c2.append(h(`<div class="hint">Une estimation n'est pas une mesure. Ne teste jamais un vrai maximum en reprise, seul, ou sans échauffement complet.</div>`));
+    }
+
+    c3.innerHTML = "";
+    c3.append(h(`<div class="eyebrow">Charges de travail par objectif</div>`));
+    if (!rm) c3.append(h(`<div class="muted small">En attente d'une série de référence.</div>`));
+    else chargesParZone(rm).forEach((z) => {
+      c3.append(h(`<div class="zone-force">
+        <div class="spread"><b>${esc(z.nom)}</b><b class="num zf-kg">${fr(z.kgMin)} – ${fr(z.kgMax)} kg</b></div>
+        <div class="spread small muted"><span>${z.reps[0]}–${z.reps[1]} répétitions · repos ${formatRepos(z.reposSec)}</span></div>
+        <div class="muted" style="font-size:var(--fs-caption)">${esc(z.but)}</div></div>`));
+    });
+
+    c4.innerHTML = "";
+    c4.append(h(`<div class="eyebrow">Table des pourcentages</div>`));
+    if (!rm) c4.append(h(`<div class="muted small">En attente d'une série de référence.</div>`));
+    else {
+      const t = h(`<div class="pct-table"></div>`);
+      t.append(h(`<div class="pct-row head"><span>%</span><span>Charge</span><span>Reps</span></div>`));
+      tableComplete(rm).forEach((x) => t.append(h(`<div class="pct-row"><span>${fr(x.pct)} %</span><b class="num">${fr(x.kg)} kg</b><span class="muted">${x.reps}</span></div>`)));
+      c4.append(t);
+    }
+
+    c5.innerHTML = "";
+    c5.append(h(`<div class="eyebrow">Charge à un RPE donné</div>`));
+    c5.append(h(`<div class="muted small">RPE 8 = « il me restait 2 répétitions ». La série équivaut alors à une série à l'échec de reps + réserve.</div>`));
+    const lr = h(`<div class="row" style="gap:8px;flex-wrap:wrap;align-items:end;margin-top:8px"></div>`);
+    const inRR = h(`<label class="small">Répétitions<input inputmode="numeric" value="${esc(FORCE.repsRpe)}" style="width:88px"></label>`);
+    const inRP = h(`<label class="small">RPE (1–10)<input inputmode="decimal" value="${esc(FORCE.rpe)}" style="width:88px"></label>`);
+    lr.append(inRR, inRP); c5.append(lr);
+    inRR.querySelector("input").addEventListener("input", (e) => { FORCE.repsRpe = e.target.value; tout(); });
+    inRP.querySelector("input").addEventListener("input", (e) => { FORCE.rpe = e.target.value; tout(); });
+    const kgRpe = rm ? chargePourRPE(rm, nb(FORCE.repsRpe), nb(FORCE.rpe)) : 0;
+    c5.append(h(kgRpe
+      ? `<div class="out-big" style="margin-top:8px"><b class="num">${fr(kgRpe)} kg</b><span>${nb(FORCE.repsRpe)} rép. @ RPE ${fr(FORCE.rpe)} · ${fr(pctPourRPE(nb(FORCE.repsRpe), nb(FORCE.rpe)))} % du max</span></div>`
+      : `<div class="muted small" style="margin-top:8px">Renseigne un maximum, des répétitions et un RPE entre 1 et 10.</div>`));
+
+    c6.innerHTML = "";
+    c6.append(h(`<div class="eyebrow">Chargement de la barre</div>`));
+    const l6 = h(`<div class="row" style="gap:8px;flex-wrap:wrap;align-items:end"></div>`);
+    const inCible = h(`<label class="small">Charge visée<input inputmode="decimal" placeholder="${rm ? Math.round(rm * 0.8) : 100}" value="${esc(FORCE.cible)}" style="width:96px"></label>`);
+    const inBarre = h(`<label class="small">Barre (kg)<input inputmode="decimal" value="${esc(FORCE.barre)}" style="width:80px"></label>`);
+    l6.append(inCible, inBarre); c6.append(l6);
+    inCible.querySelector("input").addEventListener("input", (e) => { FORCE.cible = e.target.value; tout(); });
+    inBarre.querySelector("input").addEventListener("input", (e) => { FORCE.barre = e.target.value; tout(); });
+    const cible = nb(FORCE.cible) || (rm ? arrondirForce(rm * 0.8) : 0);
+    if (cible > 0) {
+      const d = disquesParCote(cible, nb(FORCE.barre) || 20);
+      c6.append(h(`<div class="muted small" style="margin-top:8px">${d.possible
+        ? `Par côté : <b>${d.parCote.length ? d.parCote.map(fr).join(" + ") + " kg" : "aucun disque"}</b>${d.exact ? "" : ` — au plus proche : <b>${fr(d.totalReel)} kg</b>`}`
+        : esc(d.message || "Charge inférieure à la barre.")}</div>`));
+      const ech = echauffement(d.totalReel || cible, nb(FORCE.barre) || 20);
+      if (ech.length) {
+        c6.append(h(`<div class="eyebrow" style="margin-top:12px">Montée en charge</div>`));
+        const row = h(`<div class="row" style="flex-wrap:wrap;gap:6px;margin-top:6px"></div>`);
+        ech.forEach((e2) => row.append(h(`<span class="pill">${fr(e2.kg)} kg × ${e2.reps}</span>`)));
+        c6.append(row);
+      }
+    }
   };
-  inC.querySelector("input").addEventListener("input", (e) => { FORCE.charge = e.target.value; draw1(); });
-  inR.querySelector("input").addEventListener("input", (e) => { FORCE.reps = e.target.value; draw1(); });
-  selF.addEventListener("change", (e) => { FORCE.formule = e.target.value; draw1(); });
-  draw1();
 
-  // --- calculateur de disques ---
-  card.append(h(`<div class="small muted" style="margin-top:10px">Calculateur de disques (par côté)</div>`));
-  const l2 = h(`<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"></div>`);
-  const inCible = h(`<label class="small">Charge visée <input inputmode="decimal" placeholder="kg" value="${esc(FORCE.cible)}" style="width:70px" /></label>`);
-  const inBarre = h(`<label class="small">Barre <input inputmode="decimal" value="${esc(FORCE.barre)}" style="width:56px" /></label>`);
-  l2.append(inCible, inBarre); card.append(l2);
-  const out2 = h(`<div style="margin-top:4px"></div>`); card.append(out2);
-
-  const draw2 = () => {
-    const cible = parseFloat(String(FORCE.cible).replace(",", ".")), barre = parseFloat(String(FORCE.barre).replace(",", ".")) || 20;
-    if (!(cible > 0)) { out2.innerHTML = `<div class="muted small">Saisis la charge totale visée.</div>`; return; }
-    const r = disquesParCote(cible, barre);
-    if (!r.possible) { out2.innerHTML = `<div class="notice small">${esc(r.message || "Impossible.")}</div>`; return; }
-    const plaques = r.parCote.length ? r.parCote.join(" + ") + " kg par côté" : "barre à vide";
-    out2.innerHTML = `<div class="notice small"><b>${esc(plaques)}</b></div>`
-      + `<div class="hint">Barre ${barre} kg → total réel ${r.totalReel} kg${r.exact ? "" : ` (≈ cible, reste ${r.resteKg} kg/côté non atteignable avec ces disques)`}.</div>`;
-  };
-  inCible.querySelector("input").addEventListener("input", (e) => { FORCE.cible = e.target.value; draw2(); });
-  inBarre.querySelector("input").addEventListener("input", (e) => { FORCE.barre = e.target.value; draw2(); });
-  draw2();
-
-  v.append(card);
+  inC.querySelector("input").addEventListener("input", (e) => { FORCE.charge = e.target.value; tout(); });
+  inR.querySelector("input").addEventListener("input", (e) => { FORCE.reps = e.target.value; tout(); });
+  tout();
 }
+
+/** Arrondi 2,5 kg — le pas des disques les plus courants. */
+function arrondirForce(kg) { return Math.round(Number(kg) / 2.5) * 2.5; }
+/** Nombre à la française : virgule décimale, sans décimale inutile. */
+function fr(n) { return String(n).replace(".", ","); }
 
 /** Carte de chaleur musculaire : zones réellement travaillées (données locales). */
 function carteMuscleHeatmap(v) {

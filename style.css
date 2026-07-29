@@ -1167,3 +1167,21 @@ nav.tabs button:active{transform:scale(.94)}
 /* Résumé du corps : carte propre sous la séance du jour */
 .corps-resume{display:block;width:100%;text-align:left;padding:16px 18px;min-height:auto}
 .corps-resume .moteur-head{width:100%;margin-bottom:var(--space-3)}
+
+/* ---- Calculateurs de force ---- */
+.zone-force{padding:12px 0;border-bottom:1px solid var(--hair)}
+.zone-force:last-child{border-bottom:0}
+.zone-force b{font-weight:850;letter-spacing:-.01em}
+.zf-kg{color:var(--accent);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pct-table{margin-top:8px}
+.pct-row{display:grid;grid-template-columns:1fr 1.2fr .6fr;gap:8px;align-items:center;
+  padding:8px 0;border-bottom:1px solid var(--hair);font-size:var(--fs-body)}
+.pct-row:last-child{border-bottom:0}
+.pct-row b{text-align:right;font-variant-numeric:tabular-nums}
+.pct-row>span:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.pct-row.head{font-size:var(--fs-eyebrow);font-weight:850;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-soft);border-bottom-color:var(--line)}
+.out-big{display:flex;flex-direction:column;gap:2px;margin-top:6px}
+.out-big b{font-size:2.1rem;font-weight:900;letter-spacing:-.04em;line-height:1;color:var(--accent);
+  font-variant-numeric:tabular-nums}
+.out-big span{font-size:var(--fs-caption);font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)}
