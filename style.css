@@ -1465,7 +1465,12 @@ button.primary,button.big,.wcard{overflow:hidden}
 .stat .ic{position:absolute;top:12px;right:12px;width:30px;height:30px;border-radius:10px;
   background:none;color:var(--accent);opacity:.34;transition:opacity var(--t-base) var(--ease)}
 .stat .ic svg{width:26px;height:26px}
-.stat b{font-size:2.1rem;letter-spacing:-.05em;line-height:.95;margin-top:2px;
+/* La taille du chiffre suit la LARGEUR DE SA TUILE, pas celle de l'écran : à
+   320 px, « 112 832 » et « 28h20 » débordaient de leur case. Les unités de
+   conteneur (`cqw`) mesurent exactement la bonne chose — la tuile — là où des
+   `vw` auraient aussi rétréci les tuiles qui tenaient très bien. */
+.stat{container-type:inline-size}
+.stat b{font-size:clamp(1.15rem,21cqw,2.1rem);letter-spacing:-.05em;line-height:.95;margin-top:2px;
   font-variant-numeric:tabular-nums;
   /* réserve la place de l'icône : « 15 900 » ne doit jamais la toucher */
   padding-right:30px}
@@ -1496,3 +1501,26 @@ select.selchip:focus{border-color:var(--accent);background-color:var(--surface)}
    est le seul marqueur plein. */
 .courbe{overflow:visible}
 .courbe .dot-fin{filter:drop-shadow(0 0 8px color-mix(in srgb,var(--accent) 70%,transparent))}
+
+/* ---- 15. Corps en lumière -------------------------------------------------
+   Le canevas et le SVG se superposent EXACTEMENT : même boîte, même cadrage.
+   Le canevas porte la lumière, le SVG l'interaction et l'accessibilité. Les
+   remplissages du SVG deviennent donc très discrets — sans quoi ils
+   masqueraient le halo qu'ils sont censés laisser passer. */
+.corps-lumiere{position:relative;display:grid}
+.corps-lumiere>canvas{grid-area:1/1;width:100%;height:100%;display:block;pointer-events:none}
+.corps-lumiere>.anat2{grid-area:1/1;position:relative;z-index:1}
+/* Le SVG ne peint plus le corps : il ne sert plus qu'à recevoir les taps et à
+   décrire l'image aux lecteurs d'écran. */
+.corps-lumiere .bodysvg path{fill:transparent!important;stroke:none!important}
+.corps-lumiere .bodysvg g[data-m]{fill:transparent!important}
+/* `.anview` porte un fond OPAQUE qui recouvrait entièrement le canevas posé
+   dessous : le corps était peint, et invisible. Ici c'est le canevas qui fait
+   le fond, le cadre n'a plus lieu d'être. */
+.corps-lumiere .anview{background:transparent;border-color:transparent}
+.corps-lumiere .anview .lab{z-index:2}
+/* Valeurs textuelles longues dans une tuile : la taille suit la longueur, sinon
+   « aujourd'hui » se fait couper en « aujo… ». */
+.stat b.stat-moyen{font-size:clamp(1.05rem,16cqw,1.62rem);letter-spacing:-.035em}
+.stat b.stat-long{font-size:clamp(.92rem,11cqw,1.16rem);letter-spacing:-.02em;line-height:1.15;
+  white-space:normal;overflow:visible;text-overflow:clip}

@@ -287,3 +287,49 @@ Un même surcoût n'a pas le même prix selon ce qu'il alourdit :
 | valider une série | ~20 ×/séance | ≤ 5 ms |
 | démarrer une séance | 1 ×/séance | ≤ 20 ms |
 | changer d'onglet | quelques × | ≤ 10 ms |
+
+## Corps en lumière (canevas)
+
+Sur l'écran « État musculaire », la fatigue ne s'affiche plus comme un aplat plus
+opaque : elle **rayonne**. `src/ui/anatomieCanvas.js` peint le corps sur un
+canevas glissé **derrière** le SVG existant.
+
+### Répartition des rôles
+
+| Couche | Rôle |
+|---|---|
+| canevas (dessous) | la lumière — halos, dégradés, chaleur. `aria-hidden`, aucun événement |
+| SVG (dessus) | l'interaction (`data-m`) et l'accessibilité (`role="img"`, `aria-label`) |
+
+Le SVG conserve sa structure exacte ; seuls ses remplissages passent en
+transparent. Retirer le canevas ne casserait rien — l'app retomberait sur le SVG
+seul. **Aucun nouvel asset** : `Path2D` accepte directement la syntaxe `d` de
+SVG, donc les tracés sont les mêmes des deux côtés.
+
+### Trois passes, dans cet ordre
+
+1. **le halo** — muscles chauds, floutés, en `globalCompositeOperation:"lighter"`
+   pour que deux muscles voisins fatigués forment une zone plus chaude ;
+2. **le corps** — silhouette et parts neutres, nettes, par-dessus la lumière ;
+3. **la chair** — remplissage de chaque muscle, opacité selon l'intensité.
+
+### Règles
+
+- **Un muscle frais n'émet AUCUNE lumière** (`rayonHalo` rend 0 sous 2 %). Sans
+  ce zéro net, tout le corps baignerait dans une brume permanente et
+  l'information disparaîtrait.
+- **Le halo est borné à 26 px** : au-delà, les halos voisins se confondent.
+- **Le cadrage est du calcul pur**, donc testé (`tests/anatomieCanvas.test.js`,
+  9 tests). Une erreur d'échelle décalerait le canevas par rapport au SVG posé
+  dessus : le halo éclairerait à côté du muscle.
+- **`.anview` porte un fond opaque** : il faut le neutraliser dans ce contexte,
+  sinon le corps est peint… et invisible. (Piège rencontré.)
+
+## Tuiles de statistiques : la taille suit la tuile
+
+Le chiffre d'une tuile est dimensionné en **unités de conteneur** (`cqw`), pas en
+`vw` ni en valeur fixe. À 320 px, « 112 832 » et « 28h20 » débordaient de leur
+case ; des `vw` auraient aussi rétréci les tuiles qui tenaient très bien.
+
+Les valeurs **textuelles** (« aujourd'hui ») reçoivent en plus un palier selon
+leur longueur : à 2,1 rem, le mot se faisait couper en « aujo… ».

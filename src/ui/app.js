@@ -18,6 +18,7 @@ import { chercherDemonstration, lienYouTube } from "../integrations/exercisedb.j
 import { muscleDiagram, muscleHeatmap, miniSilhouette } from "./anatomy.js";
 import { jouer, amorcerSon } from "./son.js";
 import { memoriserFlip, rejouerFlip, oublierFlip } from "./flip.js";
+import { dessinerCorps } from "./anatomieCanvas.js";
 import { calculerBesoins } from "../engine/nutrition.js";
 import { bilan } from "../engine/review.js";
 import { chercherFoods, portion } from "../data/foods.js";
@@ -876,7 +877,13 @@ function anneauSVG(pct, taille = 76, texte = "") {
 }
 /** Carte statistique (icône + valeur + libellé). Composant réutilisable. */
 function statCard(icone, valeur, label) {
-  return h(`<div class="stat"><div class="ic" aria-hidden="true">${icone}</div><b class="num">${esc(valeur)}</b><span class="lab">${esc(label)}</span></div>`);
+  // Une tuile porte le plus souvent un nombre court (« 18 », « 9h27 »), traité
+  // en gros titre. Mais certaines portent un MOT — « aujourd'hui » — qui à
+  // 2,1 rem se faisait couper en « aujo… ». La taille suit donc la longueur
+  // réelle, plutôt que d'espérer que tout soit court.
+  const txt = String(valeur ?? "");
+  const classe = txt.length > 9 ? " stat-long" : txt.length > 5 ? " stat-moyen" : "";
+  return h(`<div class="stat"><div class="ic" aria-hidden="true">${icone}</div><b class="num${classe}">${esc(txt)}</b><span class="lab">${esc(label)}</span></div>`);
 }
 /** État vide soigné (icône + titre + sous-titre). Renvoie une chaîne HTML. */
 /** Même état vide, en chaîne HTML — pour les rendus qui composent du markup
@@ -3307,6 +3314,30 @@ function grilleChiffres(logs) {
   return g;
 }
 
+/**
+ * Peint le corps en lumière dans le canevas d'un conteneur, une fois qu'il a
+ * une taille.
+ *
+ * Le canevas est dimensionné par le CSS ; tant qu'il n'est pas dans le document
+ * il mesure zéro et il n'y a rien à peindre. On attend donc la trame suivante,
+ * et on repeint si la largeur change (rotation, redimensionnement).
+ *
+ * @param {HTMLElement} racine conteneur portant `.corps-lumiere > canvas`
+ * @param {Record<string, number>} intensites
+ */
+function peindreCorps(racine, intensites) {
+  const cv = racine.querySelector(".corps-lumiere canvas");
+  if (!(cv instanceof HTMLCanvasElement)) return;
+  const peindre = () => { if (cv.isConnected) dessinerCorps(cv, intensites); };
+  requestAnimationFrame(peindre);
+  // Le thème peut changer sous les pieds du canevas : ses couleurs sont lues
+  // au moment du rendu, il faut donc le refaire.
+  if (typeof ResizeObserver === "function") {
+    const ro = new ResizeObserver(() => { if (cv.isConnected) peindre(); else ro.disconnect(); });
+    ro.observe(cv);
+  }
+}
+
 /** Groupes visibles de face / de dos dans les silhouettes anatomiques. */
 const GROUPES_FACE = ["pectoraux", "abdominaux", "biceps", "triceps", "trapezes", "epaules", "quadriceps", "mollets", "avant_bras"];
 
@@ -3477,8 +3508,15 @@ function ouvrirEtatMusculaire() {
   /** @type {Record<string, number>} */
   const intensites = {};
   for (const [cat, r] of Object.entries(parCat)) intensites[cat] = (100 - r) / 100;
-  const carte = h(`<div class="card sil-inter" style="margin:12px 0">${muscleHeatmap(intensites)}
+  // Le SVG reste la référence : accessible, interactif, net. Le canevas se
+  // glisse DERRIÈRE lui pour apporter ce qu'un SVG ne sait pas faire à coût
+  // raisonnable — de la lumière. Les muscles fatigués rayonnent au lieu d'être
+  // simplement plus opaques. Purement décoratif : si le canevas échoue, il
+  // reste exactement l'écran d'avant.
+  const carte = h(`<div class="card sil-inter" style="margin:12px 0">
+    <div class="corps-lumiere"><canvas aria-hidden="true"></canvas>${muscleHeatmap(intensites)}</div>
     <div class="muted small" style="text-align:center;margin-top:6px">Touche un muscle pour voir son état</div></div>`);
+  peindreCorps(carte, intensites);
   // Silhouette INTERACTIVE : chaque groupe du SVG porte son identifiant, on
   // remonte au groupe fin le plus sollicité pour ouvrir son détail.
   carte.addEventListener("click", (ev) => {
