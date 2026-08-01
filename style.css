@@ -15,6 +15,17 @@
   src:url("assets/fonts/inter-latin-ext.woff2") format("woff2");
   unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
 }
+/* ANTON — la voix des titres. Condensée et lourde : « Ischio-jambiers +
+   Quadriceps » tient sur UNE ligne là où Inter en demandait deux, et le titre
+   frappe au lieu de simplement s'afficher. Une seule graisse existe (400) : y
+   poser un `font-weight:900` déclencherait un gras SYNTHÉTIQUE, épaissi par le
+   navigateur et laid. D'où `font-synthesis:none` sur tout ce qui l'emploie.
+   Licence SIL OFL 1.1 — cf. docs/ASSET_SOURCES.md. */
+@font-face{
+  font-family:"Anton";font-style:normal;font-weight:400;font-display:swap;
+  src:url("assets/fonts/anton-latin.woff2") format("woff2");
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
 /* SOMBRE PAR DÉFAUT — univers « Coach Perso » (musculation premium, noirs profonds) */
 :root{
   --bg:#0D1013; --bg-deep:#07090B; --surface:#15191D; --surface-2:#1B2025; --surface-3:#20262B; --elevated:#111518;
@@ -36,6 +47,9 @@
   /* Le dégradé est lime dans les DEUX thèmes : son encre ne suit donc pas le thème. */
   --on-grad:#101507;
   --ease:cubic-bezier(.22,1,.36,1);
+  /* Deux familles, deux rôles. Anton porte les titres ; Inter porte TOUT le
+     reste, et en particulier chaque chiffre — cf. la règle ci-dessous. */
+  --font-titre:"Anton","Inter","SF Pro Display",system-ui,sans-serif;
   --tap:50px; font-size:16px;
 
   /* Espacements — échelle unique, aucune valeur arbitraire ailleurs */
@@ -1539,3 +1553,24 @@ select.selchip:focus{border-color:var(--accent);background-color:var(--surface)}
   .empty-state .illu{animation:illuIn .5s var(--ease) both}
 }
 @keyframes illuIn{from{opacity:0;transform:translate3d(0,8px,0)}to{opacity:1;transform:none}}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TYPOGRAPHIE D'AFFICHAGE — Anton sur les titres, Inter sur les chiffres.
+   ══════════════════════════════════════════════════════════════════════════
+   La règle tient en une phrase : **Anton ne touche JAMAIS un nombre.**
+
+   Mesuré : le « 1 » d'Anton fait 33,1 unités là où tous les autres chiffres en
+   font 49,4 — un tiers de moins. Un chrono passant de « 00:11 » à « 00:42 »
+   changerait donc de largeur à chaque seconde, et une colonne de charges
+   danserait d'une ligne à l'autre. Inter, lui, a des chiffres tabulaires.
+   Anton dit le NOM des choses ; Inter dit leurs VALEURS. */
+h1,.hero-titre,.poste-nom,.pa-nom,.sp-name,.sheet-top h2{
+  font-family:var(--font-titre);
+  /* Anton n'a qu'une graisse : demander plus produirait un gras synthétique. */
+  font-weight:400;font-synthesis:none;
+  /* Déjà condensée : le resserrement d'Inter la rendrait illisible. */
+  letter-spacing:-.005em}
+/* Anton a des jambages hauts : la même valeur d'interligne serre davantage. */
+h1{line-height:1.06}
+.hero-titre{line-height:1.04}
+.poste-nom{line-height:1.06}

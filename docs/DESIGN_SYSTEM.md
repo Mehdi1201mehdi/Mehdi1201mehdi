@@ -395,3 +395,47 @@ Conclusion honnête : il n'y avait rien à couper. Le travail de réorganisation
 navigation dans Anatoly) avait déjà été fait ; la mesure le confirme au lieu de
 le supposer. Le script `scratchpad/densite.mjs` échoue si un écran repasse
 au-dessus, ce qui transforme une règle écrite en garde-fou.
+
+## Typographie d'affichage : Anton sur les titres
+
+**Anton** (18,6 Ko, hébergé en local, OFL 1.1) porte les titres. Condensée et
+lourde, elle donne au produit un caractère que la seule graisse 900 d'Inter ne
+pouvait pas fournir — et « Ischio-jambiers + Quadriceps » y tient sur une ligne
+au lieu de deux.
+
+### La règle, en une phrase
+
+**Anton ne touche jamais un nombre.**
+
+Mesuré : le chiffre « 1 » d'Anton fait 33,1 unités quand tous les autres en font
+49,4 — un tiers de moins. Un chrono passant de « 00:11 » à « 00:42 » changerait
+de largeur à chaque seconde ; une colonne de charges danserait d'une ligne à
+l'autre. Inter, lui, a des chiffres tabulaires.
+
+> **Anton dit le NOM des choses. Inter dit leurs VALEURS.**
+
+### Où elle s'applique
+
+`h1` · `.hero-titre` · `.poste-nom` · `.pa-nom` · `.sp-name` · `.sheet-top h2`
+
+Nulle part ailleurs. Une police d'affichage employée partout cesse d'être un
+accent et devient le corps de texte — c'est ainsi qu'on obtient une app qui crie.
+
+### Contraintes
+
+- **Une seule graisse (400).** Un `font-weight:900` produirait un gras
+  *synthétique*, épaissi par le navigateur et laid. D'où `font-synthesis:none`.
+- **Interlettrage quasi nul** (`-.005em`) : elle est déjà condensée, le
+  resserrement d'Inter la rendrait illisible.
+- **Interlignes revus** : ses jambages hauts serrent davantage à valeur égale.
+- **Préchargée** : sans cela les titres s'affichent en Inter puis basculent, ce
+  qui fait sauter la mise en page.
+
+Coût mesuré au démarrage sur processeur bridé ×4 : **nul** (l'écart avec et sans
+tombe dans le bruit de mesure).
+
+### Pourquoi pas Bebas Neue
+
+Comparée à l'écran sur du vrai texte de l'app : elle n'a **pas de minuscules**
+(tout titre français y passe en capitales) et son trait est trop léger pour
+l'usage.
