@@ -1162,9 +1162,10 @@ function dupliquerSeancePassee() {
 function splitLabel(s) { return ({ full_body: "Corps entier", haut_bas: "Haut / Bas", push_pull_legs: "Push · Pull · Legs", mobilite: "Mobilité" }[s] || s); }
 const DIFF_LABEL = ["", "Grand débutant", "Débutant", "Intermédiaire", "Avancé"];
 function estRealisable(exo) {
-  const eq = new Set(Etat.data.profil.equipements);
-  const okEquip = exo.equipement.every((e) => eq.has(e));
-  const contre = (exo.contreIndications || []).some((c) => Etat.data.profil.limitations.includes(c));
+  const p = Etat.data.profil || {};
+  const eq = new Set(p.equipements || []);
+  const okEquip = (exo.equipement || []).every((e) => eq.has(e));
+  const contre = (exo.contreIndications || []).some((c) => (p.limitations || []).includes(c));
   return okEquip && !contre;
 }
 
@@ -4126,9 +4127,10 @@ function carteForce(v) {
     });
     c1.append(ch);
   }
-  const l1 = h(`<div class="row" style="gap:8px;flex-wrap:wrap;align-items:end;margin-top:10px"></div>`);
-  const inC = h(`<label class="small">Charge (kg)<input inputmode="decimal" placeholder="100" value="${esc(FORCE.charge)}" style="width:88px"></label>`);
-  const inR = h(`<label class="small">Répétitions<input inputmode="numeric" placeholder="5" value="${esc(FORCE.reps)}" style="width:88px"></label>`);
+  const l1 = h(`<div class="champs">
+  </div>`);
+  const inC = h(`<label class="champ">Charge (kg)<input inputmode="decimal" placeholder="100" value="${esc(FORCE.charge)}"></label>`);
+  const inR = h(`<label class="champ">Répétitions<input inputmode="numeric" placeholder="5" value="${esc(FORCE.reps)}"></label>`);
   l1.append(inC, inR); c1.append(l1);
   v.append(c1);
 
@@ -4161,7 +4163,7 @@ function carteForce(v) {
     eq.forEach((r) => {
       const coul = r.verdict === "équilibré" ? "var(--accent)" : r.verdict === "en retard" ? "var(--amber)" : "var(--ink-soft)";
       c7.append(h(`<div class="spread small" style="margin-top:8px"><span>${esc(r.nom)}</span>
-        <span><b class="num" style="color:${coul}">${r.ratio}</b> <span class="muted">cible ${r.cible} · ${esc(r.verdict)}</span></span></div>`));
+        <span><b class="num" style="color:${coul}">${fr(r.ratio)}</b> <span class="muted">cible ${fr(r.cible)} · ${esc(r.verdict)}</span></span></div>`));
     });
     v.append(c7);
   }
@@ -4209,9 +4211,9 @@ function carteForce(v) {
     c5.innerHTML = "";
     c5.append(h(`<div class="eyebrow">Charge à un RPE donné</div>`));
     c5.append(h(`<div class="muted small">RPE 8 = « il me restait 2 répétitions ». La série équivaut alors à une série à l'échec de reps + réserve.</div>`));
-    const lr = h(`<div class="row" style="gap:8px;flex-wrap:wrap;align-items:end;margin-top:8px"></div>`);
-    const inRR = h(`<label class="small">Répétitions<input inputmode="numeric" value="${esc(FORCE.repsRpe)}" style="width:88px"></label>`);
-    const inRP = h(`<label class="small">RPE (1–10)<input inputmode="decimal" value="${esc(FORCE.rpe)}" style="width:88px"></label>`);
+    const lr = h(`<div class="champs" style="margin-top:8px"></div>`);
+    const inRR = h(`<label class="champ">Répétitions<input inputmode="numeric" value="${esc(FORCE.repsRpe)}"></label>`);
+    const inRP = h(`<label class="champ">RPE (1–10)<input inputmode="decimal" value="${esc(FORCE.rpe)}"></label>`);
     lr.append(inRR, inRP); c5.append(lr);
     inRR.querySelector("input").addEventListener("input", (e) => { FORCE.repsRpe = e.target.value; tout(); });
     inRP.querySelector("input").addEventListener("input", (e) => { FORCE.rpe = e.target.value; tout(); });
@@ -4222,9 +4224,9 @@ function carteForce(v) {
 
     c6.innerHTML = "";
     c6.append(h(`<div class="eyebrow">Chargement de la barre</div>`));
-    const l6 = h(`<div class="row" style="gap:8px;flex-wrap:wrap;align-items:end"></div>`);
-    const inCible = h(`<label class="small">Charge visée<input inputmode="decimal" placeholder="${rm ? Math.round(rm * 0.8) : 100}" value="${esc(FORCE.cible)}" style="width:96px"></label>`);
-    const inBarre = h(`<label class="small">Barre (kg)<input inputmode="decimal" value="${esc(FORCE.barre)}" style="width:80px"></label>`);
+    const l6 = h(`<div class="champs"></div>`);
+    const inCible = h(`<label class="champ">Charge visée<input inputmode="decimal" placeholder="${rm ? Math.round(rm * 0.8) : 100}" value="${esc(FORCE.cible)}"></label>`);
+    const inBarre = h(`<label class="champ">Barre (kg)<input inputmode="decimal" value="${esc(FORCE.barre)}"></label>`);
     l6.append(inCible, inBarre); c6.append(l6);
     inCible.querySelector("input").addEventListener("input", (e) => { FORCE.cible = e.target.value; tout(); });
     inBarre.querySelector("input").addEventListener("input", (e) => { FORCE.barre = e.target.value; tout(); });
@@ -4771,21 +4773,33 @@ function vSet(v) {
  * localStorage en secours) AVANT le premier rendu, sans rien effacer.
  */
 async function amorcerApp() {
-  await Etat.init();
-  appliquerTheme();
-  reprendreRepos();   // un repos lancé avant un rechargement doit continuer
-  // État réseau INITIAL : les écouteurs `online`/`offline` ne se déclenchent
-  // qu'au changement. Ouvrir l'app déjà hors connexion — le cas normal dans une
-  // salle en sous-sol — ne montrait donc jamais la bannière.
-  majEtatReseau();
-  if (Etat.data.profil) {
-    $("#tabs").hidden = false;
-    // Raccourcis d'app (appui long sur l'icône) : ?vue=train / ?vue=food …
-    const vue = new URLSearchParams(location.search).get("vue");
-    nav(TABS[vue] ? vue : "dash", true);
-  } else { history.replaceState({ tab: null }, ""); render(); }
-  // Masque le splash de démarrage une fois l'app prête.
+  try {
+    await Etat.init();
+    appliquerTheme();
+    reprendreRepos();   // un repos lancé avant un rechargement doit continuer
+    // État réseau INITIAL : les écouteurs `online`/`offline` ne se déclenchent
+    // qu'au changement. Ouvrir l'app déjà hors connexion — le cas normal dans une
+    // salle en sous-sol — ne montrait donc jamais la bannière.
+    majEtatReseau();
+    if (Etat.data.profil) {
+      $("#tabs").hidden = false;
+      // Raccourcis d'app (appui long sur l'icône) : ?vue=train / ?vue=food …
+      const vue = new URLSearchParams(location.search).get("vue");
+      nav(TABS[vue] ? vue : "dash", true);
+    } else { history.replaceState({ tab: null }, ""); render(); }
+  } finally {
+    // Le splash se retire QUOI QU'IL ARRIVE. Sans ce `finally`, la moindre
+    // erreur pendant le premier rendu laissait l'écran de démarrage par-dessus
+    // l'application : plus aucun clic ne passait, et un rechargement rejouait
+    // exactement la même panne. Une app bloquée est pire qu'un écran incomplet.
+    retirerSplash();
+  }
+}
+
+/** Retire l'écran de démarrage (avec son fondu). */
+function retirerSplash() {
   const sp = document.getElementById("splash");
-  if (sp) { setTimeout(() => { sp.classList.add("hidden"); setTimeout(() => sp.remove(), 500); }, 350); }
+  if (!sp) return;
+  setTimeout(() => { sp.classList.add("hidden"); setTimeout(() => sp.remove(), 500); }, 350);
 }
 amorcerApp();

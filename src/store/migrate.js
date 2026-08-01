@@ -72,7 +72,30 @@ export function normaliserEtat(brut) {
   out.sessionEnCours = brut.sessionEnCours && typeof brut.sessionEnCours === "object" ? brut.sessionEnCours : null;
   out.seanceAuto = brut.seanceAuto && typeof brut.seanceAuto === "object" ? brut.seanceAuto : null;
 
+  out.profil = normaliserProfil(brut.profil);
+
   out.version = SCHEMA_VERSION;
+  return out;
+}
+
+/**
+ * Complète les LISTES d'un profil sans jamais toucher à ce que l'utilisateur a
+ * choisi. Un profil venu d'une ancienne version, d'une sauvegarde importée ou
+ * d'un stockage abîmé peut ne pas porter ces clés ; l'interface les parcourt
+ * pourtant sans condition (`profil.limitations.includes(...)`), et une seule
+ * absence suffisait à faire échouer le premier rendu.
+ *
+ * @param {any} p profil brut, éventuellement null
+ * @returns {any} profil complété, ou null s'il n'y en a pas
+ */
+export function normaliserProfil(p) {
+  if (!p || typeof p !== "object") return null;
+  const listes = [
+    "equipements", "limitations", "musclesPrioritaires",
+    "objectifsSecondaires", "exercicesAimes", "exercicesRefuses",
+  ];
+  const out = { ...p };
+  for (const cle of listes) out[cle] = toArray(p[cle]);
   return out;
 }
 

@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  SCHEMA_VERSION, etatVide, normaliserEtat, choisirSourcePlusRiche, choisirEtat,
+  SCHEMA_VERSION, etatVide, normaliserEtat, normaliserProfil, choisirSourcePlusRiche, choisirEtat,
 } from "../src/store/migrate.js";
 
 test("etatVide : schéma courant complet", () => {
@@ -105,4 +105,51 @@ test("choisirEtat : horodatages égaux → repli sur la plus riche", () => {
   const a = { _savedAt: 100, logs: [] };
   const b = { _savedAt: 100, logs: [{}] };
   assert.equal(choisirEtat(a, b), b);
+});
+
+/* ================== PROFIL INCOMPLET : LA PANNE DE DÉMARRAGE ================== */
+
+test("normaliserProfil : les listes manquantes deviennent des tableaux vides", () => {
+  // Un profil sans `limitations` faisait planter le premier rendu
+  // (`profil.limitations.includes(...)`) et l'écran de démarrage restait
+  // par-dessus l'application : plus aucun clic ne passait.
+  const p = normaliserProfil({ prenom: "Mehdi", objectif: "force" });
+  for (const cle of ["equipements", "limitations", "musclesPrioritaires",
+    "objectifsSecondaires", "exercicesAimes", "exercicesRefuses"]) {
+    assert.ok(Array.isArray(p[cle]), `${cle} devrait être un tableau`);
+    assert.equal(p[cle].length, 0);
+  }
+  assert.equal(p.prenom, "Mehdi", "les champs existants sont intacts");
+  assert.equal(p.objectif, "force");
+});
+
+test("normaliserProfil : ne touche JAMAIS aux choix déjà faits", () => {
+  const p = normaliserProfil({
+    equipements: ["barre", "halteres"], limitations: ["epaule"],
+    musclesPrioritaires: ["pectoraux"], poidsKg: 78,
+  });
+  assert.deepEqual(p.equipements, ["barre", "halteres"]);
+  assert.deepEqual(p.limitations, ["epaule"]);
+  assert.deepEqual(p.musclesPrioritaires, ["pectoraux"]);
+  assert.equal(p.poidsKg, 78);
+});
+
+test("normaliserProfil : absence de profil, ou profil abîmé", () => {
+  assert.equal(normaliserProfil(null), null);
+  assert.equal(normaliserProfil(undefined), null);
+  assert.equal(normaliserProfil("Mehdi"), null);
+  // une liste stockée sous un mauvais type est remplacée, pas propagée
+  assert.deepEqual(normaliserProfil({ limitations: "epaule" }).limitations, []);
+});
+
+test("normaliserEtat : un état v1 au profil incomplet ressort exploitable", () => {
+  const out = normaliserEtat({
+    version: 1,
+    profil: { prenom: "Mehdi", equipements: ["barre"] },
+    logs: [{ id: "l1" }],
+  });
+  assert.deepEqual(out.profil.limitations, []);
+  assert.deepEqual(out.profil.equipements, ["barre"], "matériel déclaré conservé");
+  assert.equal(out.logs.length, 1, "aucun historique perdu");
+  assert.equal(out.version, SCHEMA_VERSION);
 });
