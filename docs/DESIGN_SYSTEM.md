@@ -371,3 +371,27 @@ couleurs en dur, la ligne de sol et les jointures.
   explicitement, pas espérer l'ordre de déclaration.
 - Une scène doit être **lisible sans légende**. L'assiette vide, réduite à deux
   ovales, se lisait comme une cible : elle a reçu des couverts.
+
+## Densité mesurée (et non supposée)
+
+La règle « au-delà de ~2,5 écrans, une page doit être réorganisée » est
+maintenant **mesurée**, pas estimée à l'œil. Relevé à 390 px, profil complet,
+45 séances d'historique :
+
+| Écran | Hauteur | Écrans | Cartes | CTA dominants |
+|---|---|---|---|---|
+| Accueil | 1 762 px | 2,1 | 5 | 1 |
+| Programme | 606 px | 0,7 | 1 | 1 |
+| Séance | 405 px | 0,5 | 2 | 0 |
+| Progrès | 2 124 px | 2,5 | 4 | 0 |
+| Profil | 1 852 px | 2,2 | 3 | 1 |
+
+Tous les écrans sont sous la limite, chacun porte **au plus un CTA dominant**, et
+**aucun titre n'est répété d'un écran à l'autre** — la règle « jamais deux fois
+la même information » tient.
+
+Conclusion honnête : il n'y avait rien à couper. Le travail de réorganisation
+(carte musculaire dédoublée, catalogue de 343 exercices rendu d'un coup, double
+navigation dans Anatoly) avait déjà été fait ; la mesure le confirme au lieu de
+le supposer. Le script `scratchpad/densite.mjs` échoue si un écran repasse
+au-dessus, ce qui transforme une règle écrite en garde-fou.
