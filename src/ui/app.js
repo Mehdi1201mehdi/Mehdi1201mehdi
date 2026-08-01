@@ -17,6 +17,7 @@ import { alternatives } from "../engine/replacement.js";
 import { chercherDemonstration, lienYouTube } from "../integrations/exercisedb.js";
 import { muscleDiagram, muscleHeatmap, miniSilhouette } from "./anatomy.js";
 import { jouer, amorcerSon } from "./son.js";
+import { memoriserFlip, rejouerFlip, oublierFlip } from "./flip.js";
 import { calculerBesoins } from "../engine/nutrition.js";
 import { bilan } from "../engine/review.js";
 import { chercherFoods, portion } from "../data/foods.js";
@@ -235,6 +236,9 @@ function render() {
     view.classList.remove("reveal"); void view.offsetWidth; view.classList.add("reveal");
     setTimeout(() => view.classList.remove("reveal"), 950);
     animerStats(view); // compteurs qui montent (grands chiffres), au vrai changement de vue
+    // Éléments partagés : ceux qui existaient déjà rejoignent leur nouvelle
+    // place au lieu d'apparaître au milieu de la cascade.
+    rejouerFlip(view);
   }
 }
 /** Anime les grands chiffres entiers (stats/KPI) de 0 → valeur à l'ouverture d'un
@@ -1808,7 +1812,7 @@ function vTrain(v) {
   const head = h(`<div class="card trainhead poste"></div>`);
   head.append(h(`<div class="spread poste-top">
     <div style="min-width:0"><span class="eyebrow accent">En cours</span>
-      <h1 class="poste-nom">${esc(seance.nom)}</h1></div>
+      <h1 class="poste-nom" data-flip="titre-seance">${esc(seance.nom)}</h1></div>
     <button class="chip danger" id="abandon">Abandonner</button></div>`));
   head.append(h(`<div class="poste-chrono">
     <span class="livedot" aria-hidden="true"></span>
@@ -3198,6 +3202,10 @@ function seanceDepuisAuto(gen) {
 async function demarrerAuto() {
   if (!AUTO || AUTO.repos || !AUTO.exercices.length) return;
   if (!await peutDemarrer()) { nav("train"); return; }
+  // Le nom de la séance est le MÊME objet des deux côtés : il vole de la carte
+  // d'accueil jusqu'au poste de commande au lieu de disparaître puis de
+  // réapparaître ailleurs. La photographie se prend avant tout changement de DOM.
+  if (motionOk()) memoriserFlip(); else oublierFlip();
   const seance = seanceDepuisAuto(AUTO);
   // Conservée dans l'état pour que `trouverSeance` la retrouve après un
   // rechargement (reprise de séance) et pour l'enregistrement final.
@@ -3357,7 +3365,7 @@ function carteMoteur(v) {
       <div class="hero-fig" aria-hidden="true">${silhouetteAuto((gen.muscles || []).map((m) => FIN_VERS_CATALOGUE[m]).filter(Boolean))}</div>
       <div class="hero-top"><span class="tagline">Séance du jour</span><span class="badge accent">${gen.compatibilite} % compatible</span></div>
       <div class="hero-corps">
-        <h2 class="hero-titre">${esc(gen.nom)}</h2>
+        <h2 class="hero-titre" data-flip="titre-seance">${esc(gen.nom)}</h2>
         <div class="hero-sub">${esc(sousTitreHero(gen.nom, muscles))}</div>
         <div class="hero-chiffres">
           <span><b class="num">${gen.exercices.length}</b><span>Exercices</span></span>

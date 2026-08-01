@@ -235,3 +235,55 @@ notes dans la gamme, jamais plus de deux voix simultanées.
   seconde sonnée, sinon chaque seconde bipe quatre fois.
 - Un son raté ne doit **jamais** interrompre une séance : tout est en `try`.
 - Mesuré : la couche sonore coûte **2 ms** sur la validation d'une série.
+
+## Éléments partagés (FLIP)
+
+Le nom de la séance affiché sur la carte d'accueil et celui qui coiffe l'écran de
+séance sont **le même objet**. Le faire disparaître d'un côté pour le refaire
+apparaître de l'autre casse le lien ; le faire voler d'une position à l'autre le
+dit sans un mot.
+
+`src/ui/flip.js` — quatre temps : mesurer avant (**F**irst), mesurer après
+(**L**ast), replacer visuellement à l'ancienne position (**I**nvert), laisser
+rejoindre (**P**lay).
+
+### Pourquoi pas les View Transitions natives
+
+Elles photographient **toute la page** avant et après : mesuré à **136 ms par
+navigation** sur processeur bridé ×4, elles ont été retirées. FLIP ne touche
+qu'aux éléments marqués `data-flip`, n'anime qu'une `transform`, et ne fait
+jamais recalculer la mise en page. Coût mesuré : **au plus 13 ms**, sur une
+action qui arrive une fois par séance.
+
+### Usage
+
+```html
+<h2 class="hero-titre" data-flip="titre-seance">…</h2>   <!-- départ -->
+<h1 class="poste-nom"  data-flip="titre-seance">…</h1>   <!-- arrivée -->
+```
+
+`memoriserFlip()` avant le changement de DOM, `rejouerFlip(view)` après le rendu
+(déjà appelé dans `render()`). Une clé absente d'un côté ne fait rien.
+
+### Règles
+
+- **Le seuil compte.** Un déplacement de moins de 4 px ou un grossissement de
+  moins de 2 % ne se voient pas : `calculerFlip` les déclare inutiles plutôt que
+  de consommer une image pour rien.
+- **Échelle séparée en X et en Y.** Un titre qui rétrécit ne change pas dans les
+  mêmes proportions en largeur et en hauteur ; une échelle unique le déformerait.
+- **Rien sans mouvement autorisé.** Sous `prefers-reduced-motion`, on n'appelle
+  même pas `memoriserFlip` — l'écran reste juste, il n'y a que le vol en moins.
+- **Le calcul est pur, donc testé** (`tests/flip.test.js`, 7 tests) : signes,
+  échelles, seuils, aller-retour symétrique, entrées dégénérées (un élément
+  masqué mesure 0 — diviser par sa taille donnerait l'infini).
+
+### Seuils de coût selon la fréquence du geste
+
+Un même surcoût n'a pas le même prix selon ce qu'il alourdit :
+
+| Geste | Fréquence | Surcoût acceptable |
+|---|---|---|
+| valider une série | ~20 ×/séance | ≤ 5 ms |
+| démarrer une séance | 1 ×/séance | ≤ 20 ms |
+| changer d'onglet | quelques × | ≤ 10 ms |
