@@ -16,6 +16,7 @@ import { recommander } from "../engine/progression.js";
 import { alternatives } from "../engine/replacement.js";
 import { chercherDemonstration, lienYouTube } from "../integrations/exercisedb.js";
 import { muscleDiagram, muscleHeatmap, miniSilhouette } from "./anatomy.js";
+import { jouer, amorcerSon } from "./son.js";
 import { calculerBesoins } from "../engine/nutrition.js";
 import { bilan } from "../engine/review.js";
 import { chercherFoods, portion } from "../data/foods.js";
@@ -275,6 +276,11 @@ function motionOk() {
  * quelque chose s'est passé. Posée en capture pour fonctionner aussi sur les
  * boutons créés après coup, et retirée à la fin de sa propre animation.
  */
+// Le moteur audio ne peut naître QUE dans un geste utilisateur : on l'amorce au
+// tout premier appui, une fois pour toutes. Sans cela le premier son d'une
+// séance serait avalé par la politique de lecture automatique du navigateur.
+addEventListener("pointerdown", amorcerSon, { once: true, capture: true });
+
 document.addEventListener("pointerdown", (ev) => {
   if (!motionOk()) return;
   const cible = ev.target instanceof Element
@@ -2109,7 +2115,8 @@ function carteExoLive(e, seance) {
       const btn = ev.currentTarget;
       btn.classList.toggle("on", s.done);
       row.classList.toggle("vdone", s.done);
-      if (s.done) { btn.classList.remove("pop"); void btn.offsetWidth; btn.classList.add("pop"); try { if (Etat.data.reglages.vibrations !== false) navigator.vibrate?.(20); } catch (e) {} }
+      if (s.done) { btn.classList.remove("pop"); void btn.offsetWidth; btn.classList.add("pop"); jouer("valider", Etat.data.reglages); try { if (Etat.data.reglages.vibrations !== false) navigator.vibrate?.(20); } catch (e) {} }
+      else jouer("annuler", Etat.data.reglages);
       majRail(lignes, st);
       persistLive(); majProgressionSeance(); majSuggestions();
       if (!s.done) return;
@@ -2389,6 +2396,9 @@ async function terminer() {
   Etat.data.sessionEnCours = null; // séance terminée : plus rien à reprendre
   Etat.sauver();
   arreterChrono();
+  // Un record mérite mieux qu'un « séance enregistrée » : c'est la seule chose
+  // qui distingue cette séance des cinquante précédentes.
+  jouer(prs && prs.length ? "record" : "termine", Etat.data.reglages);
   nav("dash");
   ecranFinSeance(nouveauLog, prs);
 }
@@ -2472,8 +2482,33 @@ function finDuRepos(annonce) {
   const ann = $("#ovAnnonce"); if (ann) ann.textContent = "Repos terminé, série suivante";
   const visible = $("#overlay").classList.contains("show") || !!document.getElementById("restCap")?.classList.contains("show");
   stopTimer();
+  jouer("reprise", Etat.data.reglages);
   try { if (Etat.data.reglages.vibrations !== false) navigator.vibrate?.([120, 60, 120]); } catch (e) {}
   if (annonce !== false && !visible) toast("Repos terminé — série suivante");
+}
+
+/**
+ * Dernière seconde déjà sonnée, pour ne biper qu'UNE fois par seconde.
+ * La boucle tourne à 4 Hz : sans ce garde-fou, chaque seconde sonnerait quatre
+ * fois — ce qui transformerait le décompte en alarme.
+ * @type {number|null}
+ */
+let DERNIER_BIP = null;
+
+/**
+ * Trois bips dans les trois dernières secondes du repos.
+ *
+ * C'est le seul moment où l'app a vraiment quelque chose à dire à quelqu'un qui
+ * ne regarde pas l'écran : « prépare-toi ». Le son est identique à chaque
+ * seconde — c'est la répétition qui informe, pas la hauteur.
+ */
+function bipDecompte() {
+  if (!REPOS) { DERNIER_BIP = null; return; }
+  const reste = restantSec(REPOS);
+  if (reste > 3 || reste <= 0) return;
+  if (DERNIER_BIP === reste) return;
+  DERNIER_BIP = reste;
+  jouer("compte", Etat.data.reglages);
 }
 
 /** Redessine les deux vues possibles du repos à partir de l'horloge. */
@@ -2499,11 +2534,13 @@ function boucleRepos() {
   TMR = setInterval(() => {
     if (!REPOS) { clearInterval(TMR); TMR = null; return; }
     if (estEcoule(REPOS)) { finDuRepos(); return; }
+    bipDecompte();
     dessinerRepos();
   }, 250);   // 4 fois par seconde : l'affichage reste juste même si un tic saute
 }
 
 function startTimer(sec, label = "") {
+  DERNIER_BIP = null;   // nouveau repos : le décompte repart de zéro
   REPOS = creerRepos(sec, label);
   persistRepos();
   ouvrirEcranRepos();
@@ -4938,6 +4975,17 @@ function vSet(v) {
     c.append(chipsInline([[true, "Activé"], [false, "Désactivé"]],
       (val) => (Etat.data.reglages.vibrations !== false) === val,
       (val) => { Etat.data.reglages.vibrations = val; Etat.sauver(); }));
+    // `reglages.sons` existait dans le modèle de données depuis le début, sans
+    // interrupteur ni le moindre son. Les deux sont là désormais.
+    c.append(h(`<div class="spread" style="margin-top:12px"><span class="small">Sons de séance</span></div>`));
+    c.append(h(`<div class="hint" style="margin-top:0">Un clic à la validation d'une série, un décompte sur les trois dernières secondes de repos, et un signal quand c'est reparti — pour ne pas avoir à regarder l'écran.</div>`));
+    c.append(chipsInline([[true, "Activés"], [false, "Coupés"]],
+      (val) => (Etat.data.reglages.sons !== false) === val,
+      (val) => {
+        Etat.data.reglages.sons = val; Etat.sauver();
+        // On fait ENTENDRE le réglage : un interrupteur de son muet est absurde.
+        if (val) jouer("reprise", Etat.data.reglages);
+      }));
     b.append(c);
   });
 

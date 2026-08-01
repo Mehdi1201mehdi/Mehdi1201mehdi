@@ -186,3 +186,52 @@ action et n'apprend rien à l'utilisateur. Elle est coupée sous
 - Des dimensions fixes sur le héros (silhouette + trois chiffres) débordent à
   360 px. Utiliser `clamp()`, pas un point de rupture : corriger 360 avec un
   point de rupture casse 375.
+
+## Signature sonore
+
+À la salle, on a de la musique dans les oreilles, les mains occupées et le
+téléphone posé par terre. Le seul canal disponible entre deux séries est
+l'oreille. `src/ui/son.js` synthétise tout par oscillateurs — **aucun fichier
+audio**, donc rien à télécharger et un fonctionnement hors ligne dès la première
+ouverture.
+
+### Trois règles
+
+1. **Un son = une information qu'on ne peut pas voir.** Rien ne sonne pour un
+   changement d'onglet ou l'ouverture d'un écran.
+2. **Court et sec** : 40 à 380 ms. Un son long devient une nuisance dès la
+   troisième série.
+3. **Dans la bande qui perce** : 380–2 600 Hz, au-dessus des basses de la
+   musique et en dessous du strident.
+
+### La palette
+
+| Son | Quand | Intention |
+|---|---|---|
+| `valider` | série validée | le plus répété (≈ 20 fois/séance) → le plus discret |
+| `compte` | 3 dernières secondes du repos | même note à chaque seconde : c'est la répétition qui informe |
+| `reprise` | repos terminé | le seul qui doit passer par-dessus la musique |
+| `record` | record personnel battu | célébration sobre, quatre notes |
+| `termine` | séance enregistrée | conclusion |
+| `annuler` | série dévalidée | descendant, le plus faible de tous |
+
+Toutes les fréquences viennent d'une **gamme pentatonique mineure en La**. Sans
+demi-tons voisins, deux sons qui se chevauchent (valider pendant un décompte)
+restent consonants — impossible de faire sonner l'app faux.
+
+### Contraintes vérifiées par `tests/son.test.js`
+
+La palette est de la **donnée**, donc elle se teste. Neuf tests verrouillent des
+décisions de design, pas du code : bande passante, durée maximale, `valider` plus
+court et plus doux que `reprise`, `reprise` le plus fort de tous, toutes les
+notes dans la gamme, jamais plus de deux voix simultanées.
+
+### Pièges
+
+- Le contexte audio ne peut naître **que dans un geste utilisateur** : il est
+  amorcé au premier `pointerdown` (`amorcerSon`, `{ once: true }`). Sans cela le
+  premier son d'une séance est avalé par la politique de lecture automatique.
+- La boucle du repos tourne à 4 Hz : le décompte doit se souvenir de la dernière
+  seconde sonnée, sinon chaque seconde bipe quatre fois.
+- Un son raté ne doit **jamais** interrompre une séance : tout est en `try`.
+- Mesuré : la couche sonore coûte **2 ms** sur la validation d'une série.
