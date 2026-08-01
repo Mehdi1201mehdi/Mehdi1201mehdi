@@ -1524,3 +1524,18 @@ select.selchip:focus{border-color:var(--accent);background-color:var(--surface)}
 .stat b.stat-moyen{font-size:clamp(1.05rem,16cqw,1.62rem);letter-spacing:-.035em}
 .stat b.stat-long{font-size:clamp(.92rem,11cqw,1.16rem);letter-spacing:-.02em;line-height:1.15;
   white-space:normal;overflow:visible;text-overflow:clip}
+
+/* ---- 16. Illustrations d'état vide ---------------------------------------
+   Une illustration n'est pas une icône : elle n'a rien à faire dans une pastille
+   de 48 px. Quand `.es-ic` contient une scène dessinée, il cède la place. */
+.empty-state .es-ic:has(.illu){width:auto;height:auto;background:none;border-radius:0;padding:0}
+/* La règle générique `.es-ic svg{width:22px;height:22px}` s'applique aussi aux
+   illustrations et les écrasait à la taille d'une icône : il faut la battre
+   explicitement, pas espérer l'ordre de déclaration. */
+.empty-state .es-ic svg.illu,.empty-state svg.illu{
+  width:min(160px,62%);height:auto;display:block;margin:0 auto var(--space-1);aspect-ratio:120/96}
+/* Le trait respire à l'ouverture : la scène se dessine plutôt que d'apparaître. */
+@media (prefers-reduced-motion: no-preference){
+  .empty-state .illu{animation:illuIn .5s var(--ease) both}
+}
+@keyframes illuIn{from{opacity:0;transform:translate3d(0,8px,0)}to{opacity:1;transform:none}}

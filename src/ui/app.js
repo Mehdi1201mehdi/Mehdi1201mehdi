@@ -19,6 +19,7 @@ import { muscleDiagram, muscleHeatmap, miniSilhouette } from "./anatomy.js";
 import { jouer, amorcerSon } from "./son.js";
 import { memoriserFlip, rejouerFlip, oublierFlip } from "./flip.js";
 import { dessinerCorps } from "./anatomieCanvas.js";
+import { illustration } from "./illustrations.js";
 import { calculerBesoins } from "../engine/nutrition.js";
 import { bilan } from "../engine/review.js";
 import { chercherFoods, portion } from "../data/foods.js";
@@ -1181,7 +1182,7 @@ function vRoutineEditor(v, routineId) {
   v.append(h(`<h1 style="margin:6px 0">${esc(r.nom)}</h1>`));
   $("#back", v).addEventListener("click", () => { EDIT_ROUTINE = null; render(); });
   $("#ren", v).addEventListener("click", async () => { const n = await demanderTexte("Nom de la routine", r.nom); if (n !== null) { renommer(r, n); Etat.sauver(); render(); } });
-  if (!r.seances.length) v.append(etatVide(IC.calendar, "Routine vide", "Ajoute une première séance, puis ses exercices : elle apparaîtra ensuite dans l'onglet Séance."));
+  if (!r.seances.length) v.append(etatVide(illustration("plan"), "Routine vide", "Ajoute une première séance, puis ses exercices : elle apparaîtra ensuite dans l'onglet Séance."));
   r.seances.forEach((s) => v.append(carteSeanceEditor(r, s)));
   const bAddS = h(`<button class="primary" style="margin-top:10px"><span class="btn-ico">${IC.plus}</span>Ajouter une séance</button>`);
   bAddS.addEventListener("click", async () => { const n = await demanderTexte("Nom de la séance", `Séance ${r.seances.length + 1}`, { ok: "Ajouter" }); if (n === null) return; ajouterSeance(r, n); Etat.sauver(); render(); });
@@ -1560,7 +1561,7 @@ function vCatalogue(v) {
     const list = tous.slice(0, montres);
     res.innerHTML = "";
     if (!tous.length) {
-      res.append(etatVide(IC.search, "Aucun exercice ne correspond", "Les filtres se cumulent : retire le matériel ou le muscle pour élargir.",
+      res.append(etatVide(illustration("recherche"), "Aucun exercice ne correspond", "Les filtres se cumulent : retire le matériel ou le muscle pour élargir.",
         { action: { label: "Réinitialiser les filtres", onClick: () => { CAT_FILTRE = { q: "", muscle: "", equip: "" }; render(); } } }));
       return;
     }
@@ -2312,7 +2313,7 @@ function choisirExercice(onPick) {
   const refresh = () => {
     liste.innerHTML = "";
     const res = chercherCatalogue({ q: search.value }).slice(0, 40);
-    if (!res.length) { liste.append(etatVide(IC.search, "Aucun exercice trouvé", "Essaie un mot du mouvement (« développé », « tirage ») ou du muscle (« dos »).")); return; }
+    if (!res.length) { liste.append(etatVide(illustration("recherche"), "Aucun exercice trouvé", "Essaie un mot du mouvement (« développé », « tirage ») ou du muscle (« dos »).")); return; }
     res.forEach((exo) => {
       const b = h(`<button class="big exo-pick" style="justify-content:flex-start;gap:10px;text-align:left;margin:4px 0">
         ${vignetteHTML(exo, "sm")}
@@ -4278,7 +4279,7 @@ function vNutrition(v) {
   };
   const afficherResultats = (list, quandVide) => {
     res.innerHTML = "";
-    if (!list.length) { res.append(quandVide || etatVide(IC.search, "Aucun aliment trouvé", "Essaie un mot plus simple (« riz », « poulet ») ou saisis le code-barres du produit.")); return; }
+    if (!list.length) { res.append(quandVide || etatVide(illustration("assiette"), "Aucun aliment trouvé", "Essaie un mot plus simple (« riz », « poulet ») ou saisis le code-barres du produit.")); return; }
     for (const f of list.slice(0, 12)) {
       const line = h(`<div class="exline"><div class="meta"><div class="nm small">${esc(f.n)} <span class="tag">${esc(f.src)}${f.note ? " · " + esc(f.note) : ""}</span></div>
         <div class="muted small">${f.kcal} kcal · P${f.p} · G${f.c} · L${f.l} /100 g</div></div>
@@ -4633,7 +4634,7 @@ function rangeeMuscles(muscles) {
 }
 
 function svgLine(points, label = "") {
-  if (points.length < 2) return etatVideHTML("📈", "Ta courbe arrive bientôt", "Enregistre au moins 2 séances pour voir ta tendance se dessiner.");
+  if (points.length < 2) return etatVideHTML(illustration("courbe"), "Ta courbe arrive bientôt", "Enregistre au moins 2 séances pour voir ta tendance se dessiner.");
   // 600 × 150 donnait un ruban de 90 px de haut sur un téléphone : la tendance
   // s'y écrasait. 600 × 195 laisse la courbe respirer sans coûter un écran.
   const W = 600, H = 195, pad = 30;
@@ -4694,7 +4695,7 @@ function gaugeIMC(imc, taille = 96) {
     <text x="50%" y="64%" text-anchor="middle" dominant-baseline="central" font-size="10" font-weight="700" fill="var(--ink-soft)">IMC</text></svg>`;
 }
 function svgBars(bars, label = "") {
-  if (!bars.length) return etatVideHTML("📊", "Rien à afficher pour l'instant", "Tes volumes apparaîtront ici après ta première séance.");
+  if (!bars.length) return etatVideHTML(illustration("volumes"), "Rien à afficher pour l'instant", "Tes volumes apparaîtront ici après ta première séance.");
   const W = 600, H = 155, pad = 30, n = bars.length, gap = (W - 2 * pad) / n, bw = gap * 0.6;
   const vmax = Math.max(...bars.map((b) => b.v), 1);
   const rects = bars.map((b, i) => {

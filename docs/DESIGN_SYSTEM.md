@@ -333,3 +333,41 @@ case ; des `vw` auraient aussi rétréci les tuiles qui tenaient très bien.
 
 Les valeurs **textuelles** (« aujourd'hui ») reçoivent en plus un palier selon
 leur longueur : à 2,1 rem, le mot se faisait couper en « aujo… ».
+
+## Illustrations d'état vide
+
+Un écran vide est un moment de conception, pas un accident : c'est souvent le
+**premier** écran qu'on voit, puisqu'avant la première séance il n'y a rien à
+afficher. Une icône grise dans un carré dit « il manque quelque chose ». Une
+petite scène dessinée dit « voilà ce qui va apparaître ici ».
+
+`src/ui/illustrations.js` — cinq scènes dessinées pour cette application, qui
+remplacent notamment les emojis 📈 et 📊 qui servaient d'images à deux écrans. Un
+emoji n'est pas une iconographie : il change de dessin selon le téléphone et
+n'obéit ni au thème ni à la couleur d'accent.
+
+### Langage graphique
+
+- cadre **120 × 96**, aucune illustration ne dépasse ;
+- **tracé uniquement**, jamais d'aplat — cohérent avec l'iconographie de l'app ;
+- **deux épaisseurs** : 3 pour le sujet, 2 pour le décor ;
+- **une seule couleur d'accent** pour le sujet, `--ink-soft` atténué pour le
+  décor : l'œil sait immédiatement où regarder ;
+- **une ligne de sol** sous chaque scène — sans elle, le dessin flotte ;
+- extrémités et jointures arrondies partout.
+
+### Ce que les tests vérifient (`tests/illustrations.test.js`, 10 tests)
+
+La cohérence d'une famille ne se maintient pas toute seule : une illustration
+ajoutée plus tard avec une autre épaisseur, un aplat ou une autre taille
+casserait l'ensemble sans rien casser du code. Les tests attrapent le cadre
+commun, les dépassements, les aplats interdits, les épaisseurs hors système, les
+couleurs en dur, la ligne de sol et les jointures.
+
+### Pièges
+
+- `.empty-state .es-ic svg{width:22px}` s'applique aussi aux illustrations et
+  les écrasait à la taille d'une icône : il faut battre cette règle
+  explicitement, pas espérer l'ordre de déclaration.
+- Une scène doit être **lisible sans légende**. L'assiette vide, réduite à deux
+  ovales, se lisait comme une cible : elle a reçu des couverts.
