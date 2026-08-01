@@ -20,6 +20,8 @@ import { jouer, amorcerSon } from "./son.js";
 import { memoriserFlip, rejouerFlip, oublierFlip } from "./flip.js";
 import { dessinerCorps } from "./anatomieCanvas.js";
 import { illustration } from "./illustrations.js";
+import { medaille } from "./medailles.js";
+import { trophees } from "../engine/trophees.js";
 import { calculerBesoins } from "../engine/nutrition.js";
 import { bilan } from "../engine/review.js";
 import { chercherFoods, portion } from "../data/foods.js";
@@ -593,7 +595,17 @@ function carteDefis(v) {
   const liste = defis(logs, Etat.data.profil || {});
   const grille = grilleJours(logs, 28);
 
-  v.append(h(`<div class="eyebrow" style="margin:20px 0 9px">Défis & régularité</div>`));
+  // Repliée elle aussi : l'écran Progrès était DÉJÀ à 2,5 écrans avant les
+  // trophées, donc au maximum autorisé. Le chiffre qui motive — la série en
+  // cours — reste visible dans l'en-tête, replié ou non.
+  section(v, "p-defis", "Défis & régularité",
+    (b2) => remplirDefis(b2, { serie, record, liste, grille }),
+    { resume: serie > 0 ? `${serie} j d'affilée` : "à relancer" });
+  carteTrophees(v, logs);
+}
+
+/** Contenu de la section « Défis & régularité ». */
+function remplirDefis(v, { serie, record, liste, grille }) {
   const c = h(`<div class="card stack defis"></div>`);
   // Bandeau série + record
   const top = h(`<div class="defis-top"></div>`);
@@ -613,6 +625,64 @@ function carteDefis(v) {
   grille.forEach((g) => grid.append(h(`<span class="defi-cell${g.done ? " on" : ""}${g.today ? " today" : ""}" title="${g.iso}${g.done ? " · entraîné" : ""}"></span>`)));
   c.append(h(`<div class="muted small" style="margin-top:4px">28 derniers jours</div>`));
   c.append(grid);
+  v.append(c);
+}
+
+/**
+ * Carte « Trophées » — les jalons de LONG TERME.
+ *
+ * Les défis ci-dessus mesurent la semaine et le mois. Ce qui fait progresser en
+ * musculation, ce n'est pas la semaine réussie, c'est la centième séance : cette
+ * carte est la seule qui récompense la durée.
+ *
+ * Elle ne montre jamais un mur de trophées verrouillés — c'est décourageant.
+ * Pour chaque famille : ce qui est acquis, et LE prochain palier avec sa
+ * progression réelle.
+ */
+function carteTrophees(v, logs) {
+  const nbRecords = classementRecords(logs, nomExo, 999).length;
+  const t = trophees(logs, nbRecords);
+
+  // Repliée par défaut : les trophées se consultent, ils ne se surveillent pas.
+  // Dépliés, ils faisaient passer l'écran Progrès de 2,5 à 3,7 écrans — au-delà
+  // de la limite du design system, que le garde-fou a signalée.
+  section(v, "p-trophees", "Trophées", (b2) => remplirTrophees(b2, t),
+    { resume: `${t.obtenus}/${t.total}` });
+}
+
+/** Contenu de la section Trophées (rempli à l'ouverture, pas au rendu). */
+function remplirTrophees(v, t) {
+  const c = h(`<div class="card stack"></div>`);
+  const enTete = h(`<div class="troph-tete"></div>`);
+  enTete.append(h(t.dernier
+    ? `<span class="troph-vedette">${medaille({ rang: t.dernier.rang, titre: t.dernier.nom, taille: 60 })}</span>`
+    : `<span class="troph-vedette">${medaille({ rang: 1, obtenu: false, titre: "Premier trophée à venir", taille: 60 })}</span>`));
+  enTete.append(h(`<span class="troph-tete-txt">
+    <b>${t.dernier ? esc(t.dernier.nom) : "Aucun trophée pour l'instant"}</b>
+    <span class="muted small">${t.dernier ? esc(t.dernier.familleNom) + " · " : ""}${t.obtenus} sur ${t.total} débloqués</span></span>`));
+  c.append(enTete);
+
+  t.familles.forEach((f) => {
+    const bloc = h(`<div class="troph-fam"></div>`);
+    bloc.append(h(`<div class="spread small"><b>${esc(f.nom)}</b>
+      <span class="muted">${fr(f.valeur)} ${esc(f.unite)}</span></div>`));
+    const rangee = h(`<div class="troph-rangee" role="list"></div>`);
+    f.paliers.forEach((p) => {
+      const titre = `${p.nom} — ${p.seuil} ${f.unite}${p.obtenu ? " (obtenu)" : ""}`;
+      rangee.append(h(`<span class="troph-item" role="listitem" title="${esc(titre)}">
+        ${medaille({ rang: p.rang, obtenu: p.obtenu, titre, taille: 44 })}
+        <span class="troph-nom">${esc(p.nom)}</span></span>`));
+    });
+    bloc.append(rangee);
+    if (f.prochain) {
+      bloc.append(h(`<div class="bar"><div style="width:${Math.round(f.progression * 100)}%"></div></div>`));
+      bloc.append(h(`<div class="muted" style="font-size:var(--fs-caption);margin-top:4px">
+        Encore ${fr(f.restant)} ${esc(f.unite)} pour « ${esc(f.prochain.nom)} »</div>`));
+    } else {
+      bloc.append(h(`<div class="badge accent" style="margin-top:6px">Famille complète ✓</div>`));
+    }
+    c.append(bloc);
+  });
   v.append(c);
 }
 

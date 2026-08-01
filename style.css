@@ -1574,3 +1574,36 @@ h1,.hero-titre,.poste-nom,.pa-nom,.sp-name,.sheet-top h2{
 h1{line-height:1.06}
 .hero-titre{line-height:1.04}
 .poste-nom{line-height:1.06}
+
+/* ---- 17. Trophées ---------------------------------------------------------
+   Cinq familles, cinq rangs chacune. La difficulté de conception ici n'est pas
+   de montrer ce qui est acquis, c'est de ne pas afficher un mur de verrouillé —
+   ce qui décourage au lieu de motiver. D'où : les acquis en pleine lumière, les
+   autres présents mais en retrait, et TOUJOURS le prochain palier chiffré. */
+.troph-tete{display:flex;align-items:center;gap:var(--space-4)}
+.troph-vedette{flex:0 0 auto;line-height:0}
+.troph-tete-txt{display:flex;flex-direction:column;gap:2px;min-width:0}
+.troph-tete-txt b{font-size:1.12rem;font-weight:850;letter-spacing:-.02em}
+.troph-fam{padding-top:var(--space-4);margin-top:var(--space-3);border-top:1px solid var(--hair)}
+/* Les cinq rangs tiennent D'UN COUP : c'est une échelle, on doit voir où on est
+   et ce qui reste sans faire défiler. Une grille à cinq colonnes égales plutôt
+   qu'une rangée qui déborde — et plus de débord négatif, qui faisait sortir la
+   rangée de son bloc parent (celui-ci n'a pas de marge intérieure à annuler). */
+.troph-rangee{display:grid;grid-template-columns:repeat(5,1fr);gap:var(--space-1);
+  margin:var(--space-3) 0}
+.troph-item{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0}
+.troph-item .medaille{width:clamp(34px,13vw,46px);height:auto}
+/* Césure FRANÇAISE, pas coupure n'importe où : `overflow-wrap:anywhere` rendait
+   « Inarrêtabl / e » et « Déménage / ur ». Le document est en `lang="fr"`, le
+   navigateur sait donc où couper. */
+.troph-nom{font-size:var(--fs-caption);font-weight:750;color:var(--faint);text-align:center;
+  line-height:1.15;hyphens:auto;-webkit-hyphens:auto;overflow-wrap:break-word}
+.medaille{display:block}
+/* Un trophée non obtenu est présent mais discret : on voit ce qu'on vise. */
+.medaille:not(.prise){opacity:.45}
+.troph-item:has(.prise) .troph-nom{color:var(--ink-soft)}
+/* Le dernier obtenu respire une fois, à l'ouverture de l'écran. */
+@media (prefers-reduced-motion: no-preference){
+  .troph-vedette .medaille{animation:trophIn .55s var(--ease) both}
+}
+@keyframes trophIn{from{opacity:0;transform:scale(.82)}to{opacity:1;transform:none}}

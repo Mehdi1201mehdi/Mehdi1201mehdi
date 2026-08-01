@@ -439,3 +439,59 @@ tombe dans le bruit de mesure).
 Comparée à l'écran sur du vrai texte de l'app : elle n'a **pas de minuscules**
 (tout titre français y passe en capitales) et son trait est trop léger pour
 l'usage.
+
+## Trophées et médailles
+
+L'application mesurait la semaine et le mois (`defis.js`) mais **rien ne
+récompensait la durée**. Or ce qui fait progresser en musculation, ce n'est pas
+la semaine réussie, c'est la centième séance. `src/engine/trophees.js` ajoute
+cinq familles de cinq paliers : assiduité, régularité, volume, records,
+endurance.
+
+### Règles du moteur
+
+1. **Un trophée se calcule, il ne se stocke pas.** Tout dérive de l'historique
+   réel : rien à sauvegarder, rien à corrompre, et un import de sauvegarde
+   retrouve exactement les mêmes trophées.
+2. **Le prochain palier est toujours visible**, avec sa progression chiffrée. Un
+   trophée verrouillé sans chemin ne motive pas, il décourage.
+3. **Aucun palier inatteignable** — un test vérifie que trois ans d'assiduité
+   débloquent bien les 25.
+
+Piège trouvé par les tests : comparer les **seuils** entre familles n'a aucun
+sens (« 12 semaines » et « 10 séances » ne sont pas la même grandeur). Le trophée
+mis en avant est celui du plus haut **rang**, seule échelle commune.
+
+### Les médailles (`src/ui/medailles.js`)
+
+Les planches de référence distinguent les rangs par la couleur — bronze, argent,
+or, violet, diamant. Cinq teintes dans une application qui n'en a qu'une : le
+design system l'interdit, et à raison (dès qu'il y a un arc-en-ciel, plus rien ne
+ressort).
+
+Ici **le rang se lit à la richesse du dessin** :
+
+| Rang | Dessin |
+|---|---|
+| 1 | hexagone + étoile |
+| 2 | + anneau intérieur |
+| 3 | + double contour |
+| 4 | + halo |
+| 5 | + couronne extérieure, étoile pleine |
+
+**Chaque rang ajoute un élément réel, jamais seulement une opacité.** Une
+première version séparait les rangs 1 et 2 par un fond à 10 % — invisible, et
+c'est un test de « richesse croissante » qui l'a attrapé.
+
+Un trophée non obtenu emploie **exactement le même dessin**, en graphite : on
+voit ce qu'on vise, pas un cadenas générique.
+
+### Ce que le garde-fou de densité a imposé
+
+Ajouter les trophées a fait passer l'écran Progrès de 2,5 à **3,7 écrans** — le
+script `densite.mjs` l'a signalé immédiatement. Deux corrections, sans rien
+retirer : les cinq médailles tiennent désormais **d'un coup** dans une grille à
+cinq colonnes (c'est une échelle, on doit voir où on en est sans faire défiler),
+et les blocs « Défis » et « Trophées » deviennent des sections repliables, avec
+leur chiffre motivant dans l'en-tête. Résultat : **2,1 écrans**, soit plus léger
+qu'avant l'ajout.
