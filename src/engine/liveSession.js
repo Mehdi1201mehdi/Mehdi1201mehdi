@@ -154,6 +154,25 @@ export function valeurSerie(series, i, champ, precedent = null, conseil = null) 
 }
 
 /**
+ * La série `i` est-elle CELLE à faire maintenant ?
+ *
+ * C'est la première non validée de l'exercice. L'interface s'en sert pour poser
+ * un repère visuel sur une seule ligne : sans lui, quatre lignes identiques
+ * obligent à compter pour retrouver sa place entre deux séries.
+ *
+ * @param {any[]} series
+ * @param {number} i
+ * @returns {boolean}
+ */
+export function estEnCours(series, i) {
+  const l = Array.isArray(series) ? series : [];
+  const s = l[i];
+  if (!s || s.done) return false;
+  for (let k = 0; k < i; k++) if (!l[k] || !l[k].done) return false;
+  return true;
+}
+
+/**
  * Complète une série avec les valeurs affichées au moment de la valider.
  * Ne touche à rien si l'utilisateur a déjà saisi quelque chose, et n'invente
  * jamais une valeur qu'on ne pouvait pas déduire.

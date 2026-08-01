@@ -6,7 +6,7 @@ import {
   serialiser, restaurer, estReprenable, dureeSecondes, reconcilier,
   cyclerType, rirDepuisRpe, rpeDepuisRir, reposApresSerie,
   exercicesDuSuperset, groupeSupersetLibre, GROUPES_SUPERSET,
-  valeurSerie, completerSerie,
+  valeurSerie, completerSerie, estEnCours,
 } from "../src/engine/liveSession.js";
 
 const seanceExemple = {
@@ -272,4 +272,36 @@ test("completerSerie : un exercice chronométré ne reçoit pas de répétitions
 test("completerSerie : série inexistante → aucun effet, aucune exception", () => {
   assert.deepEqual(completerSerie([], 3, { chargePrecedente: 80 }), { charge: null, reps: null });
   assert.doesNotThrow(() => completerSerie(null, 0, {}));
+});
+
+/* ============ SÉRIE EN COURS : le repère visuel de la séance ============ */
+
+test("estEnCours : la première série non validée, et elle seule", () => {
+  const s = [{ done: true }, { done: true }, { done: false }, { done: false }];
+  assert.equal(estEnCours(s, 0), false);
+  assert.equal(estEnCours(s, 1), false);
+  assert.equal(estEnCours(s, 2), true, "la 3e est celle à faire");
+  assert.equal(estEnCours(s, 3), false, "une seule série peut être en cours");
+});
+
+test("estEnCours : au début tout est à faire, à la fin plus rien", () => {
+  const neuf = [{ done: false }, { done: false }, { done: false }];
+  assert.equal(estEnCours(neuf, 0), true);
+  assert.equal(estEnCours(neuf, 1), false);
+  const fini = [{ done: true }, { done: true }];
+  assert.equal(fini.some((_, i) => estEnCours(fini, i)), false, "séance finie : aucun repère");
+});
+
+test("estEnCours : une série sautée reste la prochaine à faire", () => {
+  // On valide la 2e sans la 1re (cas réel : machine occupée, on revient après).
+  const s = [{ done: false }, { done: true }, { done: false }];
+  assert.equal(estEnCours(s, 0), true, "le repère reste sur la série oubliée");
+  assert.equal(estEnCours(s, 2), false);
+});
+
+test("estEnCours : entrées inexploitables → false, jamais d'erreur", () => {
+  assert.equal(estEnCours([], 0), false);
+  assert.equal(estEnCours(null, 0), false);
+  assert.equal(estEnCours([{ done: false }], 5), false);
+  assert.equal(estEnCours([{ done: false }], -1), false);
 });

@@ -449,7 +449,7 @@ button.linklike{background:transparent;border:none;min-height:44px;display:inlin
 .finseance .fin-head{text-align:center;padding-top:24px}
 .fin-check{width:82px;height:82px;border-radius:50%;margin:0 auto;display:grid;place-items:center;font-size:2.4rem;font-weight:900;color:var(--on-accent);background:var(--ok);box-shadow:0 10px 30px color-mix(in srgb,var(--ok) 40%,transparent)}
 /* Splash de démarrage */
-#splash{position:fixed;inset:0;z-index:var(--z-splash);background:radial-gradient(120% 60% at 50% 30%,color-mix(in srgb,var(--accent) 14%,var(--bg)),var(--bg));display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;transition:opacity .45s ease}
+#splash{position:fixed;inset:0;z-index:var(--z-splash);background:radial-gradient(120% 60% at 50% 30%,color-mix(in srgb,var(--accent) 14%,var(--bg)),var(--bg));display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;transition:opacity .3s ease}
 #splash.hidden{opacity:0;pointer-events:none}
 #splash .sp-logo img{width:104px;height:104px;border-radius:26px;box-shadow:var(--shadow-lg)}
 #splash .sp-name{font-size:1.85rem;font-weight:850;letter-spacing:.03em;margin-top:10px}
@@ -1341,15 +1341,13 @@ button.primary,button.big,.wcard{overflow:hidden}
   to{opacity:1;transform:none;filter:blur(0)}}
 .reveal>*{animation:revealSig .52s var(--ease) both}
 
-/* ---- 8. Transitions entre écrans (View Transitions natives) --------------- */
-@media (prefers-reduced-motion: no-preference){
-  ::view-transition-old(contenu){animation:vtSortie .18s var(--ease) both}
-  ::view-transition-new(contenu){animation:vtEntree .3s var(--ease) both}
-}
-@keyframes vtSortie{to{opacity:0;transform:translate3d(0,-10px,0)}}
-@keyframes vtEntree{from{opacity:0;transform:translate3d(0,14px,0)}}
-#view{view-transition-name:contenu}
-header.top,nav.tabs{view-transition-name:none}
+/* ---- 8. Transitions entre écrans -----------------------------------------
+   Les View Transitions natives ont été RETIRÉES : mesurées à +136 ms par
+   changement d'onglet sur processeur bridé ×4, soit plus que tous les autres
+   effets visuels additionnés. Le navigateur photographie l'ancien écran et le
+   nouveau avant d'animer ; sur un téléphone d'entrée de gamme, l'onglet semble
+   ne pas répondre. L'entrée en cascade ci-dessus suffit à marquer le passage.
+   Ne pas les réintroduire sans remesurer (scratchpad/suspects.mjs). */
 
 /* ---- 9. Respect absolu de reduced-motion ---------------------------------
    Rien ne bouge, mais TOUT reste à son état final : aucune information n'est

@@ -25,7 +25,7 @@ import {
   nouvelleSession, ajouterSerie, retirerDerniereSerie,
   serialiser, restaurer, estReprenable, dureeSecondes,
   reconcilier, TYPES_SERIE, GROUPES_SUPERSET, cyclerType, rirDepuisRpe, valeurSerie, completerSerie,
-  exercicesDuSuperset, groupeSupersetLibre, reposApresSerie,
+  exercicesDuSuperset, groupeSupersetLibre, reposApresSerie, estEnCours,
 } from "../engine/liveSession.js";
 import {
   creerRoutine, renommer, ajouterSeance, supprimerSeance, ajouterExercice,
@@ -206,26 +206,17 @@ function nav(t, remplace = false) {
   TAB = t;
   majTabs();
   majHeader();
-  // Transition d'écran native. `startViewTransition` fige l'ancien écran, laisse
-  // reconstruire le nouveau, puis anime le passage — sans bibliothèque et sans
-  // double rendu. Le navigateur qui ne la connaît pas exécute simplement le
-  // rappel : le contenu est identique, seule l'animation manque.
-  transition(() => { render(); window.scrollTo(0, 0); });
+  // PAS de `startViewTransition` ici. Mesuré sur processeur bridé ×4 : elle
+  // ajoutait 136 ms à CHAQUE changement d'onglet — plus que tous les autres
+  // effets visuels réunis. Le navigateur doit photographier l'ancien écran ET
+  // le nouveau avant d'animer, et sur un téléphone d'entrée de gamme ce délai
+  // se sent : l'onglet ne répond pas tout de suite. L'entrée en cascade donne
+  // déjà la sensation de changement d'écran, pour un tiers du prix.
+  render(); window.scrollTo(0, 0);
   const etat = { tab: t };
   if (remplace) history.replaceState(etat, ""); else history.pushState(etat, "");
 }
 
-/**
- * Exécute une mise à jour du DOM dans une transition de vue quand le navigateur
- * la propose, sinon telle quelle. Les animations réduites court-circuitent :
- * une transition, même native, reste une animation.
- */
-function transition(maj) {
-  const dispo = typeof document.startViewTransition === "function";
-  const reduit = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (!dispo || reduit) { maj(); return; }
-  document.startViewTransition(maj);
-}
 $("#tabs").querySelectorAll("button[data-tab]").forEach((b) => b.addEventListener("click", () => { if (b.dataset.tab !== TAB) { try { navigator.vibrate?.(12); } catch (e) {} } nav(b.dataset.tab); }));
 $("#plusBtn")?.addEventListener("click", ouvrirPlus);
 let LAST_RENDER_KEY = null;
@@ -386,10 +377,12 @@ function demanderTexte(titre, valeurDefaut = "", opts = {}) {
 }
 
 /** Confirmation (remplace confirm). Résout true/false. */
-function confirmer(message, { titre = "Confirmer", ok = "Confirmer", danger = false } = {}) {
+function confirmer(message, { titre = "Confirmer", ok = "Confirmer", annuler = "Annuler", danger = false } = {}) {
+  // `annuler` est personnalisable : devant un choix, « Annuler » ne dit pas ce
+  // qui se passe si on l'appuie. « Reprendre la séance » si.
   return dialogue({
     titre, message, cancelVal: false,
-    actions: [{ label: "Annuler", valeur: false }, { label: ok, valeur: true, primary: !danger, danger }],
+    actions: [{ label: annuler, valeur: false }, { label: ok, valeur: true, primary: !danger, danger }],
   });
 }
 
@@ -1738,7 +1731,9 @@ function vApercuSeance(v, seanceId) {
   start.addEventListener("click", () => { APERCU = null; demarrer(s); });
   v.append(start);
   const guide = h(`<button class="secondary big" style="margin:0 0 14px"><span class="btn-ico">${IC.forward}</span>Mode guidé (pas à pas)</button>`);
-  guide.addEventListener("click", () => { APERCU = null; demarrer(s); ouvrirGuide(); });
+  // `demarrer` est asynchrone (elle peut demander confirmation) : sans `await`,
+  // le lecteur pas-à-pas s'ouvrait avant que la séance existe.
+  guide.addEventListener("click", async () => { APERCU = null; if (await demarrer(s)) ouvrirGuide(); });
   v.append(guide);
   // Échauffement guidé, adapté aux muscles de la séance.
   const echauf = echauffementPour(muscles);
@@ -1832,11 +1827,54 @@ function vTrain(v) {
   v.append(fin);
   $("#abandon", v).addEventListener("click", async () => { if (await confirmer("Abandonner la séance sans enregistrer ?", { danger: true, ok: "Abandonner" })) { LIVE = null; persistLive(true); render(); } });
 }
-function demarrer(seance) {
+/**
+ * Y a-t-il un travail en cours qu'un nouveau départ effacerait ?
+ * Une séance ouverte mais vide ne compte pas : rien ne serait perdu.
+ */
+function travailEnCours() {
+  if (!LIVE || !LIVE.data) return 0;
+  let n = 0;
+  for (const st of Object.values(LIVE.data)) {
+    for (const s of (st && st.series) || []) {
+      if (s.done || (s.charge !== "" && s.charge != null) || (s.reps !== "" && s.reps != null)) n++;
+    }
+  }
+  return n;
+}
+
+/**
+ * Demande confirmation avant d'écraser une séance déjà commencée.
+ *
+ * Le cas réel : le téléphone se verrouille en pleine séance, l'app est
+ * relancée, elle rouvre sur l'Accueil — qui proposait « Commencer la séance ».
+ * Un tap détruisait alors les séries déjà validées et les charges saisies,
+ * sans un mot. C'est le seul endroit de l'app où un geste ordinaire pouvait
+ * effacer du travail.
+ *
+ * @returns {Promise<boolean>} vrai si l'on peut démarrer
+ */
+async function peutDemarrer() {
+  const n = travailEnCours();
+  if (!n) return true;
+  return confirmer(
+    `Une séance est déjà en cours (${n} série${n > 1 ? "s" : ""} renseignée${n > 1 ? "s" : ""}). `
+    + "Démarrer une nouvelle séance effacera ce qui n'est pas enregistré.",
+    { danger: true, ok: "Démarrer quand même", annuler: "Reprendre la séance" });
+}
+
+/**
+ * Démarre une séance. Rend `false` si l'utilisateur a préféré reprendre celle
+ * qui était en cours — les appelants qui enchaînent (mode guidé) doivent le
+ * savoir, sinon ils ouvrent le lecteur sur une séance qui n'a pas démarré.
+ * @returns {Promise<boolean>}
+ */
+async function demarrer(seance) {
+  if (!await peutDemarrer()) { nav("train"); return false; }
   APERCU = null;
   LIVE = nouvelleSession(seance);
   persistLive(true);
   render();
+  return true;
 }
 /** Carte cliquable de choix de séance : silhouette des muscles + ouverture de l'aperçu. */
 function carteSeanceChoix(s, sousTitre, aujourdhui) {
@@ -1849,6 +1887,22 @@ function carteSeanceChoix(s, sousTitre, aujourdhui) {
   b.addEventListener("click", () => { APERCU = s.id; render(); window.scrollTo(0, 0); });
   return b;
 }
+/**
+ * Redescend le rail « série en cours » d'une ligne après une validation.
+ *
+ * Sans cet appel, le rail était posé au rendu et n'en bougeait plus : il restait
+ * collé à la série 1 pendant toute la séance — exactement l'inverse de ce à quoi
+ * il sert. Quelques classes basculées, aucun re-rendu.
+ *
+ * @param {{row:HTMLElement,i:number}[]} lignes
+ * @param {{series:any[]}} st
+ */
+function majRail(lignes, st) {
+  for (const { row, i } of lignes) {
+    row.classList.toggle("encours", estEnCours(st.series, i));
+  }
+}
+
 /**
  * Rang de l'exercice en cours : le premier dont toutes les séries ne sont pas
  * validées. Donne le « 2 / 6 » de la maquette sans rien changer à la logique.
@@ -2024,8 +2078,7 @@ function carteExoLive(e, seance) {
     // cherche du regard entre deux séries. Elle porte un rail d'accent et des
     // champs éclaircis ; les autres restent en retrait. Sans ce repère, les
     // quatre lignes se ressemblent et il faut compter.
-    const encours = !s.done && st.series.slice(0, i).every((x) => x.done);
-    const row = h(`<div class="setrow${s.done ? " vdone" : ""}${encours ? " encours" : ""}${s.type !== "normale" ? " serie-" + s.type : ""}">
+    const row = h(`<div class="setrow${s.done ? " vdone" : ""}${estEnCours(st.series, i) ? " encours" : ""}${s.type !== "normale" ? " serie-" + s.type : ""}">
       ${numEl}
       ${col2El}
       <input inputmode="decimal" placeholder="${chargeAff == null ? "—" : chargeAff}" value="${s.charge}" data-f="charge" aria-label="Charge série ${i + 1}">
@@ -2057,6 +2110,7 @@ function carteExoLive(e, seance) {
       btn.classList.toggle("on", s.done);
       row.classList.toggle("vdone", s.done);
       if (s.done) { btn.classList.remove("pop"); void btn.offsetWidth; btn.classList.add("pop"); try { if (Etat.data.reglages.vibrations !== false) navigator.vibrate?.(20); } catch (e) {} }
+      majRail(lignes, st);
       persistLive(); majProgressionSeance(); majSuggestions();
       if (!s.done) return;
       // Repos : court et fixe pour un drop set / rest-pause, nul dans un
@@ -3104,8 +3158,9 @@ function seanceDepuisAuto(gen) {
 }
 
 /** Démarre la séance proposée (elle devient la séance en cours). */
-function demarrerAuto() {
+async function demarrerAuto() {
   if (!AUTO || AUTO.repos || !AUTO.exercices.length) return;
+  if (!await peutDemarrer()) { nav("train"); return; }
   const seance = seanceDepuisAuto(AUTO);
   // Conservée dans l'état pour que `trouverSeance` la retrouve après un
   // rechargement (reprise de séance) et pour l'enregistrement final.
@@ -3275,9 +3330,17 @@ function carteMoteur(v) {
       </div>
     </div>`);
     c.append(hero);
-    const b = h(`<button class="primary big hero-cta"><span class="btn-ico">${IC.play}</span>Commencer la séance</button>`);
-    b.addEventListener("click", demarrerAuto);
+    // Une séance déjà entamée prime sur la proposition du jour : on la reprend,
+    // on ne la remplace pas.
+    const enCours = travailEnCours();
+    const b = enCours
+      ? h(`<button class="primary big hero-cta"><span class="btn-ico">${IC.play}</span>Reprendre la séance</button>`)
+      : h(`<button class="primary big hero-cta"><span class="btn-ico">${IC.play}</span>Commencer la séance</button>`);
+    b.addEventListener("click", enCours ? () => nav("train") : demarrerAuto);
     c.append(b);
+    if (enCours) {
+      c.append(h(`<div class="hint" style="margin-top:8px">Séance en cours · ${enCours} série${enCours > 1 ? "s" : ""} renseignée${enCours > 1 ? "s" : ""}.</div>`));
+    }
     const bMod = h(`<button class="linklike" style="margin-top:9px">Pourquoi cette séance ? · Modifier</button>`);
     bMod.addEventListener("click", () => ouvrirDetailAuto(gen));
     c.append(bMod);
@@ -4960,6 +5023,13 @@ async function amorcerApp() {
   try {
     await Etat.init();
     appliquerTheme();
+    // Séance interrompue : on la restaure MAINTENANT, pas à l'ouverture de
+    // l'onglet Séance. Tant que `LIVE` restait nul, l'accueil ignorait qu'une
+    // séance tournait et proposait « Commencer la séance » — un tap effaçait le
+    // travail en cours.
+    if (!LIVE && estReprenable(Etat.data.sessionEnCours, trouverSeance)) {
+      LIVE = restaurer(Etat.data.sessionEnCours);
+    }
     reprendreRepos();   // un repos lancé avant un rechargement doit continuer
     // État réseau INITIAL : les écouteurs `online`/`offline` ne se déclenchent
     // qu'au changement. Ouvrir l'app déjà hors connexion — le cas normal dans une
@@ -4984,6 +5054,12 @@ async function amorcerApp() {
 function retirerSplash() {
   const sp = document.getElementById("splash");
   if (!sp) return;
-  setTimeout(() => { sp.classList.add("hidden"); setTimeout(() => sp.remove(), 500); }, 350);
+  // AUCUN délai avant de le masquer. Mesuré sur processeur bridé ×4 : l'app
+  // était prête à 596 ms mais le splash continuait d'intercepter le tactile
+  // jusqu'à 928 ms — un tiers de seconde à taper dans le vide, à chaque
+  // ouverture. Le fondu suffit à éviter la coupure brutale, et `.hidden` pose
+  // `pointer-events:none` : les taps passent dès la première image.
+  sp.classList.add("hidden");
+  setTimeout(() => sp.remove(), 320);
 }
 amorcerApp();
