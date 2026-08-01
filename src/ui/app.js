@@ -149,6 +149,7 @@ function majTabs() {
     b.classList.toggle("on", on);
     if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); // lecteurs d'écran : onglet actif
   });
+  placerPilule();
   const plus = $("#plusBtn");
   if (plus) {
     const on = TABS_PLUS.includes(TAB);
@@ -156,6 +157,28 @@ function majTabs() {
     if (on) plus.setAttribute("aria-current", "page"); else plus.removeAttribute("aria-current");
   }
 }
+/**
+ * Place la pilule de la barre d'onglets sous l'onglet actif.
+ *
+ * Elle est positionnée en `transform` : elle GLISSE d'un onglet à l'autre au
+ * lieu de clignoter, et le déplacement ne provoque aucun recalcul de mise en
+ * page. Purement décorative — l'état réel reste porté par `aria-current` et par
+ * la couleur du libellé, donc rien ne dépend d'elle.
+ */
+function placerPilule() {
+  const pil = $("#tabPill"), nav2 = $("#tabs");
+  if (!pil || !nav2 || nav2.hidden) return;
+  const actif = nav2.querySelector("button[data-tab].on");
+  if (!actif) { pil.classList.remove("pret"); return; }
+  const w = actif.offsetWidth;
+  if (!w) return;   // barre pas encore mesurable (onglets masqués au démarrage)
+  pil.style.width = w + "px";
+  pil.style.transform = `translate3d(${actif.offsetLeft}px,0,0)`;
+  pil.classList.add("pret");
+}
+// La largeur des onglets suit celle de l'écran : la pilule doit suivre aussi.
+addEventListener("resize", placerPilule);
+
 /** Menu « Plus » : Nutrition, Programme Anatoly, Profil (garde toutes les fonctions). */
 function ouvrirPlus() {
   const items = [
@@ -183,9 +206,25 @@ function nav(t, remplace = false) {
   TAB = t;
   majTabs();
   majHeader();
-  render(); window.scrollTo(0, 0);
+  // Transition d'écran native. `startViewTransition` fige l'ancien écran, laisse
+  // reconstruire le nouveau, puis anime le passage — sans bibliothèque et sans
+  // double rendu. Le navigateur qui ne la connaît pas exécute simplement le
+  // rappel : le contenu est identique, seule l'animation manque.
+  transition(() => { render(); window.scrollTo(0, 0); });
   const etat = { tab: t };
   if (remplace) history.replaceState(etat, ""); else history.pushState(etat, "");
+}
+
+/**
+ * Exécute une mise à jour du DOM dans une transition de vue quand le navigateur
+ * la propose, sinon telle quelle. Les animations réduites court-circuitent :
+ * une transition, même native, reste une animation.
+ */
+function transition(maj) {
+  const dispo = typeof document.startViewTransition === "function";
+  const reduit = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!dispo || reduit) { maj(); return; }
+  document.startViewTransition(maj);
 }
 $("#tabs").querySelectorAll("button[data-tab]").forEach((b) => b.addEventListener("click", () => { if (b.dataset.tab !== TAB) { try { navigator.vibrate?.(12); } catch (e) {} } nav(b.dataset.tab); }));
 $("#plusBtn")?.addEventListener("click", ouvrirPlus);
@@ -227,6 +266,62 @@ function animerStats(root) {
     requestAnimationFrame(pas);
   });
 }
+
+/* ======================================================================
+   RETOURS TACTILES — l'app doit répondre AVANT que le traitement commence
+   ====================================================================== */
+
+/** Le mouvement est-il autorisé ? (une seule lecture, réutilisée partout) */
+function motionOk() {
+  try { return !matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { return false; }
+}
+
+/**
+ * Onde émise depuis le point touché, sur les actions primaires.
+ *
+ * En salle on valide une série sans regarder l'écran : l'onde part du doigt,
+ * donc elle confirme que c'est bien LÀ qu'on a appuyé, pas seulement que
+ * quelque chose s'est passé. Posée en capture pour fonctionner aussi sur les
+ * boutons créés après coup, et retirée à la fin de sa propre animation.
+ */
+document.addEventListener("pointerdown", (ev) => {
+  if (!motionOk()) return;
+  const cible = ev.target instanceof Element
+    ? ev.target.closest("button.primary, button.big, .wcard") : null;
+  // `.wcard` peut être une carte non désactivable : on ne teste `disabled` que
+  // sur ce qui en porte un.
+  if (!cible || (cible instanceof HTMLButtonElement && cible.disabled)) return;
+  const r = cible.getBoundingClientRect();
+  const taille = Math.max(r.width, r.height) * 2;
+  const o = document.createElement("span");
+  o.className = "onde";
+  o.style.cssText = `left:${ev.clientX - r.left}px;top:${ev.clientY - r.top}px;width:${taille}px;height:${taille}px`;
+  o.addEventListener("animationend", () => o.remove());
+  cible.appendChild(o);
+}, true);
+
+/**
+ * Halo qui suit le doigt (ou le curseur) sur les cartes.
+ *
+ * La carte cesse d'être un rectangle plat : elle réagit à la lumière qu'on lui
+ * apporte. Deux variables CSS mises à jour, aucune classe recalculée, aucun
+ * reflow — le navigateur ne repeint qu'un dégradé déjà composé.
+ */
+function suivreLueur(ev) {
+  if (!motionOk()) return;
+  const c = ev.target instanceof Element ? ev.target.closest(".card:not(.flat)") : null;
+  if (!c) return;
+  const r = c.getBoundingClientRect();
+  c.style.setProperty("--mx", `${((ev.clientX - r.left) / r.width) * 100}%`);
+  c.style.setProperty("--my", `${((ev.clientY - r.top) / r.height) * 100}%`);
+  c.classList.add("lueur");
+}
+document.addEventListener("pointermove", suivreLueur, { passive: true, capture: true });
+document.addEventListener("pointerdown", suivreLueur, { passive: true, capture: true });
+document.addEventListener("pointerleave", (ev) => {
+  const c = ev.target instanceof Element ? ev.target.closest(".card") : null;
+  if (c) c.classList.remove("lueur");
+}, true);
 
 /* ---------- bouton retour (feuilles modales + onglets) ---------- */
 window.addEventListener("popstate", (e) => {
@@ -1704,10 +1799,27 @@ function vTrain(v) {
   // En-tête de séance : nom + chrono + progression (séries validées / total)
   const pr = progressionSeance(seance);
   const nbExos = seance.exercices.length;
-  const head = h(`<div class="card trainhead stack"></div>`);
-  head.append(h(`<div class="spread"><div style="min-width:0"><h1 style="margin:0;font-size:1.3rem">${esc(seance.nom)}</h1><span class="livetimer"><span class="livedot" aria-hidden="true"></span><span class="num" id="seanceTimer">00:00</span></span></div><button class="chip danger" id="abandon">Abandonner</button></div>`));
-  head.append(h(`<div class="bar"><div id="seanceProgBar" style="width:${Math.round(pr.pct * 100)}%"></div></div>`));
-  head.append(h(`<div class="spread small" style="margin-top:7px"><span class="exo-progres" id="seanceProgTxt">Exercice ${exoCourant(seance)} / ${nbExos} · ${pr.faits}/${pr.tot} séries</span><button class="linklike" id="goGuide">Mode guidé ›</button></div>`));
+  // POSTE DE COMMANDE. Ce bandeau est ce qu'on regarde entre deux séries, à bout
+  // de souffle : le chrono y est traité comme un titre, et l'avancement se lit
+  // d'un coup d'œil sous forme de barres — une par exercice — plutôt qu'en
+  // pourcentage. Les identifiants (#seanceTimer, #seanceProgBar, #seanceProgTxt)
+  // sont conservés : la mise à jour en direct continue de les viser.
+  const head = h(`<div class="card trainhead poste"></div>`);
+  head.append(h(`<div class="spread poste-top">
+    <div style="min-width:0"><span class="eyebrow accent">En cours</span>
+      <h1 class="poste-nom">${esc(seance.nom)}</h1></div>
+    <button class="chip danger" id="abandon">Abandonner</button></div>`));
+  head.append(h(`<div class="poste-chrono">
+    <span class="livedot" aria-hidden="true"></span>
+    <span class="chiffre-hero num" id="seanceTimer">00:00</span></div>`));
+  head.append(pisteExercices(seance));
+  head.append(h(`<div class="spread small poste-bas">
+    <span class="exo-progres" id="seanceProgTxt">Exercice ${exoCourant(seance)} / ${nbExos} · ${pr.faits}/${pr.tot} séries</span>
+    <button class="linklike" id="goGuide">Mode guidé ›</button></div>`));
+  // Barre continue conservée pour la mise à jour en direct, réduite à un filet
+  // sous la piste : deux lectures de la même progression, l'une fine, l'autre
+  // par exercice.
+  head.append(h(`<div class="bar filet"><div id="seanceProgBar" style="width:${Math.round(pr.pct * 100)}%"></div></div>`));
   v.append(head);
   $("#goGuide", head).addEventListener("click", ouvrirGuide);
   arreterChrono(); majChrono(); SESSION_TMR = setInterval(majChrono, 1000);
@@ -1750,6 +1862,35 @@ function exoCourant(seance) {
   return ex.length || 1;
 }
 
+/**
+ * Piste d'avancement : une barre par exercice, remplie à hauteur de ses séries
+ * validées.
+ *
+ * Un pourcentage global répond à « où en suis-je ? » par un chiffre qu'il faut
+ * interpréter. La piste répond par une forme : on voit d'un coup combien
+ * d'exercices sont finis, lequel est en cours, et combien il en reste — sans
+ * lire un seul mot. Chaque segment porte son intitulé pour les lecteurs d'écran.
+ */
+function pisteExercices(seance) {
+  const piste = h(`<div class="piste" id="seancePiste" role="img" aria-label="${esc(libellePiste(seance))}"></div>`);
+  (seance.exercices || []).forEach((e) => {
+    const st = LIVE && LIVE.data[e.exerciceId];
+    const tot = st ? st.series.length : 0;
+    const faits = st ? st.series.filter((x) => x.done).length : 0;
+    const pct = tot ? Math.round((faits / tot) * 100) : 0;
+    const encours = faits > 0 && faits < tot;
+    piste.append(h(`<span class="piste-seg${pct === 100 ? " plein" : ""}${encours ? " actif" : ""}">
+      <i style="width:${pct}%"></i></span>`));
+  });
+  return piste;
+}
+
+/** Résumé textuel de la piste, pour les lecteurs d'écran. */
+function libellePiste(seance) {
+  const pr = progressionSeance(seance);
+  return `Avancement : ${pr.faits} séries sur ${pr.tot}, exercice ${exoCourant(seance)} sur ${(seance.exercices || []).length}`;
+}
+
 /** Met à jour en direct le bandeau de progression sans re-rendre toute la vue. */
 function majProgressionSeance() {
   const seance = LIVE && trouverSeance(LIVE.seanceId);
@@ -1758,6 +1899,9 @@ function majProgressionSeance() {
   const bar = $("#seanceProgBar"), txt = $("#seanceProgTxt");
   if (bar) bar.style.width = `${Math.round(pr.pct * 100)}%`;
   if (txt) txt.textContent = `Exercice ${exoCourant(seance)} / ${seance.exercices.length} · ${pr.faits}/${pr.tot} séries`;
+  // La piste se remplace en bloc : quelques segments, aucun état à réconcilier.
+  const ancienne = $("#seancePiste");
+  if (ancienne) ancienne.replaceWith(pisteExercices(seance));
 }
 /** Progression d'une séance en cours : séries validées / total. */
 function progressionSeance(seance) {
@@ -1876,7 +2020,12 @@ function carteExoLive(e, seance) {
     const numEl = avance
       ? `<button class="serie sertype ${s.type !== "normale" ? "on" : ""}" aria-label="Type de la série ${i + 1} : ${tSerie.label}. Toucher pour changer">${i + 1}${tSerie.court ? `<span class="sertag">${tSerie.court}</span>` : ""}</button>`
       : `<span class="serie">${i + 1}</span>`;
-    const row = h(`<div class="setrow${s.done ? " vdone" : ""}${s.type !== "normale" ? " serie-" + s.type : ""}">
+    // La série EN COURS est la première non validée : c'est la seule qu'on
+    // cherche du regard entre deux séries. Elle porte un rail d'accent et des
+    // champs éclaircis ; les autres restent en retrait. Sans ce repère, les
+    // quatre lignes se ressemblent et il faut compter.
+    const encours = !s.done && st.series.slice(0, i).every((x) => x.done);
+    const row = h(`<div class="setrow${s.done ? " vdone" : ""}${encours ? " encours" : ""}${s.type !== "normale" ? " serie-" + s.type : ""}">
       ${numEl}
       ${col2El}
       <input inputmode="decimal" placeholder="${chargeAff == null ? "—" : chargeAff}" value="${s.charge}" data-f="charge" aria-label="Charge série ${i + 1}">
@@ -3012,9 +3161,29 @@ function carteProgrammeActuel(prog, logs, profil) {
     <b class="pa-nom">${esc(prog?.nom || "Aucun programme")}</b>
     <span class="pa-meta">${cible} séance${cible > 1 ? "s" : ""} / semaine · ${sm.seances} faite${sm.seances > 1 ? "s" : ""}</span>
   </span>`));
-  c.append(h(`<span class="pa-ring">${anneauSVG(pct, 74, `${Math.round(pct * 100)}%`)}</span>`));
+  c.append(h(`<span class="pa-ring">${anneauSignature(pct, `${sm.seances}`, "sur " + cible)}</span>`));
   c.addEventListener("click", () => nav("prog"));
   return c;
+}
+
+/**
+ * Anneau signature : le composant de pourcentage de l'app.
+ *
+ * Rendu par un dégradé conique masqué en couronne — donc un seul élément, aucun
+ * SVG à recalculer, et un balayage animé gratuit via la propriété enregistrée
+ * `--p`. Le centre affiche une VALEUR RÉELLE (« 2 sur 4 ») plutôt qu'un
+ * pourcentage : personne ne s'entraîne en pourcentage.
+ *
+ * @param {number} pct   avancement 0 → 1
+ * @param {string} val   grand chiffre au centre
+ * @param {string} label libellé sous le chiffre
+ * @param {number} [taille] diamètre en px
+ */
+function anneauSignature(pct, val, label, taille = 92) {
+  const p = Math.round(Math.max(0, Math.min(1, pct || 0)) * 100);
+  return `<span class="ringwrap" role="img" aria-label="${esc(val)} ${esc(label)} — ${p} %">
+    <span class="ringx" style="--p:${p};--taille:${taille}px"></span>
+    <span class="ringval"><b>${esc(val)}</b><span>${esc(label)}</span></span></span>`;
 }
 
 /**
@@ -4053,7 +4222,10 @@ function carteProgression(v) {
   if (!PROG_CHART.exerciceId || !exos.includes(PROG_CHART.exerciceId)) PROG_CHART.exerciceId = exos[0] || null;
 
   const card = h(`<div class="card stack"><h2 style="margin:0">Progression</h2></div>`);
-  const ctr = h(`<div class="row" style="flex-wrap:wrap;gap:6px;align-items:center"></div>`);
+  // Les sélecteurs héritaient de `width:100%` : quatre blocs gris empilés sur
+  // quatre lignes, qui écrasaient la courbe. En puces, ils tiennent sur une ou
+  // deux lignes et redeviennent ce qu'ils sont — des filtres, pas le sujet.
+  const ctr = h(`<div class="selrow"></div>`);
   const zone = h(`<div></div>`);
   card.append(ctr, zone);
   v.append(card);
@@ -4064,22 +4236,22 @@ function carteProgression(v) {
     ctr.innerHTML = "";
     // sélecteur de type (si les deux existent)
     if (exos.length && aCorps) {
-      const selType = h(`<select aria-label="Type">${opt("exercice", "Exercice", PROG_CHART.type === "exercice")}${opt("corps", "Corps", PROG_CHART.type === "corps")}</select>`);
+      const selType = h(`<select class="selchip" aria-label="Type">${opt("exercice", "Exercice", PROG_CHART.type === "exercice")}${opt("corps", "Corps", PROG_CHART.type === "corps")}</select>`);
       selType.addEventListener("change", () => { PROG_CHART.type = selType.value; rebuild(); });
       ctr.append(selType);
     }
     if (PROG_CHART.type === "exercice") {
-      const selExo = h(`<select aria-label="Exercice">${exos.map((id) => opt(id, nomExo(id), id === PROG_CHART.exerciceId)).join("")}</select>`);
+      const selExo = h(`<select class="selchip" aria-label="Exercice">${exos.map((id) => opt(id, nomExo(id), id === PROG_CHART.exerciceId)).join("")}</select>`);
       selExo.addEventListener("change", () => { PROG_CHART.exerciceId = selExo.value; rebuild(); });
-      const selMet = h(`<select aria-label="Métrique">${METRIQUES_EXO.map((m) => opt(m.cle, m.label, m.cle === PROG_CHART.metrique)).join("")}</select>`);
+      const selMet = h(`<select class="selchip" aria-label="Métrique">${METRIQUES_EXO.map((m) => opt(m.cle, m.label, m.cle === PROG_CHART.metrique)).join("")}</select>`);
       selMet.addEventListener("change", () => { PROG_CHART.metrique = selMet.value; rebuild(); });
       ctr.append(selExo, selMet);
     } else {
-      const selC = h(`<select aria-label="Mesure">${CHAMPS_CORPS.map((c) => opt(c.cle, c.label, c.cle === PROG_CHART.champCorps)).join("")}</select>`);
+      const selC = h(`<select class="selchip" aria-label="Mesure">${CHAMPS_CORPS.map((c) => opt(c.cle, c.label, c.cle === PROG_CHART.champCorps)).join("")}</select>`);
       selC.addEventListener("change", () => { PROG_CHART.champCorps = selC.value; rebuild(); });
       ctr.append(selC);
     }
-    const selP = h(`<select aria-label="Période">${PERIODES.map((p) => opt(p.j, p.label, p.j === PROG_CHART.periode)).join("")}</select>`);
+    const selP = h(`<select class="selchip" aria-label="Période">${PERIODES.map((p) => opt(p.j, p.label, p.j === PROG_CHART.periode)).join("")}</select>`);
     selP.addEventListener("change", () => { PROG_CHART.periode = +selP.value; rebuild(); });
     ctr.append(selP);
     redraw();
@@ -4316,7 +4488,9 @@ function rangeeMuscles(muscles) {
 
 function svgLine(points, label = "") {
   if (points.length < 2) return etatVideHTML("📈", "Ta courbe arrive bientôt", "Enregistre au moins 2 séances pour voir ta tendance se dessiner.");
-  const W = 600, H = 150, pad = 30;
+  // 600 × 150 donnait un ruban de 90 px de haut sur un téléphone : la tendance
+  // s'y écrasait. 600 × 195 laisse la courbe respirer sans coûter un écran.
+  const W = 600, H = 195, pad = 30;
   const ys = points.map((p) => p.v), ymin = Math.min(...ys), ymax = Math.max(...ys), yr = (ymax - ymin) || 1;
   const X = (i) => pad + (W - 2 * pad) * i / (points.length - 1), Y = (val) => H - pad - (H - 2 * pad) * (val - ymin) / yr;
   const pts = points.map((p, i) => [X(i), Y(p.v)]);
@@ -4330,16 +4504,26 @@ function svgLine(points, label = "") {
   }
   const uid = "lg" + Math.random().toString(36).slice(2, 8);
   const aire = `${d} L${pts[pts.length - 1][0].toFixed(1)},${H - pad} L${pts[0][0].toFixed(1)},${H - pad} Z`;
-  const dots = pts.map(([x, y], i) => `<circle class="line-dot" style="--i:${i}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.2" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/>`).join("");
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="${esc(label)}">
+  // Le dernier point est le SEUL qui compte au premier regard : c'est « où j'en
+  // suis ». Il reçoit un halo et un rayon plus large ; les précédents restent
+  // des repères discrets sur le trajet.
+  const dernier = pts.length - 1;
+  const dots = pts.map(([x, y], i) => i === dernier
+    ? `<circle class="line-dot dot-fin" style="--i:${i}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2.5"/>`
+    : `<circle class="line-dot" style="--i:${i}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.2" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/>`).join("");
+  return `<svg class="courbe" viewBox="0 0 ${W} ${H}" style="width:100%;height:auto" role="img" aria-label="${esc(label)}">
     <defs><linearGradient id="${uid}" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.28"/>
-      <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>
+      <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.30"/>
+      <stop offset="62%" stop-color="var(--accent)" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/></linearGradient>
+      <filter id="${uid}h" x="-20%" y="-40%" width="140%" height="180%">
+        <feGaussianBlur stdDeviation="3.4" result="f"/>
+        <feMerge><feMergeNode in="f"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
     <text x="${pad}" y="15" font-size="12" fill="var(--ink-soft)">${esc(label)}</text>
     <text x="2" y="${(Y(ymax) + 4).toFixed(1)}" font-size="11" fill="var(--ink-soft)">${ymax.toFixed(1)}</text>
     <text x="2" y="${(Y(ymin) + 4).toFixed(1)}" font-size="11" fill="var(--ink-soft)">${ymin.toFixed(1)}</text>
     <path class="line-area" d="${aire}" fill="url(#${uid})" stroke="none"/>
-    <path class="line-draw" pathLength="1" stroke-dasharray="1" d="${d}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round"/>${dots}</svg>`;
+    <path class="line-draw" pathLength="1" stroke-dasharray="1" d="${d}" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" filter="url(#${uid}h)"/>${dots}</svg>`;
 }
 /** Catégorie d'IMC : libellé + couleur (variable CSS). */
 function categorieIMC(imc) {

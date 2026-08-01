@@ -1198,3 +1198,303 @@ nav.tabs button:active{transform:scale(.94)}
    une puce coupée nette au milieu du fond se lit comme un défaut d'affichage,
    alors qu'un débordement au bord se lit comme « ça défile ». */
 .card>.row.scrollx{margin-inline:-18px;padding-inline:18px;scroll-padding-inline:18px}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SIGNATURE — la couche qui fait la différence entre « propre » et « à soi ».
+   Tout ici est natif, sans dépendance, et n'anime que `transform`/`opacity`
+   (plus quelques propriétés enregistrées via @property, interpolées sur le
+   compositeur). Trois catégories de mouvement, à ne pas confondre :
+     · retour d'interaction  120–320 ms  (règle du design system)
+     · entrée d'écran        300–500 ms
+     · ambiance de fond      très lente, décorative, coupée en reduced-motion
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ---- 1. Lumière d'ambiance ------------------------------------------------
+   Des masses colorées floues qui dérivent derrière l'app. Le fond cesse d'être
+   un aplat : il respire. Coût maîtrisé — trois éléments, `filter:blur` posé une
+   fois, animation uniquement en `transform`, promue sur sa propre couche. */
+#aurore{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;contain:strict}
+/* PAS de `filter:blur()` ici. Il coûtait 31 images par seconde sur processeur
+   bridé ×4 — l'app tombait de 60 à 29 i/s pendant un simple défilement, avec des
+   images à 50 ms. Un dégradé radial est DÉJÀ flou : le flou par-dessus ne faisait
+   que forcer un recalcul coûteux à chaque image. Mesure : scratchpad/fps.mjs. */
+#aurore i{position:absolute;display:block;border-radius:50%;
+  will-change:transform;transform:translate3d(0,0,0)}
+/* Le haut de l'écran porte DÉJÀ le halo d'accent du `body` : la première masse
+   part donc plus bas, sinon les deux s'additionnent et le noir vire à l'olive.
+   Les opacités sont MESURÉES, pas choisies à l'œil : scratchpad/ambiance.mjs
+   compare le fond avec et sans aurore et exige un apport de 1 à 8 sur 255 —
+   en dessous elle ne se voit pas, au-dessus le noir vire à l'olive. */
+#aurore i:nth-child(1){width:58vw;height:58vw;top:18vh;left:-24vw;opacity:0.09;
+  background:radial-gradient(circle,var(--accent) 0%,transparent 70%);
+  animation:derive1 34s var(--ease) infinite alternate}
+#aurore i:nth-child(2){width:52vw;height:52vw;top:46vh;right:-26vw;opacity:0.07;
+  background:radial-gradient(circle,var(--accent-2) 0%,transparent 70%);
+  animation:derive2 44s var(--ease) infinite alternate}
+#aurore i:nth-child(3){width:66vw;height:66vw;bottom:-30vw;left:2vw;opacity:0.05;
+  background:radial-gradient(circle,var(--accent-light) 0%,transparent 72%);
+  animation:derive3 52s var(--ease) infinite alternate}
+@keyframes derive1{to{transform:translate3d(16vw,10vh,0) scale(1.18)}}
+@keyframes derive2{to{transform:translate3d(-14vw,-12vh,0) scale(.86)}}
+@keyframes derive3{to{transform:translate3d(10vw,-14vh,0) scale(1.12)}}
+:root[data-theme="light"] #aurore i{opacity:.10}
+:root[data-theme="light"] #aurore i:nth-child(2),
+:root[data-theme="light"] #aurore i:nth-child(3){opacity:.07}
+/* Le fond du body devient translucide pour laisser passer l'ambiance. */
+body{background-color:var(--bg)}
+
+/* ---- 2. Anneau signature --------------------------------------------------
+   Un seul composant pour tous les pourcentages de l'app (programme, forme,
+   séance, repos). `--p` est une propriété ENREGISTRÉE : le navigateur sait
+   l'interpoler, donc l'anneau se remplit d'un vrai balayage plutôt que d'un
+   saut. Sans le support de @property la valeur s'applique d'un coup — lisible
+   dans les deux cas. */
+@property --p{syntax:"<number>";initial-value:0;inherits:false}
+.ringx{--p:0;--taille:104px;--epaisseur:9px;
+  position:relative;flex:0 0 auto;width:var(--taille);height:var(--taille);border-radius:50%;
+  display:grid;place-items:center;
+  background:
+    conic-gradient(from -90deg,var(--accent-light) 0deg,var(--accent) calc(var(--p)*1.8deg),
+                   transparent calc(var(--p)*3.6deg)),
+    conic-gradient(var(--surface-3) 0 360deg);
+  mask:radial-gradient(farthest-side,transparent calc(100% - var(--epaisseur)),#000 calc(100% - var(--epaisseur) + 1px));
+  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - var(--epaisseur)),#000 calc(100% - var(--epaisseur) + 1px));
+  animation:remplir 1s var(--ease) both}
+@keyframes remplir{from{--p:0}}
+/* Le halo vit dans un calque frère : le masque de l'anneau le découperait. */
+.ringwrap{position:relative;display:grid;place-items:center;flex:0 0 auto}
+.ringwrap>.ringx{grid-area:1/1}
+.ringwrap>.ringval{grid-area:1/1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  line-height:1;text-align:center}
+.ringwrap>.ringval b{font-size:1.42rem;font-weight:900;letter-spacing:-.045em;font-variant-numeric:tabular-nums}
+.ringwrap>.ringval span{font-size:var(--fs-eyebrow);font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-soft);margin-top:3px}
+/* Le halo reste DANS la boîte : posé en `inset:-14%`, il élargissait la zone de
+   défilement de la page de 13 px et provoquait un débordement horizontal sur
+   l'accueil. Le flou suffit à le faire déborder visuellement sans déborder
+   réellement. */
+.ringwrap::before{content:"";position:absolute;inset:0;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,var(--accent) 0%,transparent 58%);opacity:.20;filter:blur(16px)}
+
+/* ---- 3. Profondeur des cartes --------------------------------------------
+   Un liseré spéculaire en haut (la lumière vient d'en haut) et un halo qui suit
+   le doigt : la carte devient un objet éclairé, pas un rectangle. */
+.card{isolation:isolate}
+.card::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:0;
+  background:radial-gradient(240px circle at var(--mx,50%) var(--my,0%),
+    color-mix(in srgb,var(--accent) 13%,transparent),transparent 70%);
+  opacity:0;transition:opacity var(--t-base) var(--ease)}
+.card.lueur::before{opacity:1}
+.card>*{position:relative;z-index:1}
+/* Filet lumineux sur l'arête haute — 1 px, la signature discrète des surfaces
+   premium. Absent en thème clair où il n'aurait aucun sens physique. */
+.card::after{content:"";position:absolute;left:14%;right:14%;top:0;height:1px;pointer-events:none;
+  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--accent) 34%,transparent),transparent)}
+:root[data-theme="light"] .card::after{display:none}
+.card.flat::after,.card.flat::before{display:none}
+
+/* ---- 4. Pilule glissante de la barre d'onglets ---------------------------
+   L'indicateur ne clignote plus d'un onglet à l'autre : il GLISSE. Un seul
+   élément déplacé en `transform`, donc zéro reflow. */
+nav.tabs .wrap{position:relative}
+.tab-pill{position:absolute;top:7px;bottom:7px;left:0;width:0;border-radius:15px;pointer-events:none;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 17%,transparent),
+                                     color-mix(in srgb,var(--accent) 9%,transparent));
+  border:1px solid color-mix(in srgb,var(--accent) 26%,transparent);
+  box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 20%,transparent);
+  opacity:0;transform:translate3d(0,0,0);
+  transition:transform .34s var(--ease),width .34s var(--ease),opacity .2s ease}
+.tab-pill.pret{opacity:1}
+/* La pilule remplace le fond de l'onglet actif. */
+nav.tabs button.on{background:none}
+:root[data-theme="light"] nav.tabs button.on{background:none}
+nav.tabs button{position:relative;z-index:1}
+nav.tabs button.on .ico{transform:translateY(-1px) scale(1.06)}
+
+/* ---- 5. Chiffres héroïques ------------------------------------------------
+   Dans une app de musculation, le chiffre EST le contenu. Il mérite le
+   traitement d'un titre. */
+.chiffre-hero{font-size:clamp(2.6rem,13vw,3.6rem);font-weight:900;letter-spacing:-.055em;line-height:.9;
+  font-variant-numeric:tabular-nums;
+  background:linear-gradient(170deg,var(--ink) 30%,color-mix(in srgb,var(--ink) 55%,var(--accent)));
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+.chiffre-hero .u{font-size:.36em;font-weight:800;letter-spacing:-.01em;-webkit-text-fill-color:var(--ink-soft);
+  margin-left:.12em}
+
+/* ---- 6. Onde au toucher ---------------------------------------------------
+   Chaque appui sur une action primaire émet une onde depuis le point touché.
+   Confirmation immédiate, même gant aux mains, même sans regarder. */
+.onde{position:absolute;border-radius:50%;pointer-events:none;transform:translate(-50%,-50%) scale(0);
+  background:radial-gradient(circle,color-mix(in srgb,var(--on-grad) 40%,transparent),transparent 70%);
+  animation:onde .5s var(--ease) forwards}
+@keyframes onde{to{transform:translate(-50%,-50%) scale(1);opacity:0}}
+button.primary,button.big,.wcard{overflow:hidden}
+
+/* ---- 7. Entrée d'écran en cascade, version signature ---------------------
+   Les blocs montent ET se dévoilent depuis un léger flou : la page se
+   « met au point » au lieu d'apparaître. */
+/* Pas de `scale` ici : pendant les 520 ms de l'entrée, une puce de 44 px
+   tombait à 43,4 px — sous le minimum tactile, et rien n'empêche d'appuyer
+   pendant l'animation. La translation et la mise au point suffisent. */
+@keyframes revealSig{
+  from{opacity:0;transform:translate3d(0,18px,0);filter:blur(6px)}
+  to{opacity:1;transform:none;filter:blur(0)}}
+.reveal>*{animation:revealSig .52s var(--ease) both}
+
+/* ---- 8. Transitions entre écrans (View Transitions natives) --------------- */
+@media (prefers-reduced-motion: no-preference){
+  ::view-transition-old(contenu){animation:vtSortie .18s var(--ease) both}
+  ::view-transition-new(contenu){animation:vtEntree .3s var(--ease) both}
+}
+@keyframes vtSortie{to{opacity:0;transform:translate3d(0,-10px,0)}}
+@keyframes vtEntree{from{opacity:0;transform:translate3d(0,14px,0)}}
+#view{view-transition-name:contenu}
+header.top,nav.tabs{view-transition-name:none}
+
+/* ---- 9. Respect absolu de reduced-motion ---------------------------------
+   Rien ne bouge, mais TOUT reste à son état final : aucune information n'est
+   perdue, contrairement à un `animation:none` posé sans y penser. */
+@media (prefers-reduced-motion: reduce){
+  #aurore i{animation:none}
+  .ringx{animation:none}
+  .reveal>*{animation:none;filter:none}
+  .onde{display:none}
+  .tab-pill{transition:none}
+}
+
+/* ---- 10. Poste de commande de la séance active ---------------------------
+   L'écran qu'on regarde en sueur, entre deux séries. Trois informations, dans
+   l'ordre où elles servent : depuis combien de temps je suis là, où j'en suis,
+   et quoi ensuite. Le reste est du décor et n'a rien à faire ici. */
+.trainhead.poste{padding:18px 18px 14px}
+.poste-top{align-items:flex-start;gap:12px}
+.poste-nom{margin:3px 0 0;font-size:1.32rem;font-weight:900;letter-spacing:-.035em;line-height:1.08}
+.poste-chrono{display:flex;align-items:center;gap:12px;margin:10px 0 14px}
+/* Le chrono est le plus gros élément de l'écran : lisible bras tendus, sans
+   chercher. Il hérite du dégradé de `.chiffre-hero` mais reste teinté accent —
+   c'est un état vivant, pas une statistique. */
+.poste-chrono .chiffre-hero{font-size:clamp(2.5rem,12vw,3.2rem);
+  background:linear-gradient(170deg,var(--accent-light),var(--accent) 72%);
+  -webkit-background-clip:text;background-clip:text}
+.poste-chrono .livedot{width:11px;height:11px;flex:0 0 auto}
+/* Piste : un segment par exercice, rempli à hauteur de ses séries validées. */
+.piste{display:flex;gap:4px;align-items:center}
+.piste-seg{flex:1;height:8px;min-width:6px;border-radius:999px;background:var(--surface-3);overflow:hidden;
+  position:relative;transition:transform var(--t-base) var(--ease)}
+.piste-seg>i{display:block;height:100%;border-radius:999px;background:var(--grad);
+  transition:width var(--t-slow) var(--ease)}
+.piste-seg.plein>i{background:var(--accent)}
+/* L'exercice en cours est le seul à porter un halo : impossible de le confondre
+   avec ceux qui sont finis. */
+.piste-seg.actif{transform:scaleY(1.55);box-shadow:0 0 12px color-mix(in srgb,var(--accent) 45%,transparent)}
+.poste-bas{margin-top:11px}
+/* Le filet reprend la progression globale, en discret, sous la piste. */
+.trainhead .bar.filet{height:3px;margin-top:9px;background:color-mix(in srgb,var(--ink) 8%,transparent)}
+
+/* ---- 11. La série en cours -----------------------------------------------
+   Quatre lignes identiques obligent à compter pour retrouver sa place. Une
+   seule ligne « armée » supprime cette question : c'est celle-là, la suivante.
+   Rail d'accent à gauche, champs éclaircis, ✓ prêt à recevoir le pouce. */
+.setrow{position:relative;padding-left:10px}
+.setrow::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:3px;border-radius:999px;
+  background:var(--accent);opacity:0;transform:scaleY(.4);transform-origin:center;
+  transition:opacity var(--t-base) var(--ease),transform var(--t-base) var(--ease)}
+.setrow.encours::before{opacity:1;transform:scaleY(1)}
+.setrow.encours input{background:var(--surface-3);border-color:color-mix(in srgb,var(--accent) 26%,transparent)}
+.setrow.encours .serie{color:var(--accent)}
+/* Le ✓ de la série en cours respire doucement : visible du coin de l'œil,
+   jamais clignotant — on est en train de soulever, pas de jouer. */
+.setrow.encours .done{border-color:color-mix(in srgb,var(--accent) 40%,transparent);color:var(--accent);
+  box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 40%,transparent);animation:respire 2.6s var(--ease) infinite}
+@keyframes respire{
+  0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 34%,transparent)}
+  50%{box-shadow:0 0 0 6px transparent}}
+/* Les lignes déjà validées reculent d'un cran : elles ne sont plus l'action. */
+.setrow.vdone input{opacity:.62}
+@media (prefers-reduced-motion: reduce){
+  .setrow.encours .done{animation:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 30%,transparent)}
+  .setrow::before{transition:none}
+}
+
+/* ---- 12. Le héros de l'accueil -------------------------------------------
+   C'est la première chose vue chaque jour, et le seul écran qu'on regarde
+   AVANT de s'entraîner. Il doit donner envie d'appuyer. */
+
+/* Balayage de lumière : une fois, à l'ouverture. Un reflet traverse la carte en
+   diagonale, comme sur une surface vernie qu'on incline. Il ne se répète pas —
+   un effet qui boucle devient un tic nerveux au bout de trois secondes. */
+.card.hero{position:relative;overflow:hidden}
+.card.hero::before{content:"";position:absolute;top:-60%;bottom:-60%;left:-40%;width:34%;z-index:2;
+  pointer-events:none;opacity:0;
+  background:linear-gradient(100deg,transparent,color-mix(in srgb,var(--accent-light) 26%,transparent),transparent);
+  transform:translate3d(0,0,0) rotate(14deg);
+  animation:balayage 1.5s var(--ease) .35s 1 both}
+@keyframes balayage{
+  0%{opacity:0;transform:translate3d(0,0,0) rotate(14deg)}
+  22%{opacity:1}
+  100%{opacity:0;transform:translate3d(370%,0,0) rotate(14deg)}}
+
+/* La silhouette gagne en présence : plus grande, mieux éclairée, et les muscles
+   ciblés pulsent très lentement — le corps « chauffe » avant la séance.
+   Dimensions FLUIDES : à 120 px fixes, les trois chiffres débordaient la carte
+   sur un écran de 360 px. Un point de rupture aurait réglé 360 et cassé 375. */
+.hero-fig{width:clamp(92px,27vw,120px);height:auto;aspect-ratio:104/152;opacity:1}
+.hero-fig .mini-silhouette{filter:drop-shadow(0 0 26px color-mix(in srgb,var(--accent) 26%,transparent))}
+.hero-fig [fill="var(--anat-primary)"]{animation:chauffe 3.4s var(--ease) infinite}
+@keyframes chauffe{0%,100%{opacity:.82}50%{opacity:1}}
+.hero-corps{padding-right:clamp(86px,29vw,112px)}
+
+/* Les trois chiffres deviennent la charpente typographique de la carte. */
+.hero-chiffres{gap:clamp(11px,4.6vw,20px)}
+.hero-chiffres b{font-size:clamp(1.6rem,7vw,2.05rem);letter-spacing:-.05em;
+  background:linear-gradient(168deg,var(--ink) 34%,color-mix(in srgb,var(--ink) 52%,var(--accent)));
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+:root[data-theme="light"] .hero-chiffres b{background:none;color:var(--ink);-webkit-text-fill-color:var(--ink)}
+
+
+@media (prefers-reduced-motion: reduce){
+  .card.hero::before{animation:none;display:none}
+  .hero-fig [fill="var(--anat-primary)"]{animation:none}
+}
+
+/* ---- 13. Tuiles de statistiques ------------------------------------------
+   Le chiffre est le sujet, l'icône n'est qu'un repère. On inverse donc la
+   hiérarchie habituelle : chiffre plein cadre, icône reléguée en filigrane
+   dans l'angle, libellé en pied. La tuile se lit en une fixation. */
+.stat{position:relative;overflow:hidden;
+  background:linear-gradient(158deg,color-mix(in srgb,var(--accent) 5%,var(--surface)),var(--surface) 62%)}
+:root[data-theme="light"] .stat{background:var(--surface)}
+.stat .ic{position:absolute;top:12px;right:12px;width:30px;height:30px;border-radius:10px;
+  background:none;color:var(--accent);opacity:.34;transition:opacity var(--t-base) var(--ease)}
+.stat .ic svg{width:26px;height:26px}
+.stat b{font-size:2.1rem;letter-spacing:-.05em;line-height:.95;margin-top:2px;
+  font-variant-numeric:tabular-nums;
+  /* réserve la place de l'icône : « 15 900 » ne doit jamais la toucher */
+  padding-right:30px}
+.stat .lab{letter-spacing:.11em;font-weight:850;font-size:var(--fs-eyebrow)}
+/* Une arête lumineuse en pied : la tuile est posée sur une ligne d'énergie. */
+.stat::after{content:"";position:absolute;left:15px;right:15px;bottom:0;height:2px;border-radius:999px;
+  background:linear-gradient(90deg,var(--accent),transparent);opacity:.42}
+@media (hover:hover){.stat:hover .ic{opacity:.6}}
+
+/* ---- 14. Filtres du graphique et courbe ----------------------------------
+   Les `<select>` héritaient de `width:100%` et occupaient quatre lignes pleines
+   au-dessus de la courbe. En puces, ils tiennent sur une ligne, défilent si
+   besoin, et rendent la place au graphique. */
+.selrow{display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;
+  margin-inline:-18px;padding-inline:18px}
+.selrow::-webkit-scrollbar{display:none}
+select.selchip{flex:0 0 auto;width:auto;min-height:var(--tap);padding:9px 32px 9px 14px;border-radius:999px;
+  background:var(--surface-2);border:1px solid var(--hair);color:var(--ink);
+  font-size:.84rem;font-weight:750;
+  appearance:none;-webkit-appearance:none;
+  /* Chevron dessiné en fond : pas d'image externe, teinte suivie via currentColor
+     impossible sur un data-URI — on garde donc le gris du design system. */
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%239AA3AD' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 13px center}
+select.selchip:focus{border-color:var(--accent);background-color:var(--surface)}
+
+/* La courbe : le tracé porte un halo, et le dernier point — « où j'en suis » —
+   est le seul marqueur plein. */
+.courbe{overflow:visible}
+.courbe .dot-fin{filter:drop-shadow(0 0 8px color-mix(in srgb,var(--accent) 70%,transparent))}

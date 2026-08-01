@@ -132,3 +132,57 @@ Mesurées à 390 px, hauteur de page. Une page qui dépasse **~2,5 écrans** doi
 - Cibles tactiles ≥ 44 px, paddings cohérents, hiérarchie de titres claire.
 
 Le respect de ces règles est vérifié par `.claude/skills/design-guard/`.
+
+## Couche « signature »
+
+Le socle ci-dessus définit un produit propre. Cette couche est ce qui le rend
+reconnaissable. Elle est entièrement native (aucune dépendance) et **chaque
+effet a été mesuré, pas estimé à l'œil** — les scripts de mesure vivent dans le
+scratchpad de session et sont cités dans les commentaires de `style.css`.
+
+### Trois catégories de mouvement, à ne pas confondre
+
+| Catégorie | Durée | Exemples |
+|---|---|---|
+| Retour d'interaction | 120–320 ms | onde au toucher, halo, pilule d'onglet |
+| Entrée d'écran | 300–520 ms | cascade `revealSig`, transitions de vue |
+| Ambiance de fond | très lente | `#aurore` (34–52 s), décorative |
+
+La règle « jamais > 500 ms » du design-guard vise les **deux premières**. Une
+ambiance de fond n'est pas un retour d'interaction : elle n'accompagne aucune
+action et n'apprend rien à l'utilisateur. Elle est coupée sous
+`prefers-reduced-motion`.
+
+### Composants
+
+- **`#aurore`** — trois masses de couleur qui dérivent derrière l'app. Calibrée
+  par mesure : elle doit ajouter **1 à 8 sur 255** au fond vide par rapport à
+  `--bg`. En dessous elle ne se voit pas ; au-dessus le noir vire à l'olive.
+  **Aucun `filter:blur()`** : il coûtait 31 images/seconde sur processeur bridé
+  ×4 (60 → 29 i/s pendant un défilement). Un dégradé radial est déjà flou.
+- **`.ringwrap` / `.ringx`** — l'anneau de pourcentage de l'app. Dégradé conique
+  masqué en couronne, animé par la propriété enregistrée `--p`. Son centre
+  affiche une **valeur réelle** (« 2 sur 4 »), pas un pourcentage : personne ne
+  s'entraîne en pourcentage. Le halo reste `inset:0` — en débordant il élargit la
+  zone de défilement et casse la page à 360 px.
+- **`.card::before` / `.card::after`** — halo qui suit le doigt, et filet
+  spéculaire de 1 px sur l'arête haute (absent en thème clair, où il n'aurait
+  aucun sens physique).
+- **`.tab-pill`** — indicateur d'onglet déplacé en `transform`. Purement
+  décoratif : l'état réel reste porté par `aria-current` et la couleur.
+- **`.onde`** — onde émise depuis le point touché sur les actions primaires.
+- **`.poste` / `.piste`** — poste de commande de la séance active : chrono
+  traité comme un titre, et une barre **par exercice** plutôt qu'un pourcentage.
+- **`.setrow.encours`** — la série en cours porte un rail d'accent. Sans ce
+  repère, quatre lignes identiques obligent à compter pour retrouver sa place.
+- **`.chiffre-hero`** — dans une app de musculation, le chiffre est le contenu :
+  il reçoit le traitement d'un titre.
+
+### Pièges rencontrés (à ne pas réintroduire)
+
+- Une `scale()` dans une animation d'entrée fait passer une cible de 44 px à
+  43,4 px pendant 520 ms — et rien n'empêche d'appuyer pendant l'animation.
+- Un pseudo-élément en `inset:-x%` élargit la zone de défilement de la page.
+- Des dimensions fixes sur le héros (silhouette + trois chiffres) débordent à
+  360 px. Utiliser `clamp()`, pas un point de rupture : corriger 360 avec un
+  point de rupture casse 375.
