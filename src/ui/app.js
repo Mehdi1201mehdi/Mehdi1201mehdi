@@ -22,6 +22,7 @@ import { dessinerCorps } from "./anatomieCanvas.js";
 import { illustration } from "./illustrations.js";
 import { medaille } from "./medailles.js";
 import { trophees } from "../engine/trophees.js";
+import { rangForce, NIVEAUX, AVERTISSEMENT as AVERT_RANG } from "../engine/rang.js";
 import { calculerBesoins } from "../engine/nutrition.js";
 import { bilan } from "../engine/review.js";
 import { chercherFoods, portion } from "../data/foods.js";
@@ -4523,6 +4524,9 @@ function carteForce(v) {
   l1.append(inC, inR); c1.append(l1);
   v.append(c1);
 
+  /* --- 1 bis. Le rang de force : « je suis où ? » --- */
+  v.append(carteRang(meilleures));
+
   /* --- 2. 1RM : consensus, fourchette, détail des sept formules --- */
   const c2 = h(`<div class="card stack"></div>`);
   v.append(c2);
@@ -4638,6 +4642,53 @@ function carteForce(v) {
   inC.querySelector("input").addEventListener("input", (e) => { FORCE.charge = e.target.value; tout(); });
   inR.querySelector("input").addEventListener("input", (e) => { FORCE.reps = e.target.value; tout(); });
   tout();
+}
+
+/**
+ * Carte « Rang de force ».
+ *
+ * Une application à classement répond à « je suis où ? » avec les autres
+ * utilisateurs. Ici il n'y en a pas : la réponse vient des standards de force
+ * exprimés en multiples du poids de corps.
+ *
+ * Deux garde-fous d'affichage, sans lesquels ça décourage au lieu d'aider :
+ * le niveau suivant est TOUJOURS chiffré en kilos, et l'app se tait quand elle
+ * ne peut pas se prononcer — plutôt que de juger sur des données absentes.
+ */
+function carteRang(meilleures) {
+  const r = rangForce(meilleures, Etat.data.profil || {});
+  const c = h(`<div class="card stack"></div>`);
+  c.append(h(`<div class="eyebrow">Ton rang de force</div>`));
+
+  if (!r.mesurable) {
+    c.append(h(`<div class="muted small">${esc(r.raison || "")}</div>`));
+    return c;
+  }
+
+  const nv = NIVEAUX[r.rang - 1];
+  c.append(h(`<div class="rang-tete">
+    ${medaille({ rang: r.rang, titre: `Niveau ${nv.nom}`, taille: 58 })}
+    <span class="rang-tete-txt"><b>${esc(nv.nom)}</b>
+      <span class="muted small">${esc(nv.quoi)}</span></span></div>`));
+  // L'échelle complète, pour situer le niveau atteint parmi les cinq.
+  const ech = h(`<div class="rang-echelle" role="img" aria-label="Niveau ${esc(nv.nom)}, ${r.rang} sur ${NIVEAUX.length}"></div>`);
+  NIVEAUX.forEach((n, i) => ech.append(h(`<span class="rang-cran${i < r.rang ? " on" : ""}"></span>`)));
+  c.append(ech);
+
+  r.mouvements.forEach((m) => {
+    const bloc = h(`<div class="rang-mvt"></div>`);
+    bloc.append(h(`<div class="spread small"><b>${esc(m.nom)}</b>
+      <span><b class="num">${fr(m.kg)} kg</b> <span class="muted">${fr(m.ratio)} × PC</span></span></div>`));
+    bloc.append(h(`<div class="bar"><div style="width:${Math.round(m.progression * 100)}%"></div></div>`));
+    bloc.append(h(`<div class="spread" style="font-size:var(--fs-caption);margin-top:4px">
+      <span class="muted">${esc(m.niveau)}</span>
+      ${m.prochain
+        ? `<span class="muted">${esc(m.prochain.nom)} à ${fr(m.prochain.kg)} kg · encore ${fr(m.prochain.manque)} kg</span>`
+        : `<span class="badge accent">Niveau maximal ✓</span>`}</div>`));
+    c.append(bloc);
+  });
+  c.append(h(`<div class="hint">${esc(AVERT_RANG)}</div>`));
+  return c;
 }
 
 /** Arrondi 2,5 kg — le pas des disques les plus courants. */

@@ -495,3 +495,40 @@ cinq colonnes (c'est une échelle, on doit voir où on en est sans faire défile
 et les blocs « Défis » et « Trophées » deviennent des sections repliables, avec
 leur chiffre motivant dans l'en-tête. Résultat : **2,1 écrans**, soit plus léger
 qu'avant l'ajout.
+
+## Rang de force — répondre à « je suis où ? » sans personne à qui se comparer
+
+Une application à classement répond à cette question avec les autres
+utilisateurs. Coach Perso est **mono-utilisateur** : il n'y en a pas. La réponse
+vient donc des **standards de force établis**, exprimés en multiples du poids de
+corps — les repères que tout pratiquant finit par connaître (« un squat à deux
+fois son poids »).
+
+`src/engine/rang.js` — cinq niveaux (Débutant → Élite), quatre mouvements de base
+(squat, développé couché, soulevé de terre, rowing), grilles distinctes hommes et
+femmes.
+
+### Quatre décisions, toutes destinées à ce que ça n'écrase pas
+
+1. **Le niveau suivant est toujours chiffré en kilos.** Jamais « tu es débutant »
+   tout court : toujours « Avancé à 200 kg · encore 5 kg ». Un verdict sans
+   chemin ne sert à rien.
+2. **On ne juge que ce qu'on a mesuré.** Un mouvement jamais chargé n'apparaît
+   pas — aucun zéro, aucune case vide accusatrice.
+3. **Le rang global est une MOYENNE, pas le pire mouvement.** Être faible au
+   développé ne doit pas effacer un bon squat. (Testé : squat rang 4 + développé
+   rang 1 donne 3, pas 1.)
+4. **L'app se tait quand elle ne peut pas se prononcer**, et dit pourquoi : sans
+   poids de corps renseigné, pas de verdict.
+
+### Deux pièges attrapés par les tests
+
+- **Grilles séparées hommes/femmes.** Une grille unique classerait mécaniquement
+  toutes les femmes en débutant. Un test vérifie que chaque seuil féminin est
+  strictement inférieur.
+- **Identifiants d'exercices vérifiés au catalogue.** Un identifiant erroné ne
+  lèverait aucune erreur : le mouvement disparaîtrait simplement du rang, sans
+  que personne ne le remarque.
+
+Les standards sont présentés comme des **repères, pas une mesure** — même
+honnêteté que pour l'estimation de 1RM, qui affiche sa fourchette et son écart.
