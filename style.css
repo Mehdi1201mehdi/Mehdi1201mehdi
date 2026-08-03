@@ -288,6 +288,10 @@ label.f>span{display:block;font-size:.8rem;font-weight:750;color:var(--ink-soft)
 .mi{display:inline-flex;width:17px;height:17px;vertical-align:-3px;margin-right:4px}
 .mi svg{width:100%;height:100%;display:block}
 .mi-orange{color:#F97316}.mi-blue{color:var(--accent)}.mi-green{color:var(--ok)}.mi-indigo{color:var(--accent-2)}.mi-muted{color:var(--ink-soft)}.mi-amber{color:var(--amber)}
+/* `mi-on` : l'icône prend la couleur de son bouton (texte sur accent, par
+   exemple). Elle fonctionnait déjà par héritage, mais le nom n'existait nulle
+   part — une classe fantôme qu'aucune recherche ne trouve. */
+.mi-on{color:currentColor}
 /* Icône dans une puce (chip) */
 .cic{display:inline-flex;width:15px;height:15px;vertical-align:-2px;margin-right:5px}
 .cic svg{width:100%;height:100%;display:block}
@@ -358,7 +362,8 @@ label.f>span{display:block;font-size:.8rem;font-weight:750;color:var(--ink-soft)
 /* Rangée « Matériel requis » (détail d'exercice) */
 .needrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .need{display:flex;align-items:center;gap:8px;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:8px 12px;font-size:.85rem;font-weight:600}
-.need .ic{font-size:1.2rem;line-height:1}
+.need .ic{display:inline-flex;width:17px;height:17px;line-height:0;color:var(--ink-soft);flex:0 0 auto}
+.need .ic svg{width:100%;height:100%;display:block}
 
 .exline{display:flex;gap:12px;align-items:center;width:100%;text-align:left;padding:13px 2px;
   background:none;border:0;border-bottom:1px solid var(--line);border-radius:0;color:var(--ink);
@@ -494,7 +499,11 @@ button.linklike{background:transparent;border:none;min-height:44px;display:inlin
 .optgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .optcard{display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-height:auto;padding:15px;border:1.5px solid var(--line);border-radius:var(--radius-sm);background:var(--surface-2);text-align:left}
 .optcard.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--surface-2))}
-.optcard .opt-ic{font-size:1.5rem;line-height:1}
+.optcard .opt-ic{display:block;width:26px;height:26px;line-height:0;color:var(--ink-soft)}
+.optcard .opt-ic svg{width:100%;height:100%;display:block}
+/* La carte choisie prend l'accent : sans ça, l'icône reste grise et le choix ne
+   se lit qu'au liseré. */
+.optcard.on .opt-ic{color:var(--accent)}
 .optcard .opt-lab{font-weight:750;font-size:.92rem;line-height:1.2}
 
 /* Saisie de séance */

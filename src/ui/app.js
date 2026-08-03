@@ -467,7 +467,7 @@ function vOnboarding(v) {
     h(`<div class="wiz-dots">${STEPS.map((_, i) => `<i class="${i <= STEP ? "on" : ""}"></i>`).join("")}</div>`),
     h(`<div class="eyebrow">Étape ${STEP + 1} / ${STEPS.length}</div>`),
     h(`<h1>${esc(s.t)}</h1>`),
-    h(`<div class="notice small">💡 ${esc(s.pourquoi)}</div>`),
+    h(`<div class="notice small">${mi(IC.info, "mi-accent")}${esc(s.pourquoi)}</div>`),
   );
   const body = h(`<div class="card"></div>`);
   s.champ(body);
@@ -494,8 +494,48 @@ function chips(container, options, getSel, toggle) {
   }
   container.append(box);
 }
-const GOAL_ICONS = { prise_muscle: "💪", perte_graisse: "🔥", recomposition: "⚖️", force: "🏋️", endurance: "🫀", remise_forme: "✨", mobilite: "🤸", prepa_physique: "🎯" };
-const LEVEL_ICONS = { grand_debutant: "🌱", debutant: "🙂", intermediaire: "📈", avance: "🥇" };
+/**
+ * Icône de niveau : quatre barres croissantes, dont `n` sont pleines.
+ *
+ * Les quatre emoji précédents — 🌱 🙂 📈 🥇 — étaient quatre métaphores sans
+ * rapport entre elles : une pousse, un visage, un graphique, une médaille. On ne
+ * lisait aucune progression. Quatre barres qui montent la disent d'un coup
+ * d'œil, et restent dans le langage graphique du reste de l'app.
+ *
+ * @param {number} n  1 → 4
+ */
+function niveauIcone(n) {
+  const plein = Math.max(1, Math.min(4, Math.round(Number(n) || 1)));
+  const barres = [0, 1, 2, 3].map((i) => {
+    const haut = 5 + i * 4.5;
+    const y = 20 - haut;
+    const on = i < plein;
+    return `<rect x="${3 + i * 5.2}" y="${y}" width="3.4" height="${haut}" rx="1.2"
+      fill="${on ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.6" opacity="${on ? "1" : ".38"}"/>`;
+  }).join("");
+  return `<svg viewBox="0 0 24 24">${barres}</svg>`;
+}
+
+// Icônes SVG et non emoji : le design system proscrit l'emoji comme
+// iconographie, et c'est le TOUT PREMIER écran de l'application.
+// `IC` est déclaré plus bas dans ce fichier : le lire ici lèverait une
+// ReferenceError au chargement (zone morte temporelle d'un `const`). D'où la
+// table de NOMS, résolue au moment du rendu.
+const GOAL_ICONES = {
+  prise_muscle: "dumbbell", perte_graisse: "flame", recomposition: "balance",
+  force: "barreLourde", endurance: "coeur", remise_forme: "spark",
+  mobilite: "etirement", prepa_physique: "cible",
+};
+/** Table objectif → SVG, construite à l'appel (donc après l'init de `IC`). */
+function goalIcons() {
+  const out = {};
+  for (const [k, nom] of Object.entries(GOAL_ICONES)) out[k] = IC[nom] || "";
+  return out;
+}
+const LEVEL_ICONS = {
+  grand_debutant: niveauIcone(1), debutant: niveauIcone(2),
+  intermediaire: niveauIcone(3), avance: niveauIcone(4),
+};
 /** Choix sous forme de cartes à icône (grille 2 colonnes) — onboarding premium. */
 function cardsChoix(container, options, getSel, toggle, icons = {}) {
   const box = h(`<div class="optgrid"></div>`);
@@ -523,7 +563,7 @@ function renderStepIdentite(c) {
   [["Âge", age], ["Taille (cm)", taille], ["Poids (kg)", poids]].forEach(([lab, inp]) => { const l = h(`<label class="f"><span>${lab}</span></label>`); l.append(inp); g.append(l); });
   c.append(g);
 }
-function renderStepObjectif(c) { cardsChoix(c, GOALS.map((g) => [g, GOAL_LABELS[g]]), (v) => DRAFT.objectif === v, (v) => DRAFT.objectif = v, GOAL_ICONS); }
+function renderStepObjectif(c) { cardsChoix(c, GOALS.map((g) => [g, GOAL_LABELS[g]]), (v) => DRAFT.objectif === v, (v) => DRAFT.objectif = v, goalIcons()); }
 function renderStepNiveau(c) { cardsChoix(c, LEVELS.map((l) => [l, LEVEL_LABELS[l]]), (v) => DRAFT.niveau === v, (v) => DRAFT.niveau = v, LEVEL_ICONS); }
 function renderStepDispo(c) {
   field(c, "Jours par semaine", chipsInline([1, 2, 3, 4, 5, 6].map((n) => [n, `${n} j`]), (v) => DRAFT.joursParSemaine === v, (v) => DRAFT.joursParSemaine = v), "Pour une reprise, 3 jours est idéal.");
@@ -741,6 +781,11 @@ const IC = {
   back: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 20-10-8 10-8zM5 5v14"/></svg>`,
   star: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.9 6.1 21l1.2-6.5L2.5 9.9 9.1 9z"/></svg>`,
   layers: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg>`,
+  balance: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M7 21h10M3 8l4-3 4 3M3 8a2 2 0 0 0 4 0M13 8l4-3 4 3M13 8a2 2 0 0 0 4 0M5 5h14"/></svg>`,
+  barreLourde: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20M5 6v12M8 8v8M16 8v8M19 6v12"/></svg>`,
+  coeur: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 1 0-7.1 7.1L12 21l8.8-8.3a5 5 0 0 0 0-7.1z"/><path d="M3.5 12.5H8l1.5-3 2 5 1.5-2.5h6"/></svg>`,
+  etirement: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"/><path d="M12 6v6M12 12l-4 6M12 12l4 6M4 9l8 2 8-2"/></svg>`,
+  cible: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/></svg>`,
   wind: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.6 4.6A2 2 0 1 1 11 8H2M12.6 19.4A2 2 0 1 0 14 16H2M17.7 7.8A2.5 2.5 0 1 1 19.5 12H2"/></svg>`,
 };
 /** Petite icône SVG en ligne (repas, etc.), teintée par classe. */
@@ -994,14 +1039,27 @@ function etatVideHTML(icone, titre, sousTitre = "") {
   return `<div class="empty-state"><div class="es-ic" aria-hidden="true">${icone}</div><b>${esc(titre)}</b>`
     + (sousTitre ? `<span class="muted small">${esc(sousTitre)}</span>` : "") + `</div>`;
 }
-/** Emoji illustratif par type de matériel (rangée « Matériel requis »). */
-const EQUIPMENT_ICONS = {
-  poids_du_corps: "🧍", halteres: "🏋️", barre: "🏋️", barre_ez: "🏋️", kettlebell: "🔔",
-  poulie: "🎚️", elastiques: "🎗️", machine_guidee: "⚙️", machine_leviers: "⚙️",
-  smith: "🏗️", banc: "🪑", rack: "🗄️", barre_traction: "🚪", trx: "🪢",
-  medecine_ball: "🏐", swiss_ball: "⚽", rouleau: "🧻", tapis_course: "🏃",
-  velo: "🚴", rameur: "🚣",
+/**
+ * Matériel → famille d'icône SVG (rangée « Matériel requis »).
+ *
+ * C'était une table d'emoji : 🧍 🏋️ 🔔 🎚️ 🎗️ ⚙️ 🏗️ 🪑 🗄️ 🚪 🪢 🏐 ⚽ 🧻 🏃 🚴 🚣.
+ * Vingt pictogrammes de vingt styles différents, dépendants de la police du
+ * système — le rendu changeait d'un téléphone à l'autre. Cinq familles SVG
+ * suffisent à distinguer ce qui compte, et elles sont déjà dessinées
+ * (`IC_MATOS`, utilisé par les vignettes du catalogue).
+ */
+const EQUIPMENT_FAMILLE = {
+  poids_du_corps: "corps", halteres: "halteres", kettlebell: "halteres",
+  barre: "barre", barre_ez: "barre", banc: "barre", rack: "barre", barre_traction: "barre",
+  poulie: "poulie", elastiques: "poulie", trx: "poulie",
+  machine_guidee: "machine", machine_leviers: "machine", smith: "machine",
+  tapis_course: "machine", velo: "machine", rameur: "machine",
+  medecine_ball: "corps", swiss_ball: "corps", rouleau: "corps",
 };
+/** SVG du matériel, avec un repli explicite plutôt qu'un carré vide. */
+function iconeMateriel(cle) {
+  return IC_MATOS[EQUIPMENT_FAMILLE[cle] || "corps"] || IC_MATOS.corps;
+}
 /** Ligne d'objectif du jour (icône + libellé + valeur + mini-jauge). */
 function targetLigne(icone, label, val, pct, tint = "") {
   const p = Math.round(Math.max(0, Math.min(1, pct || 0)) * 100);
@@ -1270,7 +1328,7 @@ function installerProgrammeClassique(pr) {
   r.justificationGlobale = `${pr.description} — ${pr.progression}`;
   (Etat.data.programmesPerso ||= []).push(r);
   Etat.sauver();
-  toast(`« ${pr.nom} » ajouté à tes routines 💪`);
+  toast(`« ${pr.nom} » ajouté à tes routines`);
   render();
 }
 
@@ -1428,7 +1486,7 @@ function ouvrirDetail(exo) {
   inner.append(h(`<div class="row" style="margin-top:10px">
     <span class="difbar" title="Difficulté">${[1, 2, 3, 4].map((i) => `<i class="${i <= diff ? "on" : ""}"></i>`).join("")}</span>
     <span class="pill">${DIFF_LABEL[diff] || "—"}</span></div>`));
-  if (!estRealisable(exo)) inner.append(h(`<div class="warn small" style="margin-top:10px">⚠️ Pas réalisable avec ton matériel / tes limitations actuels.</div>`));
+  if (!estRealisable(exo)) inner.append(h(`<div class="warn small" style="margin-top:10px">${mi(IC.alert, "mi-amber")}Pas réalisable avec ton matériel / tes limitations actuels.</div>`));
 
   // Sections dépliables plutôt que des onglets : tout le contenu d'un exercice
   // est balayable d'un seul défilement, et l'état d'ouverture est mémorisé d'une
@@ -1444,7 +1502,7 @@ function ouvrirDetail(exo) {
       ].join("");
       anat.append(h(`<div class="leg">${legende}</div>`));
       f.append(anat);
-      if ((exo.equipement || []).length) f.append(h(`<div class="needrow">${exo.equipement.map((e) => `<div class="need"><span class="ic" aria-hidden="true">${EQUIPMENT_ICONS[e] || "🏋️"}</span><span>${esc(EQUIPMENT_LABELS[e] || e)}</span></div>`).join("")}</div>`));
+      if ((exo.equipement || []).length) f.append(h(`<div class="needrow">${exo.equipement.map((e) => `<div class="need"><span class="ic" aria-hidden="true">${iconeMateriel(e)}</span><span>${esc(EQUIPMENT_LABELS[e] || e)}</span></div>`).join("")}</div>`));
       const dl = h(`<div class="deflist"></div>`);
       const ligne = (k, val) => { if (val) dl.append(h(`<div class="spread small"><span class="muted">${k}</span><b>${esc(val)}</b></div>`)); };
       ligne("Équipement", equipTxt);
@@ -1461,7 +1519,7 @@ function ouvrirDetail(exo) {
       }
       if (exo.respiration) f.append(h(`<div class="sec"><h3>Respiration</h3><div class="breath"><span class="in">↧ Inspirer</span><span class="out">↥ Expirer</span></div><div class="small muted" style="margin-top:6px">${esc(exo.respiration)}</div></div>`));
       if ((exo.erreurs || []).length) f.append(h(`<div class="sec"><h3>Erreurs fréquentes</h3><div class="small muted">✖ ${exo.erreurs.map(esc).join(" · ")}</div></div>`));
-      if (exo.securite) f.append(h(`<div class="sec"><h3>Sécurité</h3><div class="warn small">🛟 ${esc(exo.securite)}</div></div>`));
+      if (exo.securite) f.append(h(`<div class="sec"><h3>Sécurité</h3><div class="warn small">${mi(IC.alert, "mi-amber")} ${esc(exo.securite)}</div></div>`));
       if (!f.children.length) {
         return h(`<div class="empty-state"><div class="es-ic">${IC.info}</div><b>Pas de consignes détaillées</b><div class="muted small">Regarde la démonstration en haut de la fiche : elle montre l'amplitude et le rythme.</div></div>`);
       }
@@ -1530,7 +1588,7 @@ async function chargerMedia(exo, media) {
     if (raison) box.append(h(`<div class="muted small" style="text-align:center;margin-bottom:8px">${esc(raison)}</div>`));
     if (exo.patron) box.append(h(animDemo(exo, { grand: true })));
     box.append(diagrammeMuscles(exo));
-    const btn = h(`<button class="chip" style="margin:10px auto 0;display:block">🔄 Recharger la démonstration</button>`);
+    const btn = h(`<button class="chip" style="margin:10px auto 0;display:block">${mi(IC.repeat, "mi-on")}Recharger la démonstration</button>`);
     btn.addEventListener("click", () => {
       delete Etat.data.mediaCache[exo.id]; Etat.sauver();
       media.style.aspectRatio = ""; media.innerHTML = `<div class="spin"></div>`;
@@ -3140,7 +3198,7 @@ function seqFini() {
   const cb = SEQ?.onFin;
   seqFermer(false);
   try { if (Etat.data.reglages.vibrations !== false) navigator.vibrate?.([120, 60, 120]); } catch (e) {}
-  toast(cb ? "Étirements terminés — bien joué 🧘" : "Échauffement terminé — bonne séance 💪");
+  toast(cb ? "Étirements terminés" : "Échauffement terminé — bonne séance");
   if (cb) cb();
 }
 function seqRender() {
@@ -4144,7 +4202,7 @@ function outilTestVelo() {
       const pouls = saisie.map((s) => +s.inp.value || 0);
       if (!pouls.some((x) => x > 0)) { toast("Saisis au moins une valeur de pouls."); return; }
       (Etat.data.testsVelo ||= []).push({ id: Etat.uid(), cle: st.cle, date: new Date().toISOString(), pouls });
-      Etat.sauver(); toast("Test enregistré 📈"); maj();
+      Etat.sauver(); toast("Test enregistré"); maj();
     });
     corps.append(bSave);
     if (historique.length) {
@@ -4286,7 +4344,7 @@ function repondreAssistant(q) {
     }
     case "seance_jour": {
       const sj = seanceDuJour(Etat.data.programme);
-      if (!sj) { txt("Aujourd'hui c'est <b>repos</b> 😴 — marche, mobilité ou récupération active. Ta prochaine séance t'attend demain."); break; }
+      if (!sj) { txt("Aujourd'hui c'est <b>repos</b> — marche, mobilité ou récupération active. Ta prochaine séance t'attend demain."); break; }
       txt(`Aujourd'hui : <b>${esc(sj.nom)}</b> — ${sj.exercices.length} exercices, environ ${sj.dureeEstimeeMin} min.`);
       sj.exercices.slice(0, 8).forEach((e, i) => box.append(h(`<div class="small">${i + 1}. ${esc(nomExo(e.exerciceId))}</div>`)));
       const bn = h(`<button class="primary big"><span class="btn-ico">${IC.play}</span>Commencer la séance</button>`);
@@ -5892,7 +5950,7 @@ function vSet(v) {
     bRegen.addEventListener("click", async () => {
       if (!await confirmer("Régénérer le programme avec ces réglages ? Ton historique est conservé.", { ok: "Régénérer" })) return;
       Etat.data.programme = genererProgramme(p); Etat.sauver();
-      toast("Programme régénéré 💪"); render();
+      toast("Programme régénéré"); render();
     });
     c.append(bRegen);
     b.append(c);

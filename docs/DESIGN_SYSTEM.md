@@ -1009,3 +1009,51 @@ zéro pour toujours sans que personne ne s'en aperçoive.
 Vérifié sur un historique volontairement déséquilibré : poussée 100 séries contre
 tirage 20 → « À corriger » ; genou 10 contre hanche 0 → « Encore 2 séries pour se
 prononcer ». 7 largeurs sans débordement.
+
+## Zéro emoji dans l'interface
+
+Le design system proscrit l'emoji comme iconographie depuis le début. Un
+recensement systématique du code — commentaires exclus — en a trouvé **vingt**
+encore en place, dont douze sur le **tout premier écran de l'application**.
+
+### Onboarding : douze emoji, douze icônes
+
+| Avant | Après |
+|---|---|
+| 💪 🔥 ⚖️ 🏋️ 🫀 ✨ 🤸 🎯 | haltère · flamme · balance · barre lourde · cœur · étincelle · étirement · cible |
+| 🌱 🙂 📈 🥇 | **quatre barres croissantes**, dont *n* pleines |
+
+Les quatre emoji de niveau étaient quatre métaphores **sans rapport entre
+elles** : une pousse, un visage, un graphique, une médaille. On n'y lisait
+aucune progression. Quatre barres qui montent la disent d'un coup d'œil.
+
+La carte sélectionnée fait passer son icône à l'accent — sans cela le choix ne
+se lit qu'au liseré.
+
+### Matériel : vingt pictogrammes → cinq familles
+
+`EQUIPMENT_ICONS` alignait 🧍 🏋️ 🔔 🎚️ 🎗️ ⚙️ 🏗️ 🪑 🗄️ 🚪 🪢 🏐 ⚽ 🧻 🏃 🚴 🚣.
+Vingt pictogrammes de vingt styles, **dépendants de la police du système** : le
+rendu changeait d'un téléphone à l'autre. Cinq familles SVG suffisent à
+distinguer ce qui compte, et elles étaient **déjà dessinées** (`IC_MATOS`, utilisé
+par les vignettes du catalogue).
+
+### Le reste
+
+Emoji décoratifs retirés des messages de confirmation (💪 ×3, 🧘, 📈) — un toast
+qui confirme n'a pas besoin d'être décoré. Avertissements ⚠️ 🛟 et bouton 🔄
+passés aux icônes du système. 😴 retiré d'un message de repos.
+
+### Un piège de chargement
+
+`GOAL_ICONS` était déclaré **200 lignes avant** `IC`. Lire `IC.dumbbell` à cet
+endroit lève une `ReferenceError` au chargement du module — la zone morte
+temporelle d'un `const` — et l'application entière ne démarre plus. D'où une
+table de **noms**, résolue au moment du rendu.
+
+### Ce qui reste, volontairement
+
+`✓ ✕ ✔` — ce sont des **signes typographiques**, pas des pictogrammes colorés :
+ils héritent de la couleur du texte et ne changent pas d'un appareil à l'autre.
+
+**Recensement final : 0 emoji dans le code de l'interface.**
