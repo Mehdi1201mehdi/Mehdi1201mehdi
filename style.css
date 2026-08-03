@@ -1746,3 +1746,20 @@ button.cat-fav.on svg{fill:var(--accent)}
 .cat-recent{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:4px;width:78px;
   padding:6px 4px;background:transparent;border:0;font-size:var(--fs-caption);font-weight:700;color:var(--ink-soft)}
 .cat-recent span{display:block;width:100%;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---- 22. Fin de séance : la comparaison, pas la félicitation ---------------
+   « 12 400 kg » ne dit rien tout seul. Le seul repère utile, c'est soi-même la
+   fois d'avant. */
+.fin-sous{font-size:var(--fs-label);font-weight:750;color:var(--ink-soft);
+  max-width:30ch;margin-inline:auto;line-height:1.35}
+.fin-check svg{width:26px;height:26px;display:block}
+.fin-pr{display:inline-flex;align-items:center;gap:8px}
+.fin-deltas{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px;text-align:center}
+.fin-deltas>span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.fin-deltas b{font-size:1.15rem;font-weight:900;letter-spacing:-.02em}
+.fin-deltas .muted{font-size:var(--fs-caption);font-weight:700}
+/* Un progrès prend l'accent ; un recul reste neutre et lisible, jamais rouge —
+   une séance plus légère est souvent une récupération, pas un échec. */
+.fin-plus{color:var(--accent-ink)}
+.fin-moins{color:var(--ink-soft)}
+.fin-mvt{padding-top:8px;margin-top:8px;border-top:1px solid var(--hair)}

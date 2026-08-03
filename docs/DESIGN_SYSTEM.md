@@ -850,3 +850,50 @@ la balise si elle échoue. Jamais un carré vide, jamais une image cassée.
 
 Vérifié à **7 largeurs** (320 → 1024) : rapport de forme constant à 1, aucun
 débordement hors conteneur défilant, 0 erreur console.
+
+## Fin de séance : la comparaison, pas la félicitation
+
+L'écran annonçait « Séance terminée 🎉 / Excellent travail, continue comme ça ! »
+puis un volume et un nombre de séries. **Des nombres sans repère** : 12 400 kg,
+c'est beaucoup ou peu ? Et une formule qui ne dit rien, qu'on cesse de lire dès
+la deuxième séance.
+
+La sous-ligne porte désormais le **fait le plus marquant** de la séance, dans cet
+ordre de priorité : un record battu → le mouvement qui a le plus progressé,
+chiffré et daté → le volume en hausse → et sinon, honnêtement, « plus légère que
+la précédente ». Une séance légère est souvent une récupération : le dire vaut
+mieux qu'un silence gêné ou qu'une fausse louange.
+
+Les deux emoji (`🎉`, `🏆`) sont partis — le design system proscrit l'emoji comme
+iconographie. Le trophée est remplacé par une **médaille** du système existant.
+
+### On compare ce qui est comparable
+
+`src/engine/bilanSeance.js`, module pur (15 tests).
+
+1. **Séance de référence** : la précédente portant le **même identifiant**. À
+   défaut, la plus récente partageant **au moins la moitié** des exercices — en
+   dessous, ce sont deux entraînements différents et les comparer induit en
+   erreur.
+2. **L'app se tait** quand elle n'a rien à dire : première séance, ou rien de
+   comparable → une phrase qui l'explique, jamais un « +100 % » contre un
+   historique vide.
+3. **Le détail par exercice prime sur le total.** Cas réel observé au test :
+   `−120 kg de volume` alors que le squat monte de `110 → 120 kg`. Le total avait
+   baissé parce qu'une série de moins avait été faite — sans les lignes par
+   mouvement, l'écran aurait annoncé une régression là où il y a un progrès.
+4. **Un exercice nouveau n'est pas un progrès** : sans point de comparaison, on
+   n'affiche rien plutôt qu'une progression inventée.
+
+### Couleur
+
+Le progrès prend l'accent (`--accent-ink`), le recul reste **neutre**
+(`--ink-soft`) — jamais rouge. Une séance plus légère n'est pas un échec, et la
+colorer comme une erreur serait un jugement que les données ne portent pas.
+
+### Le minuteur restait par-dessus
+
+Défaut trouvé en **regardant la capture**, pas le code : `terminer()` arrêtait le
+chronomètre de séance mais pas le minuteur de repos. On terminait sa séance et un
+décompte plein écran tournait par-dessus le bilan, pour une série qu'on n'allait
+pas faire. Le chemin « séance vide » l'arrêtait déjà — celui-ci l'avait oublié.

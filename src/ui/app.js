@@ -29,6 +29,7 @@ import { chercherFoods, portion } from "../data/foods.js";
 import { rechercher as offRechercher, parCodeBarres } from "../integrations/openfoodfacts.js";
 import { scannerDisponible, demarrerScan, normaliserCode } from "./scanner.js";
 import { chargementMedia } from "../data/media-manifest.js";
+import { comparerSeance, phraseBilan } from "../engine/bilanSeance.js";
 import { etatNotifs, demanderNotifs, notifier, fermerNotifs } from "./notifs.js";
 import { POSES, nouvellePhoto, trierPhotos, paireComparaison, poidsProche, resumeStockage,
   formaterOctets, incoherences } from "../engine/photos.js";
@@ -2586,6 +2587,10 @@ async function terminer() {
   Etat.data.sessionEnCours = null; // séance terminée : plus rien à reprendre
   Etat.sauver();
   arreterChrono();
+  // Le minuteur de repos aussi : sans ça, il reste PAR-DESSUS l'écran de fin.
+  // On termine sa séance et un décompte tourne en plein écran pour une série
+  // qu'on ne fera pas — le chemin « séance vide » l'arrêtait déjà, pas celui-ci.
+  stopTimer();
   // Un record mérite mieux qu'un « séance enregistrée » : c'est la seule chose
   // qui distingue cette séance des cinquante précédentes.
   jouer(prs && prs.length ? "record" : "termine", Etat.data.reglages);
@@ -2601,7 +2606,16 @@ function ecranFinSeance(log, prs) {
   const kcal = Math.round(min * 8);
   const sheet = h(`<div class="sheet finseance"><div class="inner"></div></div>`);
   const inner = sheet.querySelector(".inner");
-  inner.append(h(`<div class="fin-head"><div class="fin-check">✓</div><h1 style="margin:16px 0 4px">Séance terminée 🎉</h1><div class="muted">Excellent travail, continue comme ça !</div></div>`));
+  // « Excellent travail, continue comme ça ! » ne disait rien, et on cesse de le
+  // lire dès la deuxième séance. La sous-ligne porte maintenant le fait le plus
+  // marquant : un record, un mouvement plus lourd qu'il y a huit jours, ou —
+  // honnêtement — une séance plus légère. L'emoji est parti : le design system
+  // proscrit l'emoji comme iconographie.
+  const cmp = comparerSeance(log, (Etat.data.logs || []).filter((l) => l && l.id !== log.id));
+  const titre = phraseBilan(cmp, prs.length, nomExo);
+  inner.append(h(`<div class="fin-head"><div class="fin-check">${IC.check}</div>
+    <h1 style="margin:16px 0 4px">Séance terminée</h1>
+    <div class="fin-sous">${esc(titre)}</div></div>`));
   const g = h(`<div class="statgrid" style="margin-top:20px"></div>`);
   g.append(statCard(IC.clock, dureeTxt, "Durée"));
   g.append(statCard(IC.dumbbell, `${(log.exercices || []).length}`, "Exercices"));
@@ -2611,10 +2625,36 @@ function ecranFinSeance(log, prs) {
   g.append(statCard(IC.trophy, `${prs.length}`, prs.length > 1 ? "Records" : "Record"));
   inner.append(g);
   if (prs.length) {
-    const rc = h(`<div class="card stack" style="margin-top:14px"><b>🏆 ${prs.length > 1 ? "Nouveaux records" : "Nouveau record"} !</b></div>`);
+    const rc = h(`<div class="card stack" style="margin-top:14px"><b class="fin-pr">${medaille({ rang: Math.min(5, prs.length + 2), taille: 26 })}${prs.length > 1 ? "Nouveaux records" : "Nouveau record"}</b></div>`);
     prs.forEach((r) => rc.append(h(`<div class="small">• ${esc(r.nom)} : ${esc(etiquettePR(r))}</div>`)));
     inner.append(rc);
   }
+  // Comparaison avec la précédente séance comparable. « 12 400 kg » ne dit rien
+  // tout seul : le seul repère utile, c'est soi-même la fois d'avant.
+  if (cmp.comparable) {
+    const cc = h(`<div class="card stack" style="margin-top:14px"></div>`);
+    const d = new Date(cmp.reference.date);
+    cc.append(h(`<div class="spread"><span class="eyebrow" style="margin:0">Par rapport à la dernière fois</span>
+      <span class="muted small">il y a ${cmp.jours} j</span></div>`));
+    const ecart = (v, unite) => `<b class="num ${v > 0 ? "fin-plus" : v < 0 ? "fin-moins" : ""}">${v > 0 ? "+" : ""}${v.toLocaleString("fr-FR")}${unite}</b>`;
+    cc.append(h(`<div class="fin-deltas">
+      <span>${ecart(cmp.delta.volume, " kg")}<span class="muted">Volume</span></span>
+      <span>${ecart(cmp.delta.series, "")}<span class="muted">Séries</span></span>
+      <span>${ecart(Math.round(cmp.delta.duree / 60), " min")}<span class="muted">Durée</span></span>
+    </div>`));
+    // Les mouvements nommés, pas seulement un total : un volume en baisse parce
+    // qu'on a fait moins de séries n'est pas une régression.
+    cmp.progres.slice(0, 3).forEach((p) => cc.append(h(`<div class="spread small fin-mvt">
+      <span>${esc(nomExo(p.exerciceId))}</span>
+      <span><b class="num fin-plus">+${fr(p.delta)} kg</b> <span class="muted">${fr(p.avant)} → ${fr(p.apres)}</span></span></div>`)));
+    cmp.recul.slice(0, 2).forEach((p) => cc.append(h(`<div class="spread small fin-mvt">
+      <span class="muted">${esc(nomExo(p.exerciceId))}</span>
+      <span><b class="num fin-moins">${fr(p.delta)} kg</b> <span class="muted">${fr(p.avant)} → ${fr(p.apres)}</span></span></div>`)));
+    inner.append(cc);
+  } else if (cmp.raison) {
+    inner.append(h(`<div class="hint" style="margin-top:14px">${esc(cmp.raison)}</div>`));
+  }
+
   // Ressenti (correctif subjectif borné) puis impact musculaire de la séance.
   inner.append(blocRessenti());
   inner.append(blocImpactSeance(log));
