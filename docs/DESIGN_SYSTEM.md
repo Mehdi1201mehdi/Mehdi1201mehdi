@@ -754,3 +754,49 @@ que le blocage vient du navigateur.
 Vérifié : retard de 185 s annoncé « 3 min 05 » sur le chemin réel du
 déverrouillage ; notification captée avec son corps, son tag et sa vibration ;
 permission refusée → rien n'est envoyé, aucune erreur, message d'explication.
+
+## Accueil : l'action d'abord, l'information ensuite
+
+Trois défauts se voyaient dès l'ouverture, et c'est l'écran qu'on ouvre le plus.
+
+**1. Un emoji en première position.** `Salut Mehdi 👋` — le design system proscrit
+l'emoji comme iconographie, et c'était la toute première chose vue de
+l'application.
+
+**2. Une phrase creuse.** « Prêt à atteindre tes objectifs ? » ne portait aucune
+information : exactement le remplissage générique que la direction produit
+interdit. Remplacée par l'état réel de la semaine — `3 séances sur 4 cette
+semaine`, ou `Aucune séance cette semaine — c'est le moment`.
+
+**3. Un constat à la place d'une action.** La carte « Programme actuel »
+occupait le haut de l'écran pour annoncer **« Aucun programme »** : le point le
+plus précieux de l'app consacré à rappeler ce qu'on n'a pas. La séance du jour
+passe devant ; le programme reste juste dessous, et **disparaît quand il n'y en a
+pas**.
+
+### Échelle
+
+Le trio `6 exercices / 20 séries / 52 min` est le moment d'identité de l'écran et
+plafonnait à 25 px. Porté à `clamp(1.95rem, 9.4vw, 2.65rem)` (26 → 33 px), titre
+à `clamp(1.72rem, 8.4vw, 2.3rem)` (28 → 37 px). Fluide, jamais un point de
+rupture : un breakpoint réglerait 360 et casserait 375.
+
+### La géométrie de la silhouette, désormais à un seul endroit
+
+Le titre passait **sous** la silhouette au-delà de 768 px. Cause : **trois
+formules indépendantes** décrivaient la même géométrie et avaient divergé —
+`width:104px`, puis `clamp(92px,27vw,120px)` pour la figure, et
+`clamp(86px,29vw,112px)` pour la réserve de texte. La figure montait à 120, la
+réserve plafonnait à 112.
+
+Une seule source désormais :
+
+```css
+.hero-seance{--fig-w:104px;--fig-gap:10px}          /* et --fig-w:clamp(...) plus bas */
+.hero-fig  {width:var(--fig-w)}
+.hero-corps{padding-right:calc(var(--fig-w) + var(--fig-gap))}
+```
+
+Écart mesuré **constant à 10 px** de 320 à 1024 px — exactement la valeur
+déclarée. C'est le genre de dérive qu'aucun test unitaire n'attrape : il faut
+mesurer le rendu.

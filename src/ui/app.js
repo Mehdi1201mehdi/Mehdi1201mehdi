@@ -781,9 +781,19 @@ function vDash(v) {
   // En-tête sur UNE ligne : salutation + série en cours. L'ancien bloc de trois
   // lignes (eyebrow + prénom + « prêt ? ») ne portait aucune information utile.
   const _serie = serieJours(logs);
+  // La sous-ligne dit ce qui s'est PASSÉ, pas une formule d'encouragement.
+  // « Prêt à atteindre tes objectifs ? » ne portait aucune information : c'est
+  // exactement le remplissage générique que la direction produit interdit. Et
+  // l'emoji 👋 était la première chose vue de l'application — le design system
+  // proscrit l'emoji comme iconographie.
+  const _sm = statsSemaine(logs);
+  const _cible = Math.max(1, p?.joursParSemaine || 4);
+  const _sous = _sm.seances > 0
+    ? `${_sm.seances} séance${_sm.seances > 1 ? "s" : ""} sur ${_cible} cette semaine`
+    : (logs.length ? "Aucune séance cette semaine — c'est le moment" : "Première séance à enregistrer");
   v.append(h(`<div class="dash-hi">
-    <div><h1 class="hi-nom">${esc(salut)} <span class="hi-p">${esc(p.prenom || "Athlète")}</span> 👋</h1>
-      <div class="hi-sub">Prêt à atteindre tes objectifs ?</div></div>
+    <div class="hi-txt"><h1 class="hi-nom">${esc(salut)} <span class="hi-p">${esc(p.prenom || "Athlète")}</span></h1>
+      <div class="hi-sub">${esc(_sous)}</div></div>
     ${_serie > 0 ? `<span class="streak-chip" title="Série en cours">${IC.flame}<b class="num">${_serie}</b><span>j</span></span>` : ""}
   </div>`));
 
@@ -794,10 +804,14 @@ function vDash(v) {
   // été terminée : la fonctionnalité principale n'était jamais découverte.
   // Sans historique, tous les muscles sont frais et il propose une première
   // séance complète — c'est exactement ce qu'on veut voir en arrivant.
-  v.append(carteProgrammeActuel(prog, logs, p));
-
+  // L'ACTION D'ABORD. La carte « Programme actuel » occupait le haut de l'écran
+  // pour annoncer « Aucun programme » : un constat, pas une action, à l'endroit
+  // le plus précieux de l'application. La séance du jour passe devant ; le
+  // programme reste juste dessous, et disparaît quand il n'y en a pas — un
+  // rappel de ce qu'on n'a pas ne rend service à personne.
   const moteurActif = Etat.data.reglages.moteurAuto !== false && !!Etat.data.profil;
   if (moteurActif) { v.append(h(`<div class="eyebrow dash-lbl">Aujourd'hui</div>`)); carteMoteur(v); }
+  if (prog) v.append(carteProgrammeActuel(prog, logs, p));
 
   // Entraînement du jour du programme. Masqué quand le moteur pilote : les deux
   // cartes se concurrençaient. Le programme reste entièrement accessible dans

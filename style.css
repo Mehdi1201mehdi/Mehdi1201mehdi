@@ -1032,29 +1032,31 @@ body::after{opacity:.03}
   background:radial-gradient(125% 100% at 105% -8%,var(--accent-soft),transparent 52%),var(--surface);
   border-color:color-mix(in srgb,var(--accent) 34%,transparent);box-shadow:var(--shadow-lg);
 }
-.hero-seance{position:relative;display:block}
+/* Une SEULE source pour la largeur de la silhouette : la figure et la réserve
+   de texte la lisent toutes les deux. Elles avaient divergé (98 contre 104) et
+   le titre passait sous la silhouette dès que la carte s'élargissait. */
+.hero-seance{position:relative;display:block;--fig-w:104px;--fig-gap:10px}
 /* La silhouette habite la carte sans jamais gêner la lecture */
-.hero-fig{position:absolute;right:0;top:50%;transform:translateY(-50%);width:104px;height:152px;
+.hero-fig{position:absolute;right:0;top:50%;transform:translateY(-50%);width:var(--fig-w);height:152px;
   opacity:.9;pointer-events:none;z-index:0}
 .hero-fig .mini-silhouette{filter:drop-shadow(0 0 18px rgba(183,230,58,.10))}
 .hero-fig .mini-silhouette{width:100%;height:100%;display:block}
-.hero-corps{position:relative;z-index:1;padding-right:98px}
+.hero-corps{position:relative;z-index:1;padding-right:calc(var(--fig-w) + var(--fig-gap))}
 .hero-top{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;
   gap:var(--space-2);margin:0 0 var(--space-3)}
 .tagline{display:inline-block;white-space:nowrap;padding:5px 10px;border-radius:999px;background:var(--accent);color:var(--on-accent);
   font-size:var(--fs-eyebrow);font-weight:850;letter-spacing:.09em;text-transform:uppercase}
-.hero-titre{margin:0;font-size:1.62rem;font-weight:900;letter-spacing:-.04em;line-height:1.05}
+.hero-titre{margin:0;font-size:clamp(1.72rem,8.4vw,2.3rem);font-weight:900;letter-spacing:-.04em;line-height:1.03}
 .hero-sub{margin-top:5px;font-size:var(--fs-label);font-weight:600;color:var(--ink-soft)}
 .hero-chiffres{display:flex;gap:var(--space-5);margin-top:var(--space-4)}
 .hero-chiffres>span{display:flex;flex-direction:column;gap:2px}
-.hero-chiffres b{font-size:1.55rem;font-weight:900;letter-spacing:-.03em;line-height:1;color:var(--ink);
+.hero-chiffres b{font-size:clamp(1.95rem,9.4vw,2.65rem);font-weight:900;letter-spacing:-.035em;line-height:.95;color:var(--ink);
   font-variant-numeric:tabular-nums}
 .hero-chiffres>span>span{font-size:var(--fs-eyebrow);font-weight:800;letter-spacing:.11em;text-transform:uppercase;
   color:var(--ink-soft)}
 .hero-cta{margin-top:var(--space-5);min-height:56px;font-size:1rem;white-space:nowrap}
 @media (max-width:359px){
-  .hero-fig{width:76px}
-  .hero-corps{padding-right:72px}
+  .hero-seance{--fig-w:76px}
 
   .hero-chiffres{gap:var(--space-4)}
 }
@@ -1172,7 +1174,9 @@ nav.tabs button:active{transform:scale(.94)}
 /* Accueil : salutation et carte « Programme actuel » (fidélité maquette) */
 .hi-nom{font-size:1.52rem;font-weight:900;letter-spacing:-.04em;line-height:1.08}
 .hi-nom .hi-p{color:var(--accent)}
-.hi-sub{margin-top:4px;font-size:var(--fs-label);font-weight:600;color:var(--ink-soft)}
+.hi-sub{margin-top:3px;font-size:var(--fs-label);font-weight:700;color:var(--ink-soft);
+  letter-spacing:-.005em}
+.hi-txt{min-width:0}
 .prog-actuel{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);
   width:100%;text-align:left;padding:16px 18px;min-height:auto}
 .pa-txt{display:block;min-width:0}
@@ -1450,11 +1454,11 @@ button.primary,button.big,.wcard{overflow:hidden}
    ciblés pulsent très lentement — le corps « chauffe » avant la séance.
    Dimensions FLUIDES : à 120 px fixes, les trois chiffres débordaient la carte
    sur un écran de 360 px. Un point de rupture aurait réglé 360 et cassé 375. */
-.hero-fig{width:clamp(92px,27vw,120px);height:auto;aspect-ratio:104/152;opacity:1}
+.hero-seance{--fig-w:clamp(92px,27vw,120px)}   /* la réserve de texte suit */
+.hero-fig{height:auto;aspect-ratio:104/152;opacity:1}
 .hero-fig .mini-silhouette{filter:drop-shadow(0 0 26px color-mix(in srgb,var(--accent) 26%,transparent))}
 .hero-fig [fill="var(--anat-primary)"]{animation:chauffe 3.4s var(--ease) infinite}
 @keyframes chauffe{0%,100%{opacity:.82}50%{opacity:1}}
-.hero-corps{padding-right:clamp(86px,29vw,112px)}
 
 /* Les trois chiffres deviennent la charpente typographique de la carte. */
 .hero-chiffres{gap:clamp(11px,4.6vw,20px)}
