@@ -28,6 +28,10 @@ import { bilan } from "../engine/review.js";
 import { chercherFoods, portion } from "../data/foods.js";
 import { rechercher as offRechercher, parCodeBarres } from "../integrations/openfoodfacts.js";
 import { scannerDisponible, demarrerScan, normaliserCode } from "./scanner.js";
+import { POSES, nouvellePhoto, trierPhotos, paireComparaison, poidsProche, resumeStockage,
+  formaterOctets, incoherences } from "../engine/photos.js";
+import { reduire, choisirImage, urlObjet } from "./photoCapture.js";
+import { photoSet, photoGet, photoDel, photoCles } from "../store/db.js";
 import { Etat, seanceDuJour, planningJours } from "../store/state.js";
 import {
   nouvelleSession, ajouterSerie, retirerDerniereSerie,
@@ -232,6 +236,7 @@ function render() {
   // La caméra du scanner survit à la suppression de son élément vidéo : sans
   // cette coupure, changer d'onglet laisse la diode allumée et vide la batterie.
   arreterScan();
+  libererPhotos();
   view.innerHTML = "";
   (Etat.data.profil ? TABS[TAB] : vOnboarding)(view);
   // Motion : ne rejouer l'entrée en cascade que lorsque la VUE change vraiment
@@ -4439,10 +4444,189 @@ function vNutrition(v) {
   v.append(h(`<div class="warn small">${mi(IC.cross, "mi-amber")}Repères nutritionnels généraux, pas un régime médical. En cas de pathologie, trouble alimentaire ou doute, consulte un professionnel de santé ou un diététicien.</div>`));
 }
 
+/* ---------- photos de progression ---------- */
+
+/** URL objets vivantes de l'écran courant. Chaque URL non révoquée retient le
+ *  blob entier en mémoire : sur trente photos, c'est plusieurs dizaines de Mo. */
+let PHOTO_URLS = /** @type {{liberer:()=>void}[]} */ ([]);
+function libererPhotos() { PHOTO_URLS.forEach((u) => { try { u.liberer(); } catch (e) {} }); PHOTO_URLS = []; }
+
+/** Vignette chargée depuis IndexedDB, avec repli si l'image a disparu. */
+function vignette(fiche, { taille = 0, alt = "" } = {}) {
+  const cadre = h(`<div class="ph-vig"${taille ? ` style="--ph-t:${taille}px"` : ""}></div>`);
+  photoGet(fiche.id).then((blob) => {
+    if (!cadre.isConnected) return;
+    if (!blob) {
+      // Le navigateur peut vider IndexedDB sous pression de stockage. Le dire
+      // vaut mieux qu'une vignette cassée que personne ne s'explique.
+      cadre.append(h(`<span class="ph-perdu hint">Image absente du stockage</span>`));
+      return;
+    }
+    const u = urlObjet(blob); PHOTO_URLS.push(u);
+    cadre.append(h(`<img src="${u.url}" alt="${esc(alt || `Photo du ${fiche.date}`)}" loading="lazy" decoding="async">`));
+  });
+  return cadre;
+}
+
+/** Date lisible : « 14 mars 2026 ». */
+function dateLisible(iso) {
+  const d = new Date(String(iso) + "T12:00:00");
+  return Number.isFinite(d.getTime())
+    ? d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })
+    : String(iso);
+}
+
+/**
+ * PHOTOS DE PROGRESSION — la mesure que la balance ne donne pas.
+ *
+ * Le poids stagne pendant des semaines alors que le corps change. C'est le
+ * moment exact où on arrête. Deux photos à trois mois d'écart règlent la
+ * question mieux qu'une courbe.
+ *
+ * Trois règles tenues par cet écran :
+ *  · les images ne quittent JAMAIS l'appareil, et c'est écrit ;
+ *  · elles ne sont PAS dans la sauvegarde JSON, et c'est écrit aussi — les
+ *    croire à l'abri et les perdre est pire que de ne pas en prendre ;
+ *  · la comparaison propose la plus ancienne contre la plus récente, jamais
+ *    deux photos de la même semaine où il n'y a rien à voir.
+ */
+function cartephotos(v) {
+  libererPhotos();
+  const photos = trierPhotos(Etat.data.photos || []);
+
+  /* --- prise de vue --- */
+  const c = h(`<div class="card stack"></div>`);
+  const poseChoisie = { cle: PHOTO_POSE };
+  const chips = h(`<div class="row" style="gap:6px;flex-wrap:wrap"></div>`);
+  POSES.forEach((p) => {
+    const b = h(`<button class="chip${p.cle === poseChoisie.cle ? " on" : ""}">${esc(p.nom)}</button>`);
+    b.addEventListener("click", () => { PHOTO_POSE = p.cle; render(); });
+    chips.append(b);
+  });
+  c.append(h(`<div class="eyebrow">Angle</div>`), chips);
+  const aide = POSES.find((p) => p.cle === poseChoisie.cle);
+  c.append(h(`<div class="hint">${esc(aide ? aide.aide : "")} · même lumière et même distance à chaque fois, sinon la comparaison ne veut rien dire.</div>`));
+
+  const etat = h(`<div class="ph-etat muted small" role="status"></div>`);
+  const ajouter = async (camera) => {
+    const fichier = await choisirImage({ camera });
+    if (!fichier) return;
+    etat.textContent = "Traitement de l'image…";
+    try {
+      const r = await reduire(fichier);
+      const fiche = nouvellePhoto({
+        pose: PHOTO_POSE,
+        poidsKg: poidsProche(Etat.data.metrics || [], new Date().toISOString().slice(0, 10)) ?? undefined,
+        largeur: r.largeur, hauteur: r.hauteur, octets: r.octets,
+      });
+      const ok = await photoSet(fiche.id, r.blob);
+      if (!ok) { etat.textContent = "Enregistrement impossible — le stockage du navigateur est peut-être plein."; return; }
+      if (!Array.isArray(Etat.data.photos)) Etat.data.photos = [];
+      Etat.data.photos.push(fiche);
+      Etat.sauver();
+      etat.textContent = "";
+      render();
+    } catch (e) {
+      console.error("photo", e);
+      etat.textContent = "Image illisible. Essaie une autre photo (JPEG ou PNG).";
+    }
+  };
+
+  const barre = h(`<div class="row" style="gap:8px;margin-top:10px"></div>`);
+  const bCam = h(`<button class="primary" style="flex:1">${mi(IC.camera, "mi-on")}Prendre une photo</button>`);
+  const bGal = h(`<button class="btn ghost">Galerie</button>`);
+  bCam.addEventListener("click", () => ajouter(true));
+  bGal.addEventListener("click", () => ajouter(false));
+  barre.append(bCam, bGal);
+  c.append(barre, etat);
+  c.append(h(`<div class="hint">Les photos restent sur cet appareil : elles ne sont envoyées nulle part.
+    Elles ne sont pas incluses dans la sauvegarde JSON — enregistre-les à part si elles comptent.</div>`));
+  v.append(c);
+
+  if (!photos.length) {
+    v.append(h(`<div class="card"><div class="empty-state">${illustration("courbe")}
+      <b>Aucune photo pour l'instant</b>
+      <span class="muted small">La balance stagne pendant que le corps change. Deux photos à trois mois d'écart le montrent — une courbe, non.</span>
+    </div></div>`));
+    return;
+  }
+
+  /* --- comparaison --- */
+  const paire = paireComparaison(photos, PHOTO_POSE);
+  if (paire) {
+    const cc = h(`<div class="card stack"></div>`);
+    cc.append(h(`<div class="eyebrow">Avant / après</div>`));
+    const duo = h(`<div class="ph-duo"></div>`);
+    [["Avant", paire.avant], ["Après", paire.apres]].forEach(([titre, f]) => {
+      const col = h(`<div class="ph-col"></div>`);
+      col.append(vignette(f, { alt: `${titre} — ${dateLisible(f.date)}` }));
+      col.append(h(`<div class="ph-leg"><b>${esc(String(titre))}</b>
+        <span class="muted">${esc(dateLisible(f.date))}${f.poidsKg != null ? ` · ${fr(f.poidsKg)} kg` : ""}</span></div>`));
+      duo.append(col);
+    });
+    cc.append(duo);
+    const mois = Math.round(paire.jours / 30.44);
+    cc.append(h(`<div class="spread small" style="margin-top:8px">
+      <span class="muted">${paire.jours} jours${mois >= 2 ? ` (~${mois} mois)` : ""}</span>
+      ${paire.deltaPoids != null
+        ? `<span class="badge${paire.deltaPoids === 0 ? "" : " accent"}">${paire.deltaPoids > 0 ? "+" : ""}${fr(paire.deltaPoids)} kg</span>`
+        : `<span class="muted">poids non renseigné</span>`}</div>`));
+    v.append(cc);
+  } else {
+    v.append(h(`<div class="hint">Encore une photo « ${esc((POSES.find((p) => p.cle === PHOTO_POSE) || POSES[0]).nom.toLowerCase())} » et la comparaison avant/après apparaît.</div>`));
+  }
+
+  /* --- toutes les photos --- */
+  const cg = h(`<div class="card stack"></div>`);
+  const st = resumeStockage(photos);
+  cg.append(h(`<div class="spread"><div class="eyebrow" style="margin:0">Toutes les photos</div>
+    <span class="muted small">${st.nombre} · ${esc(st.taille)}</span></div>`));
+  if (st.alerte) cg.append(h(`<div class="warn small">${mi(IC.alert, "mi-amber")}Beaucoup de photos enregistrées (${esc(st.taille)}). Supprime les plus anciennes si l'app devient lente à ouvrir.</div>`));
+
+  const grille = h(`<div class="ph-grille"></div>`);
+  photos.slice().reverse().forEach((f) => {
+    const item = h(`<figure class="ph-item"></figure>`);
+    item.append(vignette(f, { taille: 96 }));
+    const pose = POSES.find((p) => p.cle === f.pose);
+    item.append(h(`<figcaption class="ph-cap">
+      <b>${esc(dateLisible(f.date).replace(/ \d{4}$/, ""))}</b>
+      <span class="muted">${esc(pose ? pose.nom : "")}${f.poidsKg != null ? ` · ${fr(f.poidsKg)} kg` : ""}</span></figcaption>`));
+    const bSup = h(`<button class="chip ph-sup" aria-label="Supprimer la photo du ${esc(dateLisible(f.date))}">${IC.trash}</button>`);
+    bSup.addEventListener("click", async () => {
+      if (!confirm(`Supprimer la photo du ${dateLisible(f.date)} ? C'est définitif.`)) return;
+      await photoDel(f.id);
+      Etat.data.photos = (Etat.data.photos || []).filter((x) => x.id !== f.id);
+      Etat.sauver(); render();
+    });
+    item.append(bSup);
+    grille.append(item);
+  });
+  cg.append(grille);
+  v.append(cg);
+
+  // Contrôle de cohérence : une fiche sans image donnerait une vignette cassée
+  // sans explication, et une image sans fiche occuperait le quota pour rien.
+  photoCles().then((cles) => {
+    const inc = incoherences(photos, cles.map(String));
+    if (!inc.imagesSansFiche.length) return;
+    if (!cg.isConnected) return;
+    const b = h(`<button class="btn ghost" style="margin-top:8px">Nettoyer ${inc.imagesSansFiche.length} image(s) orpheline(s) · ${esc(formaterOctets(0))}</button>`);
+    b.textContent = `Nettoyer ${inc.imagesSansFiche.length} image(s) sans fiche`;
+    b.addEventListener("click", async () => {
+      for (const k of inc.imagesSansFiche) await photoDel(k);
+      render();
+    });
+    cg.append(b);
+  });
+}
+
 /* ---------- scanner de code-barres ---------- */
 
 /** Scan en cours, s'il y en a un. Un seul à la fois : deux flux caméra
  *  simultanés sont refusés par le navigateur et vident la batterie. */
+/** Angle sélectionné pour la prise de vue et la comparaison. */
+let PHOTO_POSE = "face";
+
 let SCAN = /** @type {{arreter:()=>void, torche:(on:boolean)=>Promise<boolean>}|null} */ (null);
 
 /** Coupe le scan en cours. Appelée à chaque rendu et à la fermeture de l'onglet :
@@ -5206,6 +5390,13 @@ function vStats(v) {
       Etat.data.metrics.push(e); Etat.sauver(); render();
     });
   });
+
+  // Photos de progression — ce que la balance ne dit pas.
+  {
+    const nb = (Etat.data.photos || []).length;
+    section(v, "photos", "Photos de progression", (b) => cartephotos(b),
+      { resume: nb ? String(nb) : "" });
+  }
 
   // Bilan & ajustement (2 semaines)
   const cb = h(`<div class="card stack"><h2 style="margin:0">Bilan & ajustement</h2><div class="muted small">Sur 2 semaines — une seule action à la fois.</div><div id="bilanOut"></div></div>`);

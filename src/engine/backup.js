@@ -9,10 +9,18 @@
  */
 import { SCHEMA_VERSION, normaliserEtat } from "../store/migrate.js";
 
-/** Champs inclus dans l'export (on exclut les caches volatils). */
+/**
+ * Champs inclus dans l'export (on exclut les caches volatils).
+ *
+ * `photos` désigne les FICHES, pas les images : date, angle, poids, dimensions.
+ * Quelques centaines d'octets, et elles permettent une restauration complète sur
+ * le MÊME appareil (les images sont restées dans IndexedDB). Sur un autre
+ * appareil, les fiches reviennent sans leurs images et l'interface le dit —
+ * mieux que de perdre l'historique des prises de vue en silence.
+ */
 const CLES_EXPORT = [
   "profil", "programme", "programmesPerso", "exercicesPerso",
-  "logs", "metrics", "foodlog", "waterlog", "reviews", "reglages",
+  "logs", "metrics", "foodlog", "waterlog", "reviews", "photos", "reglages",
 ];
 
 /** Construit l'objet d'export (sérialisable en JSON). */
@@ -62,7 +70,14 @@ function fusionListe(a, b) {
  * @param {"fusionner"|"remplacer"} [mode]
  */
 export function appliquerImport(actuel, src, mode = "fusionner") {
-  if (mode === "remplacer") return normaliserEtat({ ...src });
+  if (mode === "remplacer") {
+    // Une sauvegarde antérieure aux photos ne porte pas la clé `photos`.
+    // L'appliquer telle quelle effacerait les fiches tout en laissant les images
+    // dans IndexedDB : des orphelines invisibles, et un historique de prises de
+    // vue perdu sans que personne ne l'ait demandé.
+    const photos = Array.isArray(src.photos) ? src.photos : (actuel && actuel.photos) || [];
+    return normaliserEtat({ ...src, photos });
+  }
   const base = normaliserEtat(actuel);
   const out = { ...base };
   out.logs = fusionListe(base.logs, src.logs);
@@ -70,6 +85,7 @@ export function appliquerImport(actuel, src, mode = "fusionner") {
   out.reviews = fusionListe(base.reviews, src.reviews);
   out.programmesPerso = fusionListe(base.programmesPerso, src.programmesPerso);
   out.exercicesPerso = fusionListe(base.exercicesPerso, src.exercicesPerso);
+  out.photos = fusionListe(base.photos, src.photos);
   // foodlog / waterlog : union des jours, priorité aux données actuelles.
   out.foodlog = { ...(src.foodlog || {}), ...(base.foodlog || {}) };
   out.waterlog = { ...(src.waterlog || {}), ...(base.waterlog || {}) };

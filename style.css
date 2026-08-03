@@ -1666,3 +1666,33 @@ h1{line-height:1.06}
    reste dessous en repli. */
 .scan-cta{width:100%;justify-content:center;margin-top:8px}
 .scan-cta .mi{width:19px;height:19px;margin-right:8px}
+
+/* ---- 20. Photos de progression --------------------------------------------
+   La mesure que la balance ne donne pas. Deux contraintes commandent tout :
+   le rapport de forme ne doit JAMAIS être déformé (une silhouette étirée ne
+   prouve rien), et la comparaison doit tenir côte à côte sur 320 px. */
+.ph-vig{position:relative;border-radius:var(--r-sm);overflow:hidden;background:var(--surface-2);
+  aspect-ratio:3/4;display:grid;place-items:center}
+.ph-vig img{width:100%;height:100%;object-fit:cover;display:block}
+.ph-perdu{padding:8px;text-align:center}
+/* Avant / après : deux colonnes strictement égales, toujours — c'est la seule
+   façon de comparer honnêtement deux silhouettes. */
+.ph-duo{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.ph-col{min-width:0;display:flex;flex-direction:column;gap:6px}
+.ph-leg{display:flex;flex-direction:column;gap:1px;font-size:var(--fs-caption);min-width:0}
+.ph-leg b{font-size:var(--fs-label)}
+/* La galerie : vignettes carrées à défilement, pour ne pas allonger l'écran. */
+.ph-grille{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin-top:8px}
+.ph-item{position:relative;margin:0;min-width:0}
+.ph-item .ph-vig{--ph-t:96px}
+.ph-cap{display:flex;flex-direction:column;gap:1px;margin-top:4px;font-size:var(--fs-caption);
+  line-height:1.25;min-width:0}
+.ph-cap b,.ph-cap span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Supprimer : discret sur la photo, mais la zone tactile reste à 44 px — la
+   cible cliquable déborde du disque visible, elle n'est pas réduite avec lui. */
+button.ph-sup{position:absolute;top:5px;right:5px;width:28px;height:28px;min-height:0;
+  padding:0;border-radius:999px;display:grid;place-items:center;line-height:0;
+  background:color-mix(in srgb,var(--surface) 72%,transparent);backdrop-filter:blur(8px)}
+.ph-sup::after{content:"";position:absolute;inset:-8px}
+.ph-sup svg{width:15px;height:15px;display:block}
+.ph-etat:empty{display:none}

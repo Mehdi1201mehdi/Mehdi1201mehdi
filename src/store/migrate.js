@@ -31,6 +31,10 @@ export function etatVide() {
     reviews: [],              // bilans d'ajustement
     testsVelo: [],            // relevés du test cardio sur vélo (outils)
     mediaCache: {},           // exId -> URL de média résolue
+    // Photos de progression : seules les FICHES vivent ici (date, angle, note,
+    // poids, dimensions). Les images sont des Blob dans IndexedDB — du binaire
+    // n'a rien à faire dans un état mirroré en JSON vers localStorage.
+    photos: [],
     reglages: {
       theme: "dark", unites: "metrique", sons: true, vibrations: true,
       // Interface progressive : en mode débutant l'écran de séance reste
@@ -69,6 +73,7 @@ export function normaliserEtat(brut) {
   out.metrics = toArray(brut.metrics);
   out.reviews = toArray(brut.reviews);
   out.testsVelo = toArray(brut.testsVelo);
+  out.photos = toArray(brut.photos).filter((p) => p && typeof p === "object" && p.id);
   out.foodlog = brut.foodlog && typeof brut.foodlog === "object" ? brut.foodlog : {};
   out.waterlog = brut.waterlog && typeof brut.waterlog === "object" ? brut.waterlog : {};
   out.mediaCache = brut.mediaCache && typeof brut.mediaCache === "object" ? brut.mediaCache : {};
@@ -82,16 +87,6 @@ export function normaliserEtat(brut) {
   return out;
 }
 
-/**
- * Complète les LISTES d'un profil sans jamais toucher à ce que l'utilisateur a
- * choisi. Un profil venu d'une ancienne version, d'une sauvegarde importée ou
- * d'un stockage abîmé peut ne pas porter ces clés ; l'interface les parcourt
- * pourtant sans condition (`profil.limitations.includes(...)`), et une seule
- * absence suffisait à faire échouer le premier rendu.
- *
- * @param {any} p profil brut, éventuellement null
- * @returns {any} profil complété, ou null s'il n'y en a pas
- */
 /**
  * Nettoie les seuils de rang saisis à la main.
  *
@@ -124,6 +119,16 @@ export function normaliserStandardsForce(v) {
   return out;
 }
 
+/**
+ * Complète les LISTES d'un profil sans jamais toucher à ce que l'utilisateur a
+ * choisi. Un profil venu d'une ancienne version, d'une sauvegarde importée ou
+ * d'un stockage abîmé peut ne pas porter ces clés ; l'interface les parcourt
+ * pourtant sans condition (`profil.limitations.includes(...)`), et une seule
+ * absence suffisait à faire échouer le premier rendu.
+ *
+ * @param {any} p profil brut, éventuellement null
+ * @returns {any} profil complété, ou null s'il n'y en a pas
+ */
 export function normaliserProfil(p) {
   if (!p || typeof p !== "object") return null;
   const listes = [

@@ -632,3 +632,69 @@ fenêtre, c'est-à-dire précisément ce qu'on veut voir net.
   qu'on lit la fiche produit n'apporte rien.
 - **Lampe torche** proposée seulement si la piste vidéo l'expose (`getCapabilities`) —
   les salles et les cuisines sont sombres.
+
+## Photos de progression — ce que la balance ne dit pas
+
+Le poids stagne pendant des semaines alors que le corps change. C'est le moment
+exact où l'on arrête. Deux photos à trois mois d'écart règlent la question mieux
+qu'une courbe — c'est la seule mesure qui montre la **recomposition corporelle**.
+
+`Progrès → Photos de progression`. Trois angles (face, dos, profil) ; au-delà,
+on ne les refait pas.
+
+### Séparation stricte : fiches ↔ images
+
+| | Où | Pourquoi |
+|---|---|---|
+| **Fiches** (date, angle, poids, dimensions) | état applicatif, ~200 o | triables, comparables, sauvegardables |
+| **Images** (Blob JPEG) | magasin IndexedDB `photos` (base v2) | du binaire n'a rien à faire dans un état mirroré en JSON — base64 = +33 % et quota localStorage explosé dès la première photo |
+
+`engine/photos.js` est **pur** et ne touche jamais un pixel : c'est ce qui permet
+de tout tester sous Node (24 tests).
+
+### Trois promesses tenues à l'écran
+
+1. **Les images ne quittent jamais l'appareil.** Aucune fonction du moteur ni du
+   stockage n'ouvre de connexion. Une photo de son corps est la donnée la plus
+   intime qu'une app de musculation puisse détenir.
+2. **Elles ne sont pas dans la sauvegarde JSON, et c'est écrit.** Les croire à
+   l'abri et les perdre est pire que de ne pas en prendre. Les **fiches**, elles,
+   sont exportées : sur le même appareil la restauration est complète ; ailleurs
+   elles reviennent sans image, et l'interface l'affiche (`Image absente du
+   stockage`) au lieu d'une vignette cassée.
+3. **La comparaison est la plus parlante possible** : la plus ancienne contre la
+   plus récente, **même angle uniquement**. Deux photos de la même semaine ne
+   montreraient rien et feraient conclure que la fonction ne sert à rien ; une
+   photo de face contre une de dos ne prouve rien.
+
+### Pièges attrapés
+
+- **Orientation EXIF.** Les photos prises en portrait arrivent couchées : le
+  capteur enregistre en paysage et note « tourne de 90° » en métadonnée.
+  `createImageBitmap` ne l'applique **pas** par défaut — il faut
+  `imageOrientation: "from-image"`. Sans ça, toutes les photos sont à
+  l'horizontale.
+- **Le poids.** 4000 × 3000 ≈ 5 Mo ; dix photos saturent le quota. Ramenées à
+  1280 px de côté long en JPEG 0,72 → ~200 ko, sans perte utile pour comparer
+  deux silhouettes. Une image **déjà** plus petite n'est jamais agrandie.
+- **Import « remplacer ».** Une sauvegarde antérieure à cette fonctionnalité ne
+  porte pas la clé `photos` : l'appliquer telle quelle effaçait les fiches en
+  laissant les images orphelines dans IndexedDB. Les fiches existantes sont
+  désormais préservées (3 tests).
+- **Fuite mémoire.** Chaque `URL.createObjectURL` non révoquée retient le blob
+  entier ; sur trente photos, plusieurs dizaines de Mo. Toutes sont libérées à
+  chaque rendu (`libererPhotos()`).
+- **Poids rattaché à la photo, mais pas à n'importe quel prix.** On reprend la
+  pesée la plus proche **dans les 7 jours**. Au-delà, on n'affiche rien : un poids
+  vieux d'un mois fausserait le « −4,4 kg » de la comparaison.
+
+### Composants (`.ph-*`)
+
+`.ph-vig` (aspect-ratio 3/4, `object-fit: cover`) · `.ph-duo` (2 colonnes
+strictement égales) · `.ph-grille` (auto-fill 96 px) · `button.ph-sup` (disque
+28 px, cible tactile portée à 44 px par un `::after{inset:-8px}` — la zone
+cliquable déborde du disque visible au lieu d'être réduite avec lui).
+
+**Le rapport de forme n'est jamais déformé** : une silhouette étirée ne prouve
+rien. Vérifié à 7 largeurs — ratio constant 0,75, colonnes égales de 121 px
+(320) à 241 px (desktop).
