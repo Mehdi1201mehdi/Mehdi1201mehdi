@@ -140,3 +140,24 @@ export function formatRetard(sec) {
   if (min >= 10 || reste === 0) return `${min} min`;
   return `${min} min ${String(reste).padStart(2, "0")}`;
 }
+
+/**
+ * Faut-il reprendre ce repos au démarrage de l'application ?
+ *
+ * Un minuteur de repos n'a de sens QUE pendant une séance. Sans cette
+ * condition, un repos resté en stockage — séance abandonnée, onglet fermé
+ * pendant la pause, terminaison de séance qui n'a pas nettoyé — fait apparaître
+ * une capsule de décompte sur une application au repos. L'utilisateur ouvre son
+ * app un mardi matin et voit un minuteur tourner : il ne peut qu'en conclure
+ * que quelque chose est cassé.
+ *
+ * @param {any} repos             `reposEnCours` tel que stocké
+ * @param {boolean} seanceActive  une séance est-elle réellement en cours ?
+ * @param {number} [maintenant]
+ * @returns {"reprendre"|"purger"|"rien"}
+ */
+export function decisionReprise(repos, seanceActive, maintenant = Date.now()) {
+  if (!repos || !Number.isFinite(repos.finAt)) return "rien";
+  if (!seanceActive) return "purger";          // orphelin : on nettoie en silence
+  return estEcoule(repos, maintenant) ? "purger" : "reprendre";
+}

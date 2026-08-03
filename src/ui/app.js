@@ -98,7 +98,7 @@ import { coefficientsPour } from "../data/exercise-muscle-map.js";
 import { etatMusculaire, zoneDisponibilite, cibleVolumeHebdo, analyserSeance } from "../engine/fatigue.js";
 import { genererProchaineSeance, resumeCorps, compatibiliteExercice, PLAN_PARAMS } from "../engine/planner.js";
 import { expliquerApprentissage, PARAMS_APPRENTISSAGE } from "../engine/apprentissage.js";
-import { creerRepos, restantSec, estEcoule, progression, ajusterRepos, restaurerRepos, formatRestant, retardSec, formatRetard, RETARD_SIGNIFICATIF_SEC } from "../engine/repos.js";
+import { creerRepos, restantSec, estEcoule, progression, ajusterRepos, restaurerRepos, formatRestant, retardSec, formatRetard, RETARD_SIGNIFICATIF_SEC, decisionReprise } from "../engine/repos.js";
 import { grilleMois, moisAdjacent, NOMS_JOURS_COURTS } from "../engine/calendar.js";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -2740,6 +2740,17 @@ function masquerCapsule(arreter = true) {
  * fois puis on nettoie — plutôt que d'afficher un décompte figé et faux.
  */
 function reprendreRepos() {
+  // Un minuteur de repos n'a de sens QUE pendant une séance. Un repos resté en
+  // stockage — séance abandonnée, onglet fermé pendant la pause — faisait
+  // apparaître une capsule de décompte sur une application au repos : on ouvre
+  // l'app un mardi matin, un minuteur tourne, et on ne peut qu'en conclure que
+  // quelque chose est cassé.
+  const decision = decisionReprise(Etat.data.reposEnCours, !!LIVE);
+  if (decision === "rien") return;
+  if (decision === "purger" && !LIVE) {
+    Etat.data.reposEnCours = null; Etat.sauver();   // en silence : rien à annoncer
+    return;
+  }
   const restaure = restaurerRepos(Etat.data.reposEnCours);
   if (restaure) { REPOS = restaure; afficherCapsule(); return; }
   if (Etat.data.reposEnCours) {          // il existait mais il est échu

@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import {
   REPOS_MAX_SEC, creerRepos, restantSec, estEcoule, progression,
   ajusterRepos, restaurerRepos, formatRestant,
-  retardSec, formatRetard, RETARD_SIGNIFICATIF_SEC,
+  retardSec, formatRetard, RETARD_SIGNIFICATIF_SEC, decisionReprise,
 } from "../src/engine/repos.js";
 
 const T = Date.parse("2026-07-28T18:00:00Z");
@@ -156,4 +156,28 @@ test("formatRetard : lisible, et pas de fausse précision au-delà de 10 minutes
 
 test("RETARD_SIGNIFICATIF_SEC : assez court pour être utile, assez long pour ne pas bavarder", () => {
   assert.ok(RETARD_SIGNIFICATIF_SEC >= 3 && RETARD_SIGNIFICATIF_SEC <= 15);
+});
+
+/* ---- Le minuteur ne doit JAMAIS s'afficher hors séance ---- */
+
+test("decisionReprise : un repos sans séance active est purgé, jamais repris", () => {
+  // On ouvre l'app un mardi matin et un minuteur tourne : impossible d'en
+  // conclure autre chose que « c'est cassé ».
+  const enCours = creerRepos(120, "Squat", Date.now());
+  assert.equal(decisionReprise(enCours, false), "purger");
+  assert.equal(decisionReprise(enCours, true), "reprendre", "avec séance : on reprend");
+});
+
+test("decisionReprise : un repos échu est purgé même pendant une séance", () => {
+  const t0 = 1_700_000_000_000;
+  const echu = creerRepos(60, "", t0);
+  assert.equal(decisionReprise(echu, true, t0 + 120_000), "purger");
+  assert.equal(decisionReprise(echu, true, t0 + 30_000), "reprendre", "pas encore écoulé");
+});
+
+test("decisionReprise : rien à faire quand il n'y a pas de repos stocké", () => {
+  for (const r of [null, undefined, {}, { finAt: "plus tard" }]) {
+    assert.equal(decisionReprise(/** @type {any} */ (r), true), "rien", JSON.stringify(r));
+    assert.equal(decisionReprise(/** @type {any} */ (r), false), "rien");
+  }
 });
