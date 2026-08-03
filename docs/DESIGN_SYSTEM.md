@@ -574,3 +574,61 @@ mouvement.
 L'interface signale « **tes seuils** » sur les mouvements calibrés à la main : un
 rang calculé sur ses propres chiffres n'a pas la même valeur qu'un rang calculé
 sur la littérature, et l'app ne doit pas laisser croire le contraire.
+
+## Scanner de code-barres — le chaînon manquant de la nutrition
+
+L'application interrogeait déjà Open Food Facts par code-barres. Ce qu'elle
+demandait, c'était de **taper treize chiffres à la main**, debout dans une
+cuisine, en tenant un paquet de pâtes. Personne ne le fait deux fois.
+
+`src/ui/scanner.js` s'appuie sur **`BarcodeDetector`**, une API *native* du
+navigateur (Chrome/Android). Aucune bibliothèque, aucun build, rien à
+télécharger — cohérent avec le reste de l'app. La lecture du code est **locale** ;
+seule la fiche produit demande le réseau.
+
+### Trois défenses contre le pire défaut d'un scanner
+
+Le pire défaut n'est pas de ne rien lire : c'est d'**annoncer un produit qui n'est
+pas celui qu'on tient**.
+
+1. **Chiffre de contrôle vérifié** (norme GS1). Un code-barres porte sa propre
+   clé ; une lecture partielle produit presque toujours une clé fausse. On la
+   rejette au lieu d'aller chercher un produit au hasard.
+2. **Trois lectures identiques ET consécutives.** Une seule image peut mentir. Un
+   code différent remet le compteur à zéro — sinon deux paquets côte à côte
+   finissent par « voter » l'un pour l'autre. *(Vérifié en bout en bout : sur 16
+   images dont deux illisibles et une lecture d'un autre produit, seul le code
+   confirmé trois fois est retenu.)*
+3. **Normalisation UPC-A → EAN-13.** Un code à 12 chiffres est le même produit
+   préfixé d'un zéro. Sans ça, tout produit importé ressort « introuvable » alors
+   qu'il est en base. Appliquée aussi à la saisie **manuelle**.
+
+### Dégradation honnête, jamais de bouton inerte
+
+| Situation | Message | Repli |
+|---|---|---|
+| Pas de `BarcodeDetector` | « Ce navigateur ne sait pas lire les codes-barres (Chrome sur Android le fait) » | saisie manuelle, focus placé |
+| Permission refusée | « Autorise-le dans les réglages du navigateur » | idem |
+| Aucune caméra | « Aucune caméra détectée sur cet appareil » | idem |
+| Caméra occupée / https absent | message dédié | idem |
+
+### Le viseur n'est pas décoratif
+
+Un cadre carré fait cadrer l'étiquette entière ; un code-barres se lit **de près**.
+Le bandeau large et bas (`82 % × 26 %`) force la bonne distance — c'est ce qui
+sépare « ça scanne » de « ça marche pas ». Le masque vient **uniquement** du
+`box-shadow` porté : un fond sur le parent assombrirait aussi l'intérieur de la
+fenêtre, c'est-à-dire précisément ce qu'on veut voir net.
+
+### Coût et batterie
+
+- **Analyse à 10 Hz** (`PERIODE_MS = 100`), pas à 60. Un code-barres ne bouge pas
+  si vite ; à 60 Hz le téléphone chauffe pour rien. Coût divisé par six.
+- **La caméra est coupée à chaque rendu** (`arreterScan()` en tête de `render()`),
+  sur `pagehide` et sur `visibilitychange`. Supprimer l'élément vidéo du DOM
+  **n'arrête pas** la caméra : sans ça, changer d'onglet laisse la diode allumée
+  et vide la batterie.
+- Le panneau se referme **dès la lecture** : garder la caméra ouverte pendant
+  qu'on lit la fiche produit n'apporte rien.
+- **Lampe torche** proposée seulement si la piste vidéo l'expose (`getCapabilities`) —
+  les salles et les cuisines sont sombres.

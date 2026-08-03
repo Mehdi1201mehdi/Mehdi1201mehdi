@@ -1635,3 +1635,34 @@ h1{line-height:1.06}
   font-variant-numeric:tabular-nums;letter-spacing:0}
 .calib-champ input.err{border-color:var(--danger);box-shadow:0 0 0 2px color-mix(in srgb,var(--danger) 22%,transparent)}
 .calib-msg:empty{display:none}
+
+/* ---- 19. Scanner de code-barres -------------------------------------------
+   Le viseur n'est pas décoratif. Un cadre carré fait cadrer l'étiquette
+   entière, alors qu'un code-barres se lit de PRÈS : le bandeau large et bas
+   force la bonne distance. C'est ce qui sépare « ça scanne » de « ça marche
+   pas ». */
+.scan{position:relative;margin-top:10px;border-radius:var(--r-md);overflow:hidden;
+  background:#000;aspect-ratio:4/3;max-height:46vh}
+.scan-vid{width:100%;height:100%;object-fit:cover;display:block}
+/* Masque sombre percé d'une fenêtre : l'œil va au bandeau clair sans qu'on ait
+   à écrire « visez ici ». */
+.scan-viseur{position:absolute;inset:0;display:grid;place-items:center}
+/* Le halo porté fait TOUT le masque : un fond sur le parent assombrirait aussi
+   l'intérieur de la fenêtre, c'est-à-dire précisément ce qu'on veut voir net. */
+.scan-viseur span{width:82%;height:26%;border-radius:10px;
+  border:2px solid var(--accent);box-shadow:0 0 0 100vmax rgba(0,0,0,.52);
+  background:transparent}
+/* Progression des lectures confirmées : trois d'affilée sont nécessaires, et
+   voir la barre monter évite de croire que rien ne se passe. */
+.scan-jauge{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.16)}
+.scan-jauge i{display:block;height:100%;width:0;background:var(--grad);
+  transition:width .12s linear}
+.scan-etat{margin-top:8px}
+@media (prefers-reduced-motion: no-preference){
+  .scan{animation:scanIn .3s var(--ease) both}
+}
+@keyframes scanIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+/* Le scan est le chemin principal : bouton pleine largeur, la saisie manuelle
+   reste dessous en repli. */
+.scan-cta{width:100%;justify-content:center;margin-top:8px}
+.scan-cta .mi{width:19px;height:19px;margin-right:8px}

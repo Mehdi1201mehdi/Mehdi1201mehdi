@@ -27,6 +27,7 @@ import { calculerBesoins } from "../engine/nutrition.js";
 import { bilan } from "../engine/review.js";
 import { chercherFoods, portion } from "../data/foods.js";
 import { rechercher as offRechercher, parCodeBarres } from "../integrations/openfoodfacts.js";
+import { scannerDisponible, demarrerScan, normaliserCode } from "./scanner.js";
 import { Etat, seanceDuJour, planningJours } from "../store/state.js";
 import {
   nouvelleSession, ajouterSerie, retirerDerniereSerie,
@@ -228,6 +229,9 @@ $("#tabs").querySelectorAll("button[data-tab]").forEach((b) => b.addEventListene
 $("#plusBtn")?.addEventListener("click", ouvrirPlus);
 let LAST_RENDER_KEY = null;
 function render() {
+  // La caméra du scanner survit à la suppression de son élément vidéo : sans
+  // cette coupure, changer d'onglet laisse la diode allumée et vide la batterie.
+  arreterScan();
   view.innerHTML = "";
   (Etat.data.profil ? TABS[TAB] : vOnboarding)(view);
   // Motion : ne rejouer l'entrée en cascade que lorsque la VUE change vraiment
@@ -708,6 +712,7 @@ const IC = {
   trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>`,
   plus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>`,
   alert: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/></svg>`,
+  camera: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`,
   search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>`,
   user: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>`,
   swap: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3l4 4-4 4M20 7H8M8 21l-4-4 4-4M4 17h12"/></svg>`,
@@ -4337,10 +4342,16 @@ function vNutrition(v) {
   REPAS.forEach(([k, lab, ic]) => { const b = h(`<button class="chip ${CUR_REPAS === k ? "on" : ""}">${ic} ${lab}</button>`); b.addEventListener("click", () => { CUR_REPAS = k; render(); }); chipsRepas.append(b); });
   selRepas.append(chipsRepas);
   const rowSearch = h(`<div class="row"><input id="foodQ" aria-label="Rechercher un aliment" placeholder="Rechercher un aliment (riz, poulet…)" style="flex:1"><button class="primary" id="foodGo">OK</button></div>`);
-  const rowCode = h(`<div class="row"><input id="foodCode" aria-label="Code-barres produit" inputmode="numeric" placeholder="Code-barres" style="flex:1"><button id="codeGo">Scanner</button></div>`);
+  // Scanner d'abord, saisie manuelle ensuite : taper treize chiffres debout
+  // dans une cuisine, personne ne le fait deux fois. Le repli reste visible —
+  // sans caméra, sans permission ou sur un navigateur qui ne sait pas lire les
+  // codes-barres, il n'y a jamais d'impasse.
+  const rowScan = h(`<button id="codeScan" class="primary scan-cta">${mi(IC.camera, "mi-on")}Scanner un code-barres</button>`);
+  const rowCode = h(`<div class="row"><input id="foodCode" aria-label="Code-barres produit" inputmode="numeric" placeholder="…ou saisis le code" style="flex:1"><button id="codeGo">Chercher</button></div>`);
+  const scanBox = h(`<div id="scanBox"></div>`);
   const res = h(`<div id="foodRes"></div>`);
   const logBox = h(`<div id="foodLog" style="margin-top:6px"></div>`);
-  cj.append(selRepas, rowSearch, rowCode, res, h(`<hr style="border:none;border-top:1px solid var(--line);margin:6px 0">`), logBox);
+  cj.append(selRepas, rowSearch, rowScan, scanBox, rowCode, res, h(`<hr style="border:none;border-top:1px solid var(--line);margin:6px 0">`), logBox);
   v.append(cj);
 
   const ajouter = (f, g) => {
@@ -4402,8 +4413,14 @@ function vNutrition(v) {
         : "Essaie un mot plus simple, ou saisis le code-barres du produit.",
       { erreur: navigator.onLine === false }));
   });
-  $("#codeGo", v).addEventListener("click", async () => {
-    const code = $("#foodCode", v).value.trim(); if (!code) return;
+  /** Cherche le produit correspondant à un code (saisi ou scanné). */
+  const chercherCode = async (brut) => {
+    // Le code scanné est déjà normalisé ; le code TAPÉ ne l'est pas — un UPC-A
+    // à 12 chiffres doit recevoir son zéro de tête, sinon Open Food Facts ne
+    // trouve rien alors que le produit y est.
+    const code = normaliserCode(brut) || String(brut || "").trim();
+    if (!code) return;
+    $("#foodCode", v).value = code;
     res.innerHTML = ""; res.append(squelettes(1));
     const prod = await parCodeBarres(code);
     afficherResultats(prod ? [prod] : [], etatVide(IC.cross, "Produit introuvable",
@@ -4411,9 +4428,100 @@ function vNutrition(v) {
         ? "La recherche par code-barres a besoin d'une connexion. Utilise la recherche par nom (base locale)."
         : "Ce code n'est pas dans Open Food Facts. Cherche le produit par son nom.",
       { erreur: true, action: { label: "Chercher par nom", onClick: () => $("#foodQ", v).focus() } }));
+  };
+
+  $("#codeGo", v).addEventListener("click", () => chercherCode($("#foodCode", v).value));
+  $("#foodCode", v).addEventListener("keydown", (e) => {
+    if (e.key === "Enter") chercherCode($("#foodCode", v).value);
   });
+  $("#codeScan", v).addEventListener("click", () => ouvrirScanner(scanBox, chercherCode));
 
   v.append(h(`<div class="warn small">${mi(IC.cross, "mi-amber")}Repères nutritionnels généraux, pas un régime médical. En cas de pathologie, trouble alimentaire ou doute, consulte un professionnel de santé ou un diététicien.</div>`));
+}
+
+/* ---------- scanner de code-barres ---------- */
+
+/** Scan en cours, s'il y en a un. Un seul à la fois : deux flux caméra
+ *  simultanés sont refusés par le navigateur et vident la batterie. */
+let SCAN = /** @type {{arreter:()=>void, torche:(on:boolean)=>Promise<boolean>}|null} */ (null);
+
+/** Coupe le scan en cours. Appelée à chaque rendu et à la fermeture de l'onglet :
+ *  supprimer l'élément vidéo du DOM n'arrête PAS la caméra. */
+function arreterScan() {
+  if (SCAN) { try { SCAN.arreter(); } catch (e) { /* déjà arrêté */ } SCAN = null; }
+}
+addEventListener("pagehide", arreterScan);
+addEventListener("visibilitychange", () => { if (document.hidden) arreterScan(); });
+
+/**
+ * Ouvre (ou referme) le panneau de scan dans `boite`.
+ *
+ * Le viseur n'est pas décoratif : un cadre trop large fait cadrer l'étiquette
+ * entière, alors qu'un code-barres se lit de près. Le bandeau serré force la
+ * bonne distance — c'est ce qui fait la différence entre « ça scanne » et « ça
+ * ne marche pas ».
+ *
+ * @param {HTMLElement} boite
+ * @param {(code:string)=>void} onCode
+ */
+function ouvrirScanner(boite, onCode) {
+  if (boite.childElementCount) { arreterScan(); boite.textContent = ""; return; }
+
+  const dispo = scannerDisponible();
+  if (!dispo.ok) {
+    boite.append(h(`<div class="hint">${esc(dispo.raison)}</div>`));
+    /** @type {HTMLInputElement} */ (document.getElementById("foodCode"))?.focus();
+    return;
+  }
+
+  const panneau = h(`<div class="scan">
+    <video class="scan-vid" muted playsinline></video>
+    <div class="scan-viseur" aria-hidden="true"><span></span></div>
+    <div class="scan-jauge"><i></i></div>
+  </div>`);
+  const video = /** @type {HTMLVideoElement} */ (panneau.querySelector("video"));
+  const jauge = /** @type {HTMLElement} */ (panneau.querySelector(".scan-jauge i"));
+  const etat = h(`<div class="scan-etat muted small" role="status">Vise le code-barres du produit.</div>`);
+  const barre = h(`<div class="row" style="margin-top:8px;gap:8px"></div>`);
+  const bStop = h(`<button class="btn ghost" style="flex:1">Fermer</button>`);
+  const bLampe = h(`<button class="btn ghost" aria-pressed="false" hidden>Lampe</button>`);
+  barre.append(bStop, bLampe);
+
+  const fermer = () => { arreterScan(); boite.textContent = ""; };
+  bStop.addEventListener("click", fermer);
+
+  SCAN = demarrerScan({
+    video,
+    onProgression: (p) => { jauge.style.width = Math.round(p * 100) + "%"; },
+    onTorche: (ok) => { bLampe.hidden = !ok; },
+    onErreur: (msg) => {
+      boite.textContent = "";
+      boite.append(h(`<div class="hint">${esc(msg)}</div>`));
+      SCAN = null;
+      /** @type {HTMLInputElement} */ (document.getElementById("foodCode"))?.focus();
+    },
+    onCode: (code) => {
+      SCAN = null;
+      try { navigator.vibrate?.(18); } catch (e) { /* pas de vibreur */ }
+      jouer("record");
+      // Le panneau se referme dès la lecture : garder la caméra ouverte pendant
+      // qu'on lit la fiche produit n'apporte rien et consomme.
+      boite.textContent = "";
+      onCode(code);
+    },
+  });
+
+  let lampe = false;
+  bLampe.addEventListener("click", async () => {
+    if (!SCAN) return;
+    lampe = !lampe;
+    const ok = await SCAN.torche(lampe);
+    if (!ok) { lampe = false; bLampe.hidden = true; return; }
+    bLampe.setAttribute("aria-pressed", String(lampe));
+    bLampe.classList.toggle("accent", lampe);
+  });
+
+  boite.append(panneau, etat, barre);
 }
 
 /* ======================================================================
