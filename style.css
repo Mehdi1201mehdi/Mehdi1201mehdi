@@ -1763,3 +1763,16 @@ button.cat-fav.on svg{fill:var(--accent)}
 .fin-plus{color:var(--accent-ink)}
 .fin-moins{color:var(--ink-soft)}
 .fin-mvt{padding-top:8px;margin-top:8px;border-top:1px solid var(--hair)}
+
+/* ---- 23. Fiche muscle -------------------------------------------------------
+   Huit barres, une par semaine. Les semaines à ZÉRO restent visibles : un trou
+   dans la série est précisément l'information utile — c'est là qu'on a arrêté
+   de travailler ce muscle. */
+.mus-graph{display:flex;align-items:flex-end;gap:5px;height:76px;margin-top:10px}
+.mus-bar{flex:1;min-width:0;height:100%;display:flex;align-items:flex-end;
+  background:var(--surface-2);border-radius:5px;overflow:hidden}
+.mus-bar i{display:block;width:100%;background:var(--grad);border-radius:5px}
+.mus-bar i.vide{background:var(--surface-3)}
+/* La planche devient cliquable : le curseur et le focus doivent le dire. */
+.card g[data-m]{cursor:pointer}
+.card g[data-m]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}

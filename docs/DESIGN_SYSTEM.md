@@ -897,3 +897,62 @@ Défaut trouvé en **regardant la capture**, pas le code : `terminer()` arrêtai
 chronomètre de séance mais pas le minuteur de repos. On terminait sa séance et un
 décompte plein écran tournait par-dessus le bilan, pour une série qu'on n'allait
 pas faire. Le chemin « séance vide » l'arrêtait déjà — celui-ci l'avait oublié.
+
+## Carte musculaire : de la décoration à la donnée
+
+La planche anatomique colorait les zones travaillées et **s'arrêtait là**. On
+voyait que le dos était vif sans pouvoir savoir pourquoi : quel volume, combien
+de séries, avec quels exercices, quand pour la dernière fois. Une belle image
+dont on ne pouvait rien tirer — et un toucher qui ne faisait rien.
+
+Les **17 muscles** sont désormais des boutons : `role="button"`, `tabindex`,
+`aria-label` (« Voir le détail : Pectoraux »), activables au clavier. Le toucher
+ouvre une fiche construite sur l'historique réel, et rien d'autre.
+
+### Ce que la fiche répond
+
+| | |
+|---|---|
+| **Volume** | réparti entre les muscles principaux |
+| **Séries directes** | rôle principal uniquement |
+| **En secondaire** | compté à part, jamais additionné |
+| **Dernière fois** | en jours |
+| **8 semaines** | histogramme, tendance chiffrée |
+| **Ce qui l'a travaillé** | exercices triés par volume, ouvrables |
+
+### Deux conventions qui devaient concorder
+
+`src/engine/muscle.js` reprend exactement les règles de `volumeParMuscle` :
+volume **réparti** entre les muscles principaux (sinon un polyarticulaire
+gonflerait le total du corps), et poids du corps compté **en répétitions** (sinon
+la calisthénie n'apparaît jamais).
+
+Un test croise les deux modules et échoue au moindre désaccord. **Vérifié en
+direct dans le navigateur** : la fiche affiche 19 080 kg / 36 séries / 4 jours,
+le moteur renvoie 19 080 / 36 / 4.
+
+### Principal et secondaire, jamais mélangés
+
+Les additionner reviendrait à prétendre qu'un développé couché entraîne les
+triceps autant que les pectoraux. Ce sont deux informations, elles ont deux
+cases.
+
+### Les semaines à zéro restent visibles
+
+Un trou dans l'histogramme est **précisément** l'information utile : c'est là
+qu'on a arrêté de travailler ce muscle. Le masquer effacerait le seul signal que
+le graphique porte vraiment.
+
+La moyenne se calcule sur les semaines **entraînées**, pas sur le total :
+diviser par huit écraserait le chiffre de quelqu'un qui revient après une pause
+et lui ferait croire qu'il en fait deux fois moins.
+
+### Tendance : un seuil contre le bruit
+
+Hausse ou baisse à partir de **10 %** d'écart entre les deux moitiés de la
+période. En dessous, c'est la variation naturelle d'une semaine à l'autre, et
+l'annoncer comme une progression serait faux. Moins de quatre semaines →
+`inconnu`, jamais un verdict inventé.
+
+Vérifié à **7 largeurs** (320 → 1024) : aucun débordement, barres de 27 à 47 px,
+0 erreur console.

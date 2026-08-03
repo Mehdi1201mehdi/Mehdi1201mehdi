@@ -30,6 +30,7 @@ import { rechercher as offRechercher, parCodeBarres } from "../integrations/open
 import { scannerDisponible, demarrerScan, normaliserCode } from "./scanner.js";
 import { chargementMedia } from "../data/media-manifest.js";
 import { comparerSeance, phraseBilan } from "../engine/bilanSeance.js";
+import { ficheMuscle, moyenneHebdo, tendance } from "../engine/muscle.js";
 import { etatNotifs, demanderNotifs, notifier, fermerNotifs } from "./notifs.js";
 import { POSES, nouvellePhoto, trierPhotos, paireComparaison, poidsProche, resumeStockage,
   formaterOctets, incoherences } from "../engine/photos.js";
@@ -4646,6 +4647,99 @@ function vNutrition(v) {
   v.append(h(`<div class="warn small">${mi(IC.cross, "mi-amber")}Repères nutritionnels généraux, pas un régime médical. En cas de pathologie, trouble alimentaire ou doute, consulte un professionnel de santé ou un diététicien.</div>`));
 }
 
+/* ---------- fiche muscle ---------- */
+
+/**
+ * FICHE MUSCLE — ce qu'on cherchait en touchant la planche anatomique.
+ *
+ * La carte colorait les zones travaillées et s'arrêtait là : on voyait que le
+ * dos était vif sans pouvoir savoir POURQUOI. Volume, séries, exercices,
+ * dernière sollicitation, tendance sur huit semaines — tout vient de
+ * l'historique réel, rien n'est inventé.
+ *
+ * @param {string} muscle
+ */
+function ouvrirFicheMuscle(muscle) {
+  const logs = Etat.data.logs || [];
+  const f = ficheMuscle(muscle, logs, getExercise);
+  const nom = MUSCLE_LABELS[muscle] || muscle;
+
+  const sheet = h(`<div class="sheet"><div class="inner"></div></div>`);
+  const inner = sheet.querySelector(".inner");
+  const fermer = () => sheet.remove();
+  inner.append(h(`<div class="sheet-top"><h2 style="margin:0">${esc(nom)}</h2><button class="chip" id="mX">✕ Fermer</button></div>`));
+
+  if (!f.mesurable) {
+    inner.append(h(`<div class="notice small">${esc(f.raison || "")}</div>`));
+    // Même sans historique, on peut proposer par quoi commencer.
+    const propose = CATALOGUE.filter((e) => (e.musclesPrincipaux || []).includes(muscle)).slice(0, 5);
+    if (propose.length) {
+      inner.append(h(`<div class="eyebrow" style="margin-top:12px">Exercices pour ce muscle</div>`));
+      propose.forEach((e) => {
+        const b = h(`<button class="exline">${vignetteHTML(e, "sm")}
+          <span class="meta"><span class="nm">${esc(e.nom)}</span></span>
+          <span class="chev" aria-hidden="true">›</span></button>`);
+        b.addEventListener("click", () => { fermer(); ouvrirDetail(e); });
+        inner.append(b);
+      });
+    }
+    sheet.querySelector("#mX").addEventListener("click", fermer);
+    sheet.addEventListener("click", (e) => { if (e.target === sheet) fermer(); });
+    document.body.append(sheet);
+    return;
+  }
+
+  /* --- chiffres clés --- */
+  const g = h(`<div class="statgrid" style="margin-top:4px"></div>`);
+  g.append(statCard(IC.bars, f.volume.toLocaleString("fr-FR"), "Volume kg"));
+  g.append(statCard(IC.repeat, `${f.principaux}`, f.principaux > 1 ? "Séries directes" : "Série directe"));
+  g.append(statCard(IC.layers, `${f.secondaires}`, "En secondaire"));
+  g.append(statCard(IC.clock, f.dernierJours === 0 ? "Auj." : `${f.dernierJours} j`, "Dernière fois"));
+  inner.append(g);
+
+  /* --- huit semaines --- */
+  const moy = moyenneHebdo(f.semaines);
+  const t = tendance(f.semaines);
+  const maxi = Math.max(1, ...f.semaines.map((x) => x.volume));
+  const barres = f.semaines.map((x) => {
+    const haut = Math.round((x.volume / maxi) * 100);
+    const d = new Date(x.semaine + "T12:00:00");
+    const lab = Number.isFinite(d.getTime()) ? `${d.getDate()}/${d.getMonth() + 1}` : "";
+    return `<span class="mus-bar" title="Semaine du ${esc(lab)} : ${x.volume.toLocaleString("fr-FR")} kg">
+      <i style="height:${Math.max(2, haut)}%"${x.volume ? "" : ' class="vide"'}></i></span>`;
+  }).join("");
+  const c2 = h(`<div class="card stack" style="margin-top:12px"></div>`);
+  const mots = { hausse: "en hausse", baisse: "en baisse", stable: "stable", inconnu: "" };
+  c2.append(h(`<div class="spread"><span class="eyebrow" style="margin:0">8 dernières semaines</span>
+    ${t.sens !== "inconnu" ? `<span class="badge${t.sens === "hausse" ? " accent" : ""}">${esc(mots[t.sens])}${t.sens !== "stable" ? ` ${t.pct > 0 ? "+" : ""}${t.pct} %` : ""}</span>` : ""}</div>`));
+  c2.append(h(`<div class="mus-graph" role="img" aria-label="Volume hebdomadaire des 8 dernières semaines">${barres}</div>`));
+  // Moyenne sur les semaines ENTRAÎNÉES : diviser par le total écraserait le
+  // chiffre de quelqu'un qui revient après une pause.
+  c2.append(h(`<div class="muted small" style="margin-top:6px">Moyenne ${moy.toLocaleString("fr-FR")} kg par semaine entraînée · ${f.seances} séance${f.seances > 1 ? "s" : ""}</div>`));
+  inner.append(c2);
+
+  /* --- exercices qui l'ont travaillé --- */
+  inner.append(h(`<div class="eyebrow" style="margin-top:14px">Ce qui l'a travaillé</div>`));
+  f.exercices.slice(0, 8).forEach((x) => {
+    const exo = getExercise(x.exerciceId);
+    if (!exo) return;
+    const b = h(`<button class="exline">${vignetteHTML(exo, "sm")}
+      <span class="meta"><span class="nm">${esc(exo.nom)}</span>
+        <span class="muted small">${x.series} série${x.series > 1 ? "s" : ""}${x.role === "principal" ? ` · ${x.volume.toLocaleString("fr-FR")} kg` : " · en secondaire"}</span></span>
+      <span class="chev" aria-hidden="true">›</span></button>`);
+    b.addEventListener("click", () => { fermer(); ouvrirDetail(exo); });
+    inner.append(b);
+  });
+
+  const bCat = h(`<button class="secondary" style="width:100%;margin-top:12px">Voir tous les exercices de ce muscle</button>`);
+  bCat.addEventListener("click", () => { fermer(); CAT_FILTRE = { q: "", muscle, equip: "" }; CAT_FAVORIS_SEUL = false; nav("cat"); });
+  inner.append(bCat);
+
+  sheet.querySelector("#mX").addEventListener("click", fermer);
+  sheet.addEventListener("click", (e) => { if (e.target === sheet) fermer(); });
+  document.body.append(sheet);
+}
+
 /* ---------- photos de progression ---------- */
 
 /** URL objets vivantes de l'écran courant. Chaque URL non révoquée retient le
@@ -5333,7 +5427,23 @@ function carteMuscleHeatmap(v) {
     if (repli) return; repli = true;
     wrap.innerHTML = `<div class="hint" style="text-align:center;padding:8px 0">Planche musculaire indisponible hors ligne pour l'instant.</div>`;
   }));
+  // La planche était DÉCORATIVE : on voyait que le dos était vif sans pouvoir
+  // savoir pourquoi. Un toucher ouvre maintenant la fiche du muscle.
+  wrap.addEventListener("click", (ev) => {
+    const g = /** @type {any} */ (ev.target).closest("g[data-m]");
+    if (g && g.getAttribute("data-m")) ouvrirFicheMuscle(g.getAttribute("data-m"));
+  });
+  wrap.querySelectorAll("g[data-m]").forEach((g) => {
+    g.setAttribute("role", "button");
+    g.setAttribute("tabindex", "0");
+    const nom = MUSCLE_LABELS[g.getAttribute("data-m")] || g.getAttribute("data-m");
+    g.setAttribute("aria-label", `Voir le détail : ${nom}`);
+    g.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); ouvrirFicheMuscle(g.getAttribute("data-m")); }
+    });
+  });
   card.append(wrap);
+  card.append(h(`<div class="hint" style="margin-top:2px;text-align:center">Touche un muscle pour voir son détail</div>`));
   const top = vm.slice(0, 4).map((x) => `<span class="tag">${esc(MUSCLE_LABELS[x.muscle] || x.muscle)}</span>`).join(" ");
   if (top) card.append(h(`<div class="row" style="flex-wrap:wrap;gap:4px;margin-top:6px">${top}</div>`));
   v.append(card);
