@@ -294,3 +294,54 @@ complexité sans la réduire. Ils restent, et c'est un choix.
 Après chaque étape : 499 tests, typecheck, **8 écrans + 13 sections parcourus**,
 comptage des icônes vides à 0, et les scénarios de bout en bout rejoués
 (catalogue, séance, fin de séance, fiche muscle).
+
+### Étape 5 — `src/ui/graphes.js` (133 lignes)
+
+`etatVideHTML`, `anneauSVG`, `anneauSignature`, `svgLine`, `categorieIMC`,
+`gaugeIMC`, `svgBars`.
+
+Toute la data-viz maison, sans bibliothèque — ni Recharts ni Chart.js. Quelques
+centaines d'octets de SVG écrits à la main, ce qui permet à l'application de
+rester sans build et de démarrer hors ligne.
+
+`etatVideHTML` part avec eux : **il n'existe que pour eux**. Sous deux points,
+une courbe ne dit rien et un axe seul ressemble à un défaut d'affichage —
+`svgLine` et `svgBars` rendent alors un état vide illustré qui explique quoi
+faire. Le laisser dans `app.js` aurait créé une dépendance croisée entre deux
+fichiers pour un composant de trois lignes.
+
+#### Une méthode d'extraction qui a dû changer
+
+Les quatre premières extractions découpaient par **correspondance de texte** :
+début et fin du bloc, recherchés littéralement. Sur les graphes, ça a échoué —
+les chaînes de gabarit contiennent des guillemets, des accolades et des retours à
+la ligne qui rendent la borne de fin impossible à écrire de façon fiable.
+
+Méthode adoptée depuis : **bornes de lignes**, obtenues en cherchant la
+déclaration puis en remontant les lignes de documentation et en descendant
+jusqu'à l'accolade fermante en colonne 0. Plus robuste, et vérifiable avant
+d'écrire quoi que ce soit — la tentative fautive n'avait d'ailleurs rien modifié.
+
+#### Vérification propre aux graphes
+
+Le parcours des 8 écrans ne rend **aucun** graphe : il tourne sur un état sans
+historique. Un contrôle dédié a donc été écrit, avec 14 séances et 10 pesées :
+
+| | |
+|---|---|
+| Courbes tracées | 2, avec un `d` réel (`M30.0,30.0 C36.9,31.7 …`) |
+| Barres | 11 |
+| Anneaux | 1 |
+| Jauge IMC | catégorie « Surpoids » calculée (80 kg / 178 cm → 25,2) |
+| États vides | 1 (là où les données manquent — c'est le comportement voulu) |
+| Erreurs | 0 |
+
+### État
+
+| Module | Lignes |
+|---|---|
+| `src/ui/app.js` | **5 922** (de 6 154, −232) |
+| `src/ui/icones.js` | 145 |
+| `src/ui/graphes.js` | 133 |
+| `src/ui/vignettes.js` | 87 |
+| `src/ui/dom.js` | 40 |
