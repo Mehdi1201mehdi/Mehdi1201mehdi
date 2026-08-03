@@ -90,6 +90,15 @@ export function normaliserEtat(brut) {
   out.seanceAuto = brut.seanceAuto && typeof brut.seanceAuto === "object" ? brut.seanceAuto : null;
 
   out.profil = normaliserProfil(brut.profil);
+  // Le programme aussi : un `series: 4` au lieu d'un tableau faisait lever une
+  // TypeError à l'écran de séance, qui n'affichait alors plus rien du tout.
+  out.programme = normaliserProgramme(brut.programme);
+  out.programmesPerso = out.programmesPerso.map(normaliserProgramme).filter(Boolean);
+  out.seanceAuto = out.seanceAuto && Array.isArray(out.seanceAuto.exercices)
+    ? { ...out.seanceAuto, exercices: out.seanceAuto.exercices
+        .filter((e) => e && e.exerciceId)
+        .map((e) => ({ ...e, series: normaliserSeries(e.series, e) })) }
+    : out.seanceAuto;
 
   out.version = SCHEMA_VERSION;
   return out;
@@ -125,6 +134,59 @@ export function normaliserStandardsForce(v) {
     if (garde.H || garde.F) out[id] = garde;
   }
   return out;
+}
+
+/**
+ * Normalise les SÉRIES d'un exercice de programme.
+ *
+ * Le schéma attend un tableau d'objets. Une forme abrégée — `series: 4` — est
+ * naturelle à écrire à la main, et c'est exactement ce qu'on trouve dans un
+ * programme rédigé hors de l'application ou importé d'ailleurs. Or l'écran de
+ * séance appelle `series.find()` et `series.filter()` : sur un nombre, il lève
+ * une TypeError et n'affiche RIEN. Un écran blanc à la place d'une séance, sans
+ * message, pour une virgule de différence dans un fichier.
+ *
+ * On reconstruit donc les séries au lieu de planter, en reprenant les bornes de
+ * répétitions et le repos si l'exercice les porte.
+ *
+ * @param {any} brut  valeur du champ `series`
+ * @param {any} exo   l'exercice, pour y lire repsMin/repsMax/reposSec
+ * @returns {any[]}
+ */
+export function normaliserSeries(brut, exo = {}) {
+  if (Array.isArray(brut)) return brut.filter((s) => s && typeof s === "object");
+  const n = Math.round(Number(brut));
+  if (!(n > 0) || n > 50) return [];
+  const min = Number(exo && exo.repsMin), max = Number(exo && exo.repsMax);
+  const reps = Number.isFinite(min) && Number.isFinite(max) && max >= min ? [min, max] : [8, 12];
+  const repos = Number(exo && exo.reposSec);
+  return Array.from({ length: n }, () => ({
+    type: "travail", repsCible: reps.slice(), dureeSec: null, distanceM: null,
+    rirCible: 2, rpeCible: null, tempo: null,
+    reposSec: repos > 0 ? repos : 90, chargeKg: null,
+  }));
+}
+
+/**
+ * Normalise un programme sans jamais en jeter le contenu utile.
+ *
+ * Un exercice sans identifiant ne peut rien afficher : il est écarté. Une séance
+ * qui n'a plus aucun exercice ne peut pas être démarrée : elle est écartée
+ * aussi. Tout le reste est conservé tel quel — nom, justification, champs
+ * inconnus d'une version future.
+ *
+ * @param {any} prog
+ */
+export function normaliserProgramme(prog) {
+  if (!prog || typeof prog !== "object") return null;
+  const seances = toArray(prog.seances).map((s) => {
+    if (!s || typeof s !== "object") return null;
+    const exercices = toArray(s.exercices)
+      .filter((e) => e && typeof e === "object" && e.exerciceId)
+      .map((e) => ({ ...e, series: normaliserSeries(e.series, e) }));
+    return exercices.length ? { ...s, exercices } : null;
+  }).filter(Boolean);
+  return { ...prog, seances };
 }
 
 /**

@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   SCHEMA_VERSION, etatVide, normaliserEtat, normaliserProfil, normaliserStandardsForce,
+  normaliserSeries, normaliserProgramme,
   choisirSourcePlusRiche, choisirEtat,
 } from "../src/store/migrate.js";
 
@@ -192,4 +193,78 @@ test("normaliserEtat : les seuils personnalisés survivent au rechargement", () 
   // Et les réglages existants ne sont pas perdus au passage.
   assert.equal(e.reglages.theme, "dark");
   assert.deepEqual(normaliserEtat({}).reglages.standardsForce, {}, "défaut : aucun seuil personnalisé");
+});
+
+/* ---- Programme mal formé : un écran de séance vide vaut une séance perdue ---- */
+
+test("normaliserSeries : la forme abrégée « series: 4 » devient quatre séries", () => {
+  // C'est la forme qu'on écrit naturellement à la main, et celle qu'on trouve
+  // dans un programme importé d'ailleurs. L'écran de séance appelle
+  // `series.find()` : sur un nombre il levait une TypeError et n'affichait RIEN.
+  const s = normaliserSeries(4, { repsMin: 5, repsMax: 8, reposSec: 150 });
+  assert.equal(s.length, 4);
+  assert.deepEqual(s[0].repsCible, [5, 8], "les bornes de l'exercice sont reprises");
+  assert.equal(s[0].reposSec, 150, "le repos aussi");
+  assert.equal(s[0].type, "travail");
+});
+
+test("normaliserSeries : sans bornes, des valeurs par défaut utilisables", () => {
+  const s = normaliserSeries(3, {});
+  assert.equal(s.length, 3);
+  assert.deepEqual(s[0].repsCible, [8, 12]);
+  assert.equal(s[0].reposSec, 90);
+});
+
+test("normaliserSeries : un tableau existant n'est jamais réécrit", () => {
+  const src = [{ type: "echauffement", repsCible: [6, 9] }, { type: "travail", repsCible: [5, 6] }];
+  assert.deepEqual(normaliserSeries(src, {}), src);
+  // Les entrées non-objet sont retirées, elles feraient planter l'affichage.
+  assert.equal(normaliserSeries([null, "x", { type: "travail" }], {}).length, 1);
+});
+
+test("normaliserSeries : valeurs absurdes → tableau vide, jamais d'erreur", () => {
+  for (const v of [0, -3, NaN, 999, "quatre", null, undefined, {}]) {
+    assert.deepEqual(normaliserSeries(v, {}), [], JSON.stringify(v));
+  }
+});
+
+test("normaliserProgramme : un exercice sans identifiant est écarté, le reste conservé", () => {
+  const p = normaliserProgramme({
+    id: "p1", nom: "Force", champInconnu: "conservé",
+    seances: [{ id: "s1", nom: "A", exercices: [
+      { exerciceId: "squat-barre", series: 3 },
+      { series: 3 },                              // pas d'identifiant : inaffichable
+    ] }],
+  });
+  assert.equal(p.nom, "Force");
+  assert.equal(p.champInconnu, "conservé", "un champ d'une version future ne doit pas disparaître");
+  assert.equal(p.seances[0].exercices.length, 1);
+  assert.equal(p.seances[0].exercices[0].series.length, 3);
+});
+
+test("normaliserProgramme : une séance sans exercice ne peut pas être démarrée", () => {
+  const p = normaliserProgramme({ seances: [
+    { id: "vide", exercices: [] },
+    { id: "ok", exercices: [{ exerciceId: "squat-barre", series: 2 }] },
+  ] });
+  assert.deepEqual(p.seances.map((s) => s.id), ["ok"]);
+});
+
+test("normaliserProgramme : entrée absente ou abîmée → null, jamais d'erreur", () => {
+  for (const v of [null, undefined, "programme", 42]) {
+    assert.equal(normaliserProgramme(v), null, JSON.stringify(v));
+  }
+  assert.deepEqual(normaliserProgramme({}).seances, []);
+});
+
+test("normaliserEtat : un programme abrégé traverse la migration et reste démarrable", () => {
+  const e = normaliserEtat({ programme: { id: "p", nom: "Force", seances: [
+    { id: "s1", nom: "A", exercices: [{ exerciceId: "squat-barre", series: 4, repsMin: 4, repsMax: 6 }] },
+  ] } });
+  const ex = e.programme.seances[0].exercices[0];
+  assert.ok(Array.isArray(ex.series), "series doit être un tableau après migration");
+  assert.equal(ex.series.length, 4);
+  // Le contrat que l'écran de séance exige réellement.
+  assert.equal(typeof ex.series.find, "function");
+  assert.equal(typeof ex.series.filter, "function");
 });
