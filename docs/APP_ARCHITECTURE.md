@@ -192,3 +192,60 @@ Conséquences du choix :
 3. **Aucune perte de données** : toute nouvelle clé d'état passe par
    `normaliserEtat()`.
 4. **Aucun secret dans le dépôt**.
+
+## Découpage de `src/ui/app.js` — première étape
+
+`src/ui/app.js` approchait **6 200 lignes**. Le découper d'un bloc serait
+irresponsable : les 499 tests couvrent le moteur, **pas l'interface**. La règle
+adoptée est donc : un module à la fois, et après chaque extraction
+`node --check` + 499 tests + typecheck + **un parcours navigateur de tous les
+écrans**.
+
+### Étape 1 — `src/ui/icones.js` (145 lignes)
+
+Tout ce qui dessine un pictogramme : `IC` (44 icônes), `mi()`, `IC_MATOS`,
+`EQUIPMENT_FAMILLE` / `iconeMateriel()`, `niveauIcone()`, `GOAL_ICONES` /
+`goalIcons()`, `LEVEL_ICONS`.
+
+Ces tables vivaient dispersées, jusqu'à **2 800 lignes d'écart**. Deux
+conséquences, toutes deux réellement rencontrées :
+
+- une table lisait `IC` déclaré **200 lignes plus bas** — zone morte temporelle
+  d'un `const`, `ReferenceError` au chargement, application qui ne démarre plus.
+  Il avait fallu une indirection pour contourner l'ordre du fichier ;
+- **trois références fantômes** ont vécu sans que rien ne le signale :
+  `IC.copy`, `IC.edit` (qui retombaient silencieusement sur une autre icône) et
+  la classe CSS `mi-on`. Rien ne réunissait le sujet, donc rien ne les contredisait.
+
+### Étape 2 — `carteRoutines()` sortie de `vProg`
+
+Le bloc « Mes routines » vivait à la suite du programme généré, sans lien avec
+lui. Le séparer permet de l'afficher **aussi quand il n'y a pas de programme** —
+sans quoi les routines devenaient introuvables au moment précis où elles sont le
+plus utiles.
+
+### Ce que le parcours navigateur a révélé
+
+Deux `TypeError` **préexistantes**, confirmées présentes avant l'extraction :
+
+| Écran | Cause | Conséquence |
+|---|---|---|
+| Programme | `prog.split` sur `null` | **écran blanc**, 0 nœud rendu |
+| Séance | `prog.seances` sur `null` | **écran blanc**, alors que les routines existaient |
+
+Or il n'y a pas toujours de programme : on peut l'avoir supprimé, avoir importé
+une sauvegarde qui n'en contenait pas, ou piloter l'entraînement au moteur
+automatique. Les deux écrans proposent désormais une sortie — générer, parcourir
+la bibliothèque, ou aller au programme — au lieu de ne rien afficher.
+
+### Vérification de l'extraction
+
+Le parcours compte les **icônes vides** (`.mi`, `.cic`, `.ic`, `.opt-ic`,
+`.exo-matos` sans SVG ni texte) sur les 8 écrans et les 13 sections dépliées de
+Progrès : **0**. C'est la preuve qu'aucune référence n'a été perdue.
+
+### Suite du découpage
+
+Candidats, par risque croissant : composants de séance (`vignetteExo`,
+badges) · graphiques SVG · feuilles modales · vues (`vDash`, `vStats`…). Chacun
+demande le même protocole — extraction, tests, parcours navigateur complet.
