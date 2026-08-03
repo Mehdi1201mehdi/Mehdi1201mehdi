@@ -249,3 +249,48 @@ Progrès : **0**. C'est la preuve qu'aucune référence n'a été perdue.
 Candidats, par risque croissant : composants de séance (`vignetteExo`,
 badges) · graphiques SVG · feuilles modales · vues (`vDash`, `vStats`…). Chacun
 demande le même protocole — extraction, tests, parcours navigateur complet.
+
+### Étape 3 — `src/ui/dom.js` (40 lignes)
+
+`$`, `esc`, `h`. Elles vivaient en tête de `app.js`, ce qui obligeait **tout
+module extrait** à en redéfinir une copie ou à renoncer. Les sortir d'abord,
+c'est poser la fondation : les extractions suivantes n'ont plus qu'à importer.
+
+`esc` mérite d'être isolée pour une autre raison : **toute** valeur venue de
+l'utilisateur ou d'une API y passe — nom de routine, aliment scanné, note. C'est
+la seule barrière entre une saisie et l'interprétation du HTML. Elle doit être
+trouvable.
+
+### Étape 4 — `src/ui/vignettes.js` (87 lignes)
+
+`urlDemo`, `vignetteExo`, `vignetteHTML`, `REDUIRE_MOTION`, et le couple
+d'écouteurs `load`/`error` en phase de capture.
+
+**Six écrans** affichent cet objet : catalogue, séance, aperçu, remplacement,
+alternatives, récents. Le code vivait au milieu de `app.js`, ce qui garantissait
+qu'une retouche sur l'un passerait à côté des cinq autres.
+
+La superposition — silhouette dessous, démonstration dessus — est maintenant
+documentée là où elle est écrite, avec sa raison : dans les deux cas d'échec
+(hors ligne, exercice sans média) la silhouette reste visible. Jamais un carré
+vide.
+
+### Ce qui n'a PAS été extrait, et pourquoi
+
+`machineOccupee` et `badgesMuscles` étaient dans le même bloc. Ils dépendent de
+`LIVE`, `persistLive`, `render`, `toast` — l'état vivant de la séance. Les sortir
+demanderait de passer quatre dépendances en paramètre, ce qui déplacerait la
+complexité sans la réduire. Ils restent, et c'est un choix.
+
+### État
+
+| Module | Lignes |
+|---|---|
+| `src/ui/app.js` | **6 028** (de 6 154) |
+| `src/ui/icones.js` | 145 |
+| `src/ui/vignettes.js` | 87 |
+| `src/ui/dom.js` | 40 |
+
+Après chaque étape : 499 tests, typecheck, **8 écrans + 13 sections parcourus**,
+comptage des icônes vides à 0, et les scénarios de bout en bout rejoués
+(catalogue, séance, fin de séance, fiche muscle).

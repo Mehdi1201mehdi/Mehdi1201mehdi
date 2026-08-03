@@ -1,7 +1,7 @@
 /* Service worker — stratégie RÉSEAU D'ABORD pour l'app (toujours la dernière
    version en ligne), cache en secours hors ligne. Les médias de démonstration
    (cross-origin) restent en cache d'abord pour l'usage hors ligne. */
-const CACHE = "coachperso-ia-v124";
+const CACHE = "coachperso-ia-v125";
 const MEDIA_CACHE = "coachperso-media-v1";
 const MEDIA_HOSTS = ["exercisedb.dev", "exercisedb.p.rapidapi.com", "wger.de", "githubusercontent.com", "cloudfront.net"];
 const ASSETS = [
@@ -9,7 +9,7 @@ const ASSETS = [
   "./assets/icons/icon.svg", "./assets/icons/icon-192.png", "./assets/icons/icon-512.png",
   "./assets/icons/icon-maskable-512.png", "./assets/icons/apple-touch-icon.png",
   "./assets/fonts/inter-latin.woff2", "./assets/fonts/inter-latin-ext.woff2", "./assets/fonts/anton-latin.woff2",
-  "./src/ui/app.js", "./src/ui/icones.js", "./src/ui/anatomy.js", "./src/ui/scanner.js", "./src/ui/notifs.js", "./src/ui/photoCapture.js", "./src/ui/son.js", "./src/ui/flip.js", "./src/ui/anatomieCanvas.js", "./src/ui/illustrations.js", "./src/ui/medailles.js", "./src/models.js",
+  "./src/ui/app.js", "./src/ui/icones.js", "./src/ui/dom.js", "./src/ui/vignettes.js", "./src/ui/anatomy.js", "./src/ui/scanner.js", "./src/ui/notifs.js", "./src/ui/photoCapture.js", "./src/ui/son.js", "./src/ui/flip.js", "./src/ui/anatomieCanvas.js", "./src/ui/illustrations.js", "./src/ui/medailles.js", "./src/models.js",
   "./src/data/exercises.js", "./src/data/exercises-extra.js", "./src/data/foods.js", "./src/data/gifs.js", "./src/data/media-manifest.js", "./src/data/anatoly.js", "./src/data/anatomy-paths.js", "./src/data/mobilite.js", "./src/data/programmes-salle.js", "./src/data/exercises-salle.js", "./src/data/muscles-moteur.js", "./src/data/exercise-muscle-map.js",
   "./src/engine/index.js", "./src/engine/constraints.js", "./src/engine/generator.js",
   "./src/engine/progression.js", "./src/engine/replacement.js", "./src/engine/review.js",

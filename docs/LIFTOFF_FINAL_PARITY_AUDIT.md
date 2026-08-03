@@ -94,8 +94,8 @@ Tous **préexistants** sauf mention contraire, tous vérifiés dans le navigateu
 | Contraste | conforme en thème clair **et** sombre |
 | Audit de bugs | aucune anomalie |
 | Erreurs console | 0 sur tous les parcours joués |
-| Cache SW | v122 |
-| Commits | 14, chacun publié et vérifié |
+| Cache SW | v125 |
+| Commits | 16, chacun publié et vérifié |
 | Diff total | 36 fichiers, +5 444 / −165 |
 
 ### Écrans contrôlés visuellement
@@ -110,7 +110,7 @@ Progrès (carte musculaire, équilibre, photos, calibrage du rang) · Nutrition
 
 | Sujet | État | Pourquoi |
 |---|---|---|
-| **Architecture** (phase 11) | non fait | `src/ui/app.js` ≈ 6 200 lignes. Le découper est un vrai chantier, à mener progressivement et sans casser les 499 tests — pas en fin de session |
+| **Architecture** (phase 11) | **entamée** | 4 modules extraits (`icones`, `dom`, `vignettes`, `carteRoutines`). `src/ui/app.js` : 6 154 → 6 028 lignes. Voir `docs/APP_ARCHITECTURE.md` — un module à la fois, parcours navigateur complet après chacun |
 | **Images de Liftoff** | impossible en l'état | le dossier `res/` n'a jamais été transmis |
 | **Seuils de rang de Liftoff** | contourné | ils sont sur leur serveur ; l'app permet désormais de saisir les siens |
 

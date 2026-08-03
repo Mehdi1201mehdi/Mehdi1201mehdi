@@ -28,6 +28,8 @@ import { bilan } from "../engine/review.js";
 import { chercherFoods, portion } from "../data/foods.js";
 import { rechercher as offRechercher, parCodeBarres } from "../integrations/openfoodfacts.js";
 import { scannerDisponible, demarrerScan, normaliserCode } from "./scanner.js";
+import { $, esc, h } from "./dom.js";
+import { urlDemo, vignetteExo, vignetteHTML } from "./vignettes.js";
 import { chargementMedia } from "../data/media-manifest.js";
 import { IC, mi, IC_MATOS, iconeMateriel, goalIcons, LEVEL_ICONS } from "./icones.js";
 import { comparerSeance, phraseBilan } from "../engine/bilanSeance.js";
@@ -114,16 +116,7 @@ const todayStr = () => new Date().toISOString().slice(0, 10);
    porteur de propriétés maison… Les typer en `Element` obligerait à un cast à
    chaque appel — du bruit sans bénéfice à l'exécution. La vérification de types
    qui compte vit dans `src/engine/*` et `src/data/*`, qui sont purs et typés. */
-/** @type {(s: string, r?: ParentNode) => any} */
-const $ = (s, r = document) => r.querySelector(s);
 const view = $("#view");
-const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-/**
- * Crée un élément depuis une chaîne HTML.
- * @param {string} html
- * @returns {any} l'élément racine
- */
-function h(html) { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; }
 /**
  * Branche un écouteur sur tous les descendants correspondant au sélecteur.
  * @param {ParentNode} root
@@ -3300,68 +3293,7 @@ function blocRessenti() {
 
 
 
-/**
- * Vignette d'exercice (52 px) : silhouette du muscle principal + icône de
- * matériel. Générée localement, donc instantanée et disponible hors ligne —
- * là où une image distante mettrait du temps et occuperait tout l'écran.
- */
-/**
- * URL de démonstration connue SANS aller sur le réseau : cache local d'abord,
- * puis la table embarquée, puis la miniature du catalogue. Null si inconnue —
- * on ne déclenche jamais de recherche en ligne pour une vignette.
- */
-function urlDemo(exo) {
-  if (!exo) return null;
-  return Etat.data.mediaCache?.[exo.id] || GIFS[exo.id] || (exo.media && exo.media.miniature) || null;
-}
 
-function vignetteExo(exo) {
-  const muscles = (exo.musclesPrincipaux || []).slice(0, 2);
-  const eq = exo.equipement || [];
-  let matos = "corps";
-  if (eq.includes("barre") || eq.includes("barre_ez")) matos = "barre";
-  else if (eq.includes("halteres") || eq.includes("kettlebell")) matos = "halteres";
-  else if (eq.includes("poulie") || eq.includes("elastiques")) matos = "poulie";
-  else if (eq.includes("machine_leviers") || eq.includes("machine_guidee") || eq.includes("smith")) matos = "machine";
-  // La démonstration EST l'information utile : on la montre directement dans la
-  // vignette plutôt que d'obliger à ouvrir la fiche. La silhouette reste
-  // dessous et réapparaît si l'image ne charge pas (hors ligne, exercice sans
-  // média). Animation ignorée si l'utilisateur a demandé moins de mouvement.
-  const url = REDUIRE_MOTION ? null : urlDemo(exo);
-  const img = url
-    ? `<img class="exo-gif" src="${esc(url)}" alt="" loading="lazy" decoding="async">`
-    : "";
-  return `${muscles.length ? miniSilhouette(muscles) : ""}${img}`
-    + `<span class="exo-matos" aria-hidden="true">${IC_MATOS[matos]}</span>`;
-}
-
-/**
- * Vignette prête à poser dans n'importe quelle liste d'exercices. Une seule
- * apparence partout : catalogue, séance, aperçu, remplacement, alternatives.
- * @param {any} exo
- * @param {string} [cls] modificateur de taille (`sm`)
- */
-function vignetteHTML(exo, cls = "") {
-  if (!exo) return "";
-  return `<span class="exo-vign ${cls}" aria-hidden="true">${vignetteExo(exo)}</span>`;
-}
-
-/** Préférence système « moins de mouvement » (lue une fois au démarrage). */
-const REDUIRE_MOTION = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || false;
-
-// La démonstration ne se montre qu'une fois RÉELLEMENT chargée, et se retire si
-// elle échoue : dans les deux cas la silhouette placée dessous reste visible,
-// jamais un carré vide. `load` et `error` ne remontent pas — d'où l'écoute en
-// phase de capture, un seul couple d'écouteurs pour toute l'application.
-const estVignette = (t) => t && t.tagName === "IMG" && t.classList.contains("exo-gif");
-document.addEventListener("load", (ev) => {
-  const t = /** @type {any} */ (ev.target);
-  if (estVignette(t)) t.classList.add("ok");
-}, true);
-document.addEventListener("error", (ev) => {
-  const t = /** @type {any} */ (ev.target);
-  if (estVignette(t)) t.remove();
-}, true);
 
 /**
  * Badges des muscles travaillés : principal en accent, secondaires en discret.
