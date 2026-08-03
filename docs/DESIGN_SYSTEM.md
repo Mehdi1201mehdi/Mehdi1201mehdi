@@ -956,3 +956,56 @@ l'annoncer comme une progression serait faux. Moins de quatre semaines →
 
 Vérifié à **7 largeurs** (320 → 1024) : aucun débordement, barres de 27 à 47 px,
 0 erreur console.
+
+## Équilibre du corps — ce qu'aucun total de volume ne montre
+
+L'écran Progrès savait dire combien on avait soulevé et quels muscles étaient
+vifs. Il ne disait pas si l'on **pousse deux fois plus qu'on ne tire** — la cause
+la plus banale d'épaules douloureuses chez quelqu'un qui s'entraîne sérieusement
+depuis un an.
+
+### Compté en SÉRIES, pas en kilos
+
+C'est la décision centrale du module, et elle mérite d'être défendue. Mesuré en
+volume, un soulevé de terre à 180 kg écrase vingt séries de tirage horizontal, et
+l'app conclurait « bas du corps dominant » **pour tout le monde, tout le temps**.
+Le nombre de séries reflète le **temps d'entraînement** consacré à chaque patron
+— c'est de cela qu'on parle quand on parle d'équilibre.
+
+### Quatre axes, pas davantage
+
+| Axe | Ce qu'il révèle |
+|---|---|
+| Poussée / Tirage | le déséquilibre classique, celui des épaules |
+| Haut / Bas | « ne saute pas le jour des jambes », mesuré |
+| Genou / Hanche | quadriceps contre ischios et fessiers |
+| Tirage horizontal / vertical | dos épais contre dos large |
+
+Au-delà, ce sont des chiffres qu'on ne sait plus interpréter.
+
+### Deux seuils, deux raisons
+
+- **12 séries minimum** sur un axe avant de se prononcer. Juger un équilibre sur
+  quatre séries n'a aucun sens et décourage pour rien — l'app affiche alors
+  combien il en manque.
+- **Ratio 1,3** pour signaler. En dessous, c'est la variation normale d'un
+  programme qui alterne ; le signaler produirait une alerte permanente que plus
+  personne ne lit.
+
+Chaque alerte dit **pourquoi ça compte** et **quoi faire** — un constat sans
+remède ne sert à rien. Le message n'apparaît que s'il y a quelque chose à faire :
+répéter « équilibré, rien à signaler » quatre fois de suite est du bruit.
+
+### La barre porte l'information
+
+`.eq-bar` : un curseur à deux côtés avec un **repère de parité** au centre. On
+voit le déséquilibre sans avoir à lire un ratio. L'alerte prend l'ambre, pas le
+rouge : c'est un réglage à faire, pas une faute.
+
+Un test croise `FAMILLES` avec les patrons réellement présents au catalogue — un
+patron mal orthographié ne lèverait aucune erreur, l'axe compterait simplement
+zéro pour toujours sans que personne ne s'en aperçoive.
+
+Vérifié sur un historique volontairement déséquilibré : poussée 100 séries contre
+tirage 20 → « À corriger » ; genou 10 contre hanche 0 → « Encore 2 séries pour se
+prononcer ». 7 largeurs sans débordement.

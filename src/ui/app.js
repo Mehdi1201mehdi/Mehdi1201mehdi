@@ -31,6 +31,7 @@ import { scannerDisponible, demarrerScan, normaliserCode } from "./scanner.js";
 import { chargementMedia } from "../data/media-manifest.js";
 import { comparerSeance, phraseBilan } from "../engine/bilanSeance.js";
 import { ficheMuscle, moyenneHebdo, tendance } from "../engine/muscle.js";
+import { equilibre, resumeEquilibre } from "../engine/equilibre.js";
 import { etatNotifs, demanderNotifs, notifier, fermerNotifs } from "./notifs.js";
 import { POSES, nouvellePhoto, trierPhotos, paireComparaison, poidsProche, resumeStockage,
   formaterOctets, incoherences } from "../engine/photos.js";
@@ -4647,6 +4648,55 @@ function vNutrition(v) {
   v.append(h(`<div class="warn small">${mi(IC.cross, "mi-amber")}Repères nutritionnels généraux, pas un régime médical. En cas de pathologie, trouble alimentaire ou doute, consulte un professionnel de santé ou un diététicien.</div>`));
 }
 
+/* ---------- équilibre du corps ---------- */
+
+/**
+ * ÉQUILIBRE DU CORPS — ce qu'un total de volume ne montre jamais.
+ *
+ * L'écran savait dire combien on avait soulevé. Pas si l'on POUSSE deux fois
+ * plus qu'on ne TIRE — la cause la plus banale d'épaules douloureuses chez
+ * quelqu'un qui s'entraîne sérieusement depuis un an.
+ *
+ * Chaque axe est une barre à deux côtés : la position du curseur EST
+ * l'information, on n'a pas besoin de lire un ratio pour voir un déséquilibre.
+ */
+function carteEquilibre(v, eq) {
+  const c = h(`<div class="card stack"></div>`);
+  c.append(h(`<div class="muted small">Compté en SÉRIES et non en kilos : un soulevé de terre lourd écraserait vingt séries de tirage, et l'app conclurait « bas du corps dominant » pour tout le monde.</div>`));
+
+  if (!eq.mesurable) {
+    c.append(h(`<div class="hint">${esc(eq.raison || "")}</div>`));
+    v.append(c);
+    return;
+  }
+
+  eq.axes.forEach((a) => {
+    const bloc = h(`<div class="eq-axe"></div>`);
+    const etat = a.mesurable
+      ? (a.desequilibre === "equilibre" ? "on" : "off")
+      : "na";
+    bloc.append(h(`<div class="spread small"><b>${esc(a.nomG)}</b><b>${esc(a.nomD)}</b></div>`));
+    // La barre : la position du curseur EST l'information.
+    const pct = Math.round(a.part * 100);
+    bloc.append(h(`<div class="eq-bar${a.mesurable ? "" : " na"}" role="img"
+      aria-label="${esc(a.nomG)} ${a.gauche} séries, ${esc(a.nomD)} ${a.droite} séries">
+      <i style="width:${pct}%"></i><span class="eq-mid" aria-hidden="true"></span></div>`));
+    bloc.append(h(`<div class="spread" style="font-size:var(--fs-caption);margin-top:4px">
+      <span class="muted"><b class="num">${a.gauche}</b> séries</span>
+      <span class="${etat === "off" ? "eq-alerte" : "muted"}">${a.mesurable
+        ? (a.desequilibre === "equilibre" ? "Équilibré" : "À corriger")
+        : "Pas encore assez"}</span>
+      <span class="muted"><b class="num">${a.droite}</b> séries</span></div>`));
+    // Le message n'apparaît que s'il y a quelque chose à faire : répéter
+    // « équilibré, rien à signaler » quatre fois de suite est du bruit.
+    if (etat === "off" || !a.mesurable) {
+      bloc.append(h(`<div class="hint eq-msg">${esc(a.message)}</div>`));
+    }
+    c.append(bloc);
+  });
+  v.append(c);
+}
+
 /* ---------- fiche muscle ---------- */
 
 /**
@@ -5702,6 +5752,13 @@ function vStats(v) {
       Etat.data.metrics.push(e); Etat.sauver(); render();
     });
   });
+
+  // Équilibre du corps — le seul déséquilibre qu'aucun total de volume ne montre.
+  {
+    const eq = equilibre(Etat.data.logs || [], getExercise);
+    section(v, "equilibre", "Équilibre du corps", (b) => carteEquilibre(b, eq),
+      { resume: resumeEquilibre(eq) });
+  }
 
   // Photos de progression — ce que la balance ne dit pas.
   {
