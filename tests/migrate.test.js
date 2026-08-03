@@ -2,7 +2,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  SCHEMA_VERSION, etatVide, normaliserEtat, normaliserProfil, choisirSourcePlusRiche, choisirEtat,
+  SCHEMA_VERSION, etatVide, normaliserEtat, normaliserProfil, normaliserStandardsForce,
+  choisirSourcePlusRiche, choisirEtat,
 } from "../src/store/migrate.js";
 
 test("etatVide : schéma courant complet", () => {
@@ -152,4 +153,43 @@ test("normaliserEtat : un état v1 au profil incomplet ressort exploitable", () 
   assert.deepEqual(out.profil.equipements, ["barre"], "matériel déclaré conservé");
   assert.equal(out.logs.length, 1, "aucun historique perdu");
   assert.equal(out.version, SCHEMA_VERSION);
+});
+
+/* ---- Seuils de rang saisis à la main ---- */
+
+test("normaliserStandardsForce : garde les entrées bien formées, écarte le reste", () => {
+  const out = normaliserStandardsForce({
+    "squat-barre": { H: [1, 1.5, 2, 2.5] },
+    "developpe-couche-barre": { F: ["0,5", "0,7", "1", "1,4"] },
+    "rowing-barre": { H: [1, 2] },            // longueur fausse
+    "souleve-terre-barre": { H: "n'importe" }, // type faux
+    "vide": {},                                 // rien à garder
+  });
+  assert.deepEqual(out["squat-barre"], { H: [1, 1.5, 2, 2.5] });
+  assert.deepEqual(out["developpe-couche-barre"], { F: [0.5, 0.7, 1, 1.4] }, "virgule française convertie");
+  assert.equal(out["rowing-barre"], undefined);
+  assert.equal(out["souleve-terre-barre"], undefined);
+  assert.equal(out["vide"], undefined);
+});
+
+test("normaliserStandardsForce : entrée absente ou aberrante → objet vide, jamais null", () => {
+  for (const v of [null, undefined, "texte", 7, [1, 2, 3]]) {
+    assert.deepEqual(normaliserStandardsForce(v), {}, JSON.stringify(v));
+  }
+});
+
+test("normaliserStandardsForce : n'ordonne PAS les seuils — c'est le moteur qui juge", () => {
+  // La migration ne fait que du typage : si elle réordonnait, elle réécrirait
+  // silencieusement une saisie de l'utilisateur. Le moteur, lui, refuse et
+  // retombe sur le repère publié — c'est visible, donc corrigeable.
+  const out = normaliserStandardsForce({ "squat-barre": { H: [3, 2, 1, 0.5] } });
+  assert.deepEqual(out["squat-barre"].H, [3, 2, 1, 0.5]);
+});
+
+test("normaliserEtat : les seuils personnalisés survivent au rechargement", () => {
+  const e = normaliserEtat({ reglages: { standardsForce: { "squat-barre": { H: [1, 1.5, 2, 2.5] } } } });
+  assert.deepEqual(e.reglages.standardsForce["squat-barre"].H, [1, 1.5, 2, 2.5]);
+  // Et les réglages existants ne sont pas perdus au passage.
+  assert.equal(e.reglages.theme, "dark");
+  assert.deepEqual(normaliserEtat({}).reglages.standardsForce, {}, "défaut : aucun seuil personnalisé");
 });

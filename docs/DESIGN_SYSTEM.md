@@ -532,3 +532,45 @@ femmes.
 
 Les standards sont présentés comme des **repères, pas une mesure** — même
 honnêteté que pour l'estimation de 1RM, qui affiche sa fourchette et son écart.
+
+### Calibrage : les repères publiés ne sont qu'un point de départ
+
+Les standards de force varient de **10 à 15 %** d'une source à l'autre, et selon
+la fédération, la profondeur de squat, l'équipement. Imposer une table serait
+prétendre à une précision qui n'existe pas. `Progrès → Calculateurs de force →
+Ajuster les seuils` laisse donc **écrire la sienne** : quatre nombres par
+mouvement, en multiples du poids de corps.
+
+Trois précautions, sans lesquelles ça produit des rangs absurdes en silence :
+
+- **Les seuils doivent monter** (`validerSeuils`). Sans ça, un niveau devient
+  inatteignable : on franchirait le suivant avant lui.
+- **Bornes 0,1 → 6 × PC** (`LIMITES`). La faute de frappe « 20 » au lieu de
+  « 2,0 » bloquerait le rang à « débutant » à vie, sans explication — l'utilisateur
+  ne verrait qu'une app cassée.
+- **Une saisie refusée ne casse rien** : le mouvement reste sur son repère publié,
+  le message dit pourquoi, et le rang continue de s'afficher.
+
+La migration (`normaliserStandardsForce`) ne fait que du **typage** — elle
+n'ordonne pas les seuils. Réordonner reviendrait à réécrire silencieusement une
+saisie ; le refus, lui, est visible donc corrigeable.
+
+#### Composants (`.calib-*`)
+
+| Classe | Rôle |
+|---|---|
+| `.calib-mvt` | un mouvement, séparé par `--hair` |
+| `.calib-grille` | 2 colonnes, 4 au-delà de 520 px |
+| `.calib-t` | libellé du niveau + équivalent en kilos, **sur la même ligne** |
+| `.calib-kg` | « ≈ 192,5 kg », arrondi au pas de 2,5 kg |
+| `input.err` | bordure `--danger` + halo, mesurée à 5,07 (sombre) / 5,10 (clair) |
+
+**Deux colonnes, jamais quatre à 320 px** : quatre champs côte à côte laissent
+62 px chacun, l'équivalent en kilos n'y tient plus — et c'est justement lui qu'on
+vient lire. **Le kilo sur la ligne du libellé** : en trois lignes par champ, les
+quatre mouvements faisaient 1 800 px pour seize nombres. Ramené à 195 px par
+mouvement.
+
+L'interface signale « **tes seuils** » sur les mouvements calibrés à la main : un
+rang calculé sur ses propres chiffres n'a pas la même valeur qu'un rang calculé
+sur la littérature, et l'app ne doit pas laisser croire le contraire.

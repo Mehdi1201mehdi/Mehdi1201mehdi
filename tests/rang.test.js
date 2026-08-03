@@ -6,7 +6,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { NIVEAUX, STANDARDS, rangForce, niveauPourRatio } from "../src/engine/rang.js";
+import { NIVEAUX, STANDARDS, LIMITES, rangForce, niveauPourRatio,
+  validerSeuils, standardsEffectifs, estSeuilPerso } from "../src/engine/rang.js";
 
 const profil = (poidsKg = 80, sexe = "H") => ({ poidsKg, sexe });
 const best = (exerciceId, rm) => ({ exerciceId, rm });
@@ -145,6 +146,93 @@ test("rangForce : entrées vides ou abîmées → aucun verdict, aucune erreur",
     const r = rangForce(/** @type {any} */ (l), profil());
     assert.equal(r.mesurable, false);
     assert.ok(r.raison, "l'app doit dire pourquoi elle ne se prononce pas");
+  }
+});
+
+/* ======================= SEUILS PERSONNALISÉS ======================= */
+
+test("validerSeuils : quatre nombres qui montent, rien d'autre", () => {
+  assert.deepEqual(validerSeuils([1, 1.5, 2, 2.5]), [1, 1.5, 2, 2.5]);
+  assert.deepEqual(validerSeuils(["1", "1,5", "2", "2,5"]), [1, 1.5, 2, 2.5], "virgule française");
+  assert.equal(validerSeuils([1, 1.5, 2]), null, "trois seuils");
+  assert.equal(validerSeuils([1, 1.5, 2, 2.5, 3]), null, "cinq seuils");
+  assert.equal(validerSeuils([1, 2, 1.5, 2.5]), null, "ordre rompu : un niveau deviendrait inatteignable");
+  assert.equal(validerSeuils([1, 1, 2, 2.5]), null, "égalité : le niveau serait franchi deux fois");
+  assert.equal(validerSeuils([1, 1.5, 2, "abc"]), null);
+  assert.equal(validerSeuils(null), null);
+  assert.equal(validerSeuils("1,1.5,2,2.5"), null, "chaîne, pas tableau");
+});
+
+test("validerSeuils : la faute de frappe « 20 » au lieu de « 2,0 » est refusée", () => {
+  // Sans borne haute, elle bloquerait le rang à « débutant » à vie, sans
+  // explication : l'utilisateur ne verrait qu'une app cassée.
+  assert.equal(validerSeuils([1, 1.5, 2, 20]), null);
+  assert.equal(validerSeuils([0.01, 1.5, 2, 2.5]), null, "sous la borne basse");
+  assert.deepEqual(validerSeuils([LIMITES.min, 1, 2, LIMITES.max]), [LIMITES.min, 1, 2, LIMITES.max],
+    "les bornes elles-mêmes restent acceptées");
+});
+
+test("standardsEffectifs : sans personnalisation, ce sont exactement les repères publiés", () => {
+  const eff = standardsEffectifs(undefined);
+  for (const [id, std] of Object.entries(STANDARDS)) {
+    assert.deepEqual(eff[id].H, std.H, id);
+    assert.deepEqual(eff[id].F, std.F, id);
+    assert.equal(eff[id].nom, std.nom);
+  }
+});
+
+test("standardsEffectifs : une colonne personnalisée n'écrase QUE celle-là", () => {
+  const eff = standardsEffectifs({ "squat-barre": { H: [1.2, 1.7, 2.2, 2.7] } });
+  assert.deepEqual(eff["squat-barre"].H, [1.2, 1.7, 2.2, 2.7]);
+  assert.deepEqual(eff["squat-barre"].F, STANDARDS["squat-barre"].F, "la colonne F ne bouge pas");
+  assert.deepEqual(eff["souleve-terre-barre"].H, STANDARDS["souleve-terre-barre"].H, "les autres non plus");
+});
+
+test("standardsEffectifs : une saisie invalide retombe sur le repère publié, sans erreur", () => {
+  for (const mauvais of [[3, 2, 1, 0], [1, 2], "n'importe quoi", null, { 0: 1 }]) {
+    const eff = standardsEffectifs({ "squat-barre": { H: mauvais } });
+    assert.deepEqual(eff["squat-barre"].H, STANDARDS["squat-barre"].H, `saisie : ${JSON.stringify(mauvais)}`);
+  }
+  // Un identifiant inconnu n'ajoute pas de mouvement fantôme au classement.
+  assert.equal(standardsEffectifs({ "exercice-invente": { H: [1, 2, 3, 4] } })["exercice-invente"], undefined);
+});
+
+test("rangForce : les seuils personnalisés changent réellement le verdict", () => {
+  const s = [best("squat-barre", 160)];
+  const publie = rangForce(s, profil(80, "H"));
+  assert.equal(publie.mouvements[0].rang, 4, "2,0 × PC sur la grille publiée");
+  assert.equal(publie.perso, false);
+  assert.equal(publie.mouvements[0].perso, false);
+
+  // Grille plus exigeante : le même squat ne vaut plus qu'un rang 2.
+  const dur = rangForce(s, profil(80, "H"), { "squat-barre": { H: [1.8, 2.4, 3.0, 3.6] } });
+  assert.equal(dur.mouvements[0].rang, 2);
+  assert.equal(dur.mouvements[0].perso, true, "l'interface doit pouvoir le signaler");
+  assert.equal(dur.perso, true);
+  assert.equal(dur.mouvements[0].prochain.kg, 192, "2,4 × 80 kg");
+});
+
+test("rangForce : une femme personnalise sa colonne sans toucher celle des hommes", () => {
+  const perso = { "squat-barre": { F: [1.0, 1.4, 1.8, 2.2] } };
+  const f = rangForce([best("squat-barre", 100)], { poidsKg: 60, sexe: "F" }, perso);
+  assert.equal(f.mouvements[0].perso, true);
+  const hh = rangForce([best("squat-barre", 100)], { poidsKg: 60, sexe: "H" }, perso);
+  assert.equal(hh.mouvements[0].perso, false, "la colonne H reste sur le repère publié");
+});
+
+test("estSeuilPerso : ne dit « personnalisé » que si la saisie est exploitable", () => {
+  assert.equal(estSeuilPerso({ "squat-barre": { H: [1, 2, 3, 4] } }, "squat-barre", "H"), true);
+  assert.equal(estSeuilPerso({ "squat-barre": { H: [1, 2, 3, 4] } }, "squat-barre", "F"), false);
+  assert.equal(estSeuilPerso({ "squat-barre": { H: [4, 3, 2, 1] } }, "squat-barre", "H"), false, "saisie refusée");
+  assert.equal(estSeuilPerso(null, "squat-barre", "H"), false);
+  assert.equal(estSeuilPerso({}, "squat-barre", "H"), false);
+});
+
+test("rangForce : seuils personnalisés abîmés → aucun plantage, verdict conservé", () => {
+  for (const p of [null, undefined, "texte", 42, { "squat-barre": null }, { "squat-barre": { H: "x" } }]) {
+    const r = rangForce([best("squat-barre", 160)], profil(80), /** @type {any} */ (p));
+    assert.equal(r.mesurable, true, `perso : ${JSON.stringify(p)}`);
+    assert.equal(r.mouvements[0].rang, 4, "on retombe sur le repère publié");
   }
 });
 

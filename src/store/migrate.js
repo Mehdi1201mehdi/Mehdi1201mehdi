@@ -37,6 +37,9 @@ export function etatVide() {
       // volontairement minimal (charge, reps, validation). Le mode avancé
       // débloque RIR/RPE, types de séries et supersets, sans rien retirer.
       modeAvance: false, metrique: "rir",
+      // Seuils de rang saisis à la main, par mouvement puis par sexe :
+      // { "squat-barre": { H: [1, 1.5, 2, 2.5] } }. Vide = repères publiés.
+      standardsForce: {},
     },
   };
 }
@@ -57,6 +60,7 @@ export function normaliserEtat(brut) {
   // reçoivent le défaut. Les réglages sont fusionnés champ par champ.
   const out = { ...base, ...brut };
   out.reglages = { ...base.reglages, ...(brut.reglages || {}) };
+  out.reglages.standardsForce = normaliserStandardsForce(out.reglages.standardsForce);
 
   // Garantir le bon type des collections (robustesse face à un stockage abîmé).
   out.programmesPerso = toArray(brut.programmesPerso);
@@ -88,6 +92,38 @@ export function normaliserEtat(brut) {
  * @param {any} p profil brut, éventuellement null
  * @returns {any} profil complété, ou null s'il n'y en a pas
  */
+/**
+ * Nettoie les seuils de rang saisis à la main.
+ *
+ * On garde uniquement les entrées de la forme `{ H: [4 nombres] }` ou
+ * `{ F: [...] }` : le reste est écarté. Une entrée abîmée ne doit pas faire
+ * disparaître le rang — le moteur retombe alors sur les repères publiés, sans
+ * que l'utilisateur ait à comprendre pourquoi. La VALIDATION de plausibilité
+ * (croissance, bornes) reste dans `engine/rang.js` : ici on ne fait que du
+ * typage, pour que le stockage ne conserve jamais de forme inattendue.
+ *
+ * @param {any} v
+ * @returns {Record<string, {H?:number[], F?:number[]}>}
+ */
+export function normaliserStandardsForce(v) {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+  /** @type {Record<string, {H?:number[], F?:number[]}>} */
+  const out = {};
+  for (const [id, entree] of Object.entries(v)) {
+    if (!id || !entree || typeof entree !== "object") continue;
+    /** @type {{H?:number[], F?:number[]}} */
+    const garde = {};
+    for (const col of ["H", "F"]) {
+      const s = /** @type {any} */ (entree)[col];
+      if (!Array.isArray(s) || s.length !== 4) continue;
+      const nb = s.map((x) => Number(String(x).replace(",", ".")));
+      if (nb.every((x) => Number.isFinite(x))) garde[col] = nb;
+    }
+    if (garde.H || garde.F) out[id] = garde;
+  }
+  return out;
+}
+
 export function normaliserProfil(p) {
   if (!p || typeof p !== "object") return null;
   const listes = [

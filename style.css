@@ -1618,3 +1618,20 @@ h1{line-height:1.06}
 .rang-cran{height:5px;border-radius:999px;background:var(--surface-3)}
 .rang-cran.on{background:var(--grad)}
 .rang-mvt{padding-top:var(--space-3);margin-top:var(--space-3);border-top:1px solid var(--hair)}
+
+/* Calibrage : quatre seuils par mouvement. Deux colonnes, jamais quatre —
+   à 320 px, quatre champs côte à côte laissent 62 px chacun, l'équivalent en
+   kilos n'y tient plus et c'est justement lui qu'on vient lire. */
+.calib-mvt{padding-top:var(--space-3);margin-top:var(--space-3);border-top:1px solid var(--hair)}
+.calib-mvt:first-of-type{border-top:0;margin-top:0}
+.calib-grille{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:8px}
+@media (min-width:520px){.calib-grille{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.calib-champ{gap:4px}
+.calib-champ input{font-size:1rem;padding-block:9px}
+.calib-t{display:flex;align-items:baseline;justify-content:space-between;gap:6px;min-width:0}
+.calib-t>:first-child,.calib-champ>.calib-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* L'équivalent en kilos : personne ne raisonne en « 1,75 × PC ». */
+.calib-kg{flex:none;font-size:var(--fs-caption);font-weight:700;color:var(--ink-soft);
+  font-variant-numeric:tabular-nums;letter-spacing:0}
+.calib-champ input.err{border-color:var(--danger);box-shadow:0 0 0 2px color-mix(in srgb,var(--danger) 22%,transparent)}
+.calib-msg:empty{display:none}

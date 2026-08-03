@@ -22,7 +22,7 @@ import { dessinerCorps } from "./anatomieCanvas.js";
 import { illustration } from "./illustrations.js";
 import { medaille } from "./medailles.js";
 import { trophees } from "../engine/trophees.js";
-import { rangForce, NIVEAUX, AVERTISSEMENT as AVERT_RANG } from "../engine/rang.js";
+import { rangForce, NIVEAUX, STANDARDS, LIMITES as LIM_RANG, validerSeuils, standardsEffectifs, AVERTISSEMENT as AVERT_RANG } from "../engine/rang.js";
 import { calculerBesoins } from "../engine/nutrition.js";
 import { bilan } from "../engine/review.js";
 import { chercherFoods, portion } from "../data/foods.js";
@@ -4525,7 +4525,7 @@ function carteForce(v) {
   v.append(c1);
 
   /* --- 1 bis. Le rang de force : « je suis où ? » --- */
-  v.append(carteRang(meilleures));
+  carteRang(v, meilleures);
 
   /* --- 2. 1RM : consensus, fourchette, détail des sept formules --- */
   const c2 = h(`<div class="card stack"></div>`);
@@ -4655,40 +4655,164 @@ function carteForce(v) {
  * le niveau suivant est TOUJOURS chiffré en kilos, et l'app se tait quand elle
  * ne peut pas se prononcer — plutôt que de juger sur des données absentes.
  */
-function carteRang(meilleures) {
-  const r = rangForce(meilleures, Etat.data.profil || {});
+function carteRang(v, meilleures) {
   const c = h(`<div class="card stack"></div>`);
-  c.append(h(`<div class="eyebrow">Ton rang de force</div>`));
+  v.append(c);
 
-  if (!r.mesurable) {
-    c.append(h(`<div class="muted small">${esc(r.raison || "")}</div>`));
-    return c;
+  /** Redessine la carte sur place — le calibrage doit se voir immédiatement,
+   *  sans re-rendre l'écran entier (ni perdre la position de défilement). */
+  function dessiner() {
+    c.textContent = "";
+    const r = rangForce(meilleures, Etat.data.profil || {}, seuilsPerso());
+    c.append(h(`<div class="eyebrow">Ton rang de force</div>`));
+
+    if (!r.mesurable) {
+      c.append(h(`<div class="muted small">${esc(r.raison || "")}</div>`));
+      return;
+    }
+
+    const nv = NIVEAUX[r.rang - 1];
+    c.append(h(`<div class="rang-tete">
+      ${medaille({ rang: r.rang, titre: `Niveau ${nv.nom}`, taille: 58 })}
+      <span class="rang-tete-txt"><b>${esc(nv.nom)}</b>
+        <span class="muted small">${esc(nv.quoi)}</span></span></div>`));
+    // L'échelle complète, pour situer le niveau atteint parmi les cinq.
+    const ech = h(`<div class="rang-echelle" role="img" aria-label="Niveau ${esc(nv.nom)}, ${r.rang} sur ${NIVEAUX.length}"></div>`);
+    NIVEAUX.forEach((n, i) => ech.append(h(`<span class="rang-cran${i < r.rang ? " on" : ""}"></span>`)));
+    c.append(ech);
+
+    r.mouvements.forEach((m) => {
+      const bloc = h(`<div class="rang-mvt"></div>`);
+      bloc.append(h(`<div class="spread small"><b>${esc(m.nom)}</b>
+        <span><b class="num">${fr(m.kg)} kg</b> <span class="muted">${fr(m.ratio)} × PC</span></span></div>`));
+      bloc.append(h(`<div class="bar"><div style="width:${Math.round(m.progression * 100)}%"></div></div>`));
+      bloc.append(h(`<div class="spread" style="font-size:var(--fs-caption);margin-top:4px">
+        <span class="muted">${esc(m.niveau)}${m.perso ? " · tes seuils" : ""}</span>
+        ${m.prochain
+          ? `<span class="muted">${esc(m.prochain.nom)} à ${fr(m.prochain.kg)} kg · encore ${fr(m.prochain.manque)} kg</span>`
+          : `<span class="badge accent">Niveau maximal ✓</span>`}</div>`));
+      c.append(bloc);
+    });
+    c.append(h(`<div class="hint">${r.perso
+      ? "Seuils ajustés par toi pour les mouvements marqués « tes seuils ». Les autres suivent les repères publiés."
+      : esc(AVERT_RANG)}</div>`));
   }
 
-  const nv = NIVEAUX[r.rang - 1];
-  c.append(h(`<div class="rang-tete">
-    ${medaille({ rang: r.rang, titre: `Niveau ${nv.nom}`, taille: 58 })}
-    <span class="rang-tete-txt"><b>${esc(nv.nom)}</b>
-      <span class="muted small">${esc(nv.quoi)}</span></span></div>`));
-  // L'échelle complète, pour situer le niveau atteint parmi les cinq.
-  const ech = h(`<div class="rang-echelle" role="img" aria-label="Niveau ${esc(nv.nom)}, ${r.rang} sur ${NIVEAUX.length}"></div>`);
-  NIVEAUX.forEach((n, i) => ech.append(h(`<span class="rang-cran${i < r.rang ? " on" : ""}"></span>`)));
-  c.append(ech);
+  dessiner();
+  section(v, "rang-calib", "Ajuster les seuils", (b) => calibrageRang(b, dessiner),
+    { resume: Object.keys(seuilsPerso()).length ? "personnalisés" : "repères publiés" });
+}
 
-  r.mouvements.forEach((m) => {
-    const bloc = h(`<div class="rang-mvt"></div>`);
-    bloc.append(h(`<div class="spread small"><b>${esc(m.nom)}</b>
-      <span><b class="num">${fr(m.kg)} kg</b> <span class="muted">${fr(m.ratio)} × PC</span></span></div>`));
-    bloc.append(h(`<div class="bar"><div style="width:${Math.round(m.progression * 100)}%"></div></div>`));
-    bloc.append(h(`<div class="spread" style="font-size:var(--fs-caption);margin-top:4px">
-      <span class="muted">${esc(m.niveau)}</span>
-      ${m.prochain
-        ? `<span class="muted">${esc(m.prochain.nom)} à ${fr(m.prochain.kg)} kg · encore ${fr(m.prochain.manque)} kg</span>`
-        : `<span class="badge accent">Niveau maximal ✓</span>`}</div>`));
+/** Seuils saisis à la main, toujours un objet (jamais undefined). */
+function seuilsPerso() {
+  const rg = /** @type {any} */ (Etat.data.reglages || {});
+  if (!rg.standardsForce || typeof rg.standardsForce !== "object") rg.standardsForce = {};
+  return rg.standardsForce;
+}
+
+/**
+ * CALIBRAGE DU RANG — les repères publiés ne sont qu'un point de départ.
+ *
+ * Les standards de force varient de 10 à 15 % d'une source à l'autre, et selon
+ * la fédération, la profondeur de squat, l'équipement. Plutôt que d'imposer MA
+ * table, l'app laisse écrire la tienne : quatre nombres par mouvement, en
+ * multiples du poids de corps.
+ *
+ * Trois précautions, sinon ça produit des rangs absurdes sans rien dire :
+ *  · les seuils doivent MONTER (sinon un niveau devient inatteignable) ;
+ *  · l'équivalent en kilos s'affiche en direct, parce que personne ne raisonne
+ *    en « 1,75 × PC » — on raisonne en « 140 kg » ;
+ *  · une saisie refusée ne casse rien : le mouvement reste sur son repère publié
+ *    et le message dit pourquoi.
+ */
+function calibrageRang(v, apresChangement) {
+  const c = h(`<div class="card stack"></div>`);
+  const profil = Etat.data.profil || {};
+  const pc = Number(profil.poidsKg) || 0;
+  const col = profil.sexe === "F" ? "F" : "H";
+  const perso = seuilsPerso();
+
+  c.append(h(`<div class="muted small">Quatre seuils par mouvement, en multiples de ton poids de corps.
+    Ils remplacent les repères publiés — laisse vide pour revenir à ceux-ci.</div>`));
+  if (!pc) c.append(h(`<div class="hint">Renseigne ton poids de corps dans le profil pour voir l'équivalent en kilos.</div>`));
+
+  for (const [id, std] of Object.entries(STANDARDS)) {
+    const eff = standardsEffectifs(perso)[id][col];
+    const bloc = h(`<div class="calib-mvt"></div>`);
+    const surTitre = h(`<div class="spread small"><b>${esc(std.nom)}</b></div>`);
+    const etat = h(`<span class="muted" style="font-size:var(--fs-caption)">${perso[id] && perso[id][col] ? "tes seuils" : "repères publiés"}</span>`);
+    surTitre.append(etat);
+    bloc.append(surTitre);
+
+    const grille = h(`<div class="calib-grille"></div>`);
+    /** @type {HTMLInputElement[]} */
+    const champs = [];
+    /** @type {HTMLElement[]} */
+    const kgs = [];
+    // Un seuil par niveau à ATTEINDRE : novice → élite. Le débutant est le
+    // niveau de départ, il n'a pas de seuil d'entrée.
+    NIVEAUX.slice(1).forEach((n, i) => {
+      // Libellé et équivalent en kilos sur la MÊME ligne : en trois lignes par
+      // champ, les quatre mouvements faisaient 1 800 px de haut pour seize
+      // nombres. Le kilo reste à côté du niveau, là où on le cherche.
+      const lab = h(`<label class="champ calib-champ"><span class="calib-t">${esc(n.nom)}<span class="calib-kg"></span></span></label>`);
+      const inp = /** @type {HTMLInputElement} */ (h(`<input inputmode="decimal" aria-label="${esc(std.nom)} — seuil ${esc(n.nom)}, en multiples du poids de corps" value="${fr(eff[i])}">`));
+      const kg = /** @type {HTMLElement} */ (lab.querySelector(".calib-kg"));
+      lab.append(inp);
+      grille.append(lab);
+      champs.push(inp); kgs.push(kg);
+    });
+    bloc.append(grille);
+
+    const msg = h(`<div class="calib-msg hint"></div>`);
+    bloc.append(msg);
+
+    const majKg = () => champs.forEach((inp, i) => {
+      const r = Number(String(inp.value).replace(",", "."));
+      kgs[i].textContent = pc && Number.isFinite(r) && r > 0 ? `≈ ${fr(arrondirForce(r * pc))} kg` : "";
+    });
+
+    const appliquer = () => {
+      const brut = champs.map((x) => x.value.trim());
+      // Tout vide : retour explicite aux repères publiés.
+      if (brut.every((x) => !x)) {
+        if (perso[id]) { delete perso[id][col]; if (!perso[id].H && !perso[id].F) delete perso[id]; }
+        Etat.sauver(); etat.textContent = "repères publiés"; msg.textContent = "";
+        champs.forEach((inp, i) => { inp.value = fr(std[col][i]); inp.classList.remove("err"); });
+        majKg(); apresChangement(); return;
+      }
+      const ok = validerSeuils(brut);
+      if (!ok) {
+        champs.forEach((x) => x.classList.add("err"));
+        msg.textContent = `Quatre nombres qui montent, entre ${fr(LIM_RANG.min)} et ${fr(LIM_RANG.max)} × le poids de corps. `
+          + `Le repère publié reste appliqué en attendant.`;
+        return;
+      }
+      champs.forEach((x) => x.classList.remove("err"));
+      msg.textContent = "";
+      perso[id] = { ...(perso[id] || {}), [col]: ok };
+      Etat.sauver();
+      etat.textContent = "tes seuils";
+      majKg(); apresChangement();
+    };
+
+    champs.forEach((inp) => {
+      inp.addEventListener("input", majKg);
+      inp.addEventListener("change", appliquer);
+    });
+    majKg();
     c.append(bloc);
+  }
+
+  const bReset = h(`<button class="btn ghost">Revenir aux repères publiés</button>`);
+  bReset.addEventListener("click", () => {
+    if (!Object.keys(perso).length) return;
+    if (!confirm("Effacer tous tes seuils et revenir aux repères publiés ?")) return;
+    for (const k of Object.keys(perso)) delete perso[k];
+    Etat.sauver(); apresChangement(); v.textContent = ""; calibrageRang(v, apresChangement);
   });
-  c.append(h(`<div class="hint">${esc(AVERT_RANG)}</div>`));
-  return c;
+  c.append(bReset);
+  v.append(c);
 }
 
 /** Arrondi 2,5 kg — le pas des disques les plus courants. */
