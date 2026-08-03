@@ -20,7 +20,7 @@ import { SCHEMA_VERSION, normaliserEtat } from "../store/migrate.js";
  */
 const CLES_EXPORT = [
   "profil", "programme", "programmesPerso", "exercicesPerso",
-  "logs", "metrics", "foodlog", "waterlog", "reviews", "photos", "reglages",
+  "logs", "metrics", "foodlog", "waterlog", "reviews", "photos", "favoris", "recentsExo", "reglages",
 ];
 
 /** Construit l'objet d'export (sérialisable en JSON). */
@@ -86,6 +86,9 @@ export function appliquerImport(actuel, src, mode = "fusionner") {
   out.programmesPerso = fusionListe(base.programmesPerso, src.programmesPerso);
   out.exercicesPerso = fusionListe(base.exercicesPerso, src.exercicesPerso);
   out.photos = fusionListe(base.photos, src.photos);
+  // Listes d'identifiants : union sans doublon, l'actuel d'abord.
+  out.favoris = [...new Set([...(base.favoris || []), ...(src.favoris || [])])];
+  out.recentsExo = [...new Set([...(base.recentsExo || []), ...(src.recentsExo || [])])].slice(0, 12);
   // foodlog / waterlog : union des jours, priorité aux données actuelles.
   out.foodlog = { ...(src.foodlog || {}), ...(base.foodlog || {}) };
   out.waterlog = { ...(src.waterlog || {}), ...(base.waterlog || {}) };

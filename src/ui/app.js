@@ -28,6 +28,7 @@ import { bilan } from "../engine/review.js";
 import { chercherFoods, portion } from "../data/foods.js";
 import { rechercher as offRechercher, parCodeBarres } from "../integrations/openfoodfacts.js";
 import { scannerDisponible, demarrerScan, normaliserCode } from "./scanner.js";
+import { chargementMedia } from "../data/media-manifest.js";
 import { etatNotifs, demanderNotifs, notifier, fermerNotifs } from "./notifs.js";
 import { POSES, nouvellePhoto, trierPhotos, paireComparaison, poidsProche, resumeStockage,
   formaterOctets, incoherences } from "../engine/photos.js";
@@ -92,7 +93,7 @@ import {
   TESTS_VELO, testVeloParCle, comparerTestsVelo,
 } from "../engine/outils.js";
 import { PROGRAMMES_SALLE } from "../data/programmes-salle.js";
-import { DUREES, FREQUENCES, MATERIELS, filtrerProgrammes, nbCriteresActifs } from "../engine/bibliotheque.js";
+import { DUREES, FREQUENCES, MATERIELS, filtrerProgrammes, nbCriteresActifs, TRIS, basculerFavori, ajouterRecent, ordonner, resoudreIds } from "../engine/bibliotheque.js";
 import { CLES_MOTEUR, LABELS_MOTEUR, DEF_MOTEUR, FIN_VERS_CATALOGUE } from "../data/muscles-moteur.js";
 import { coefficientsPour } from "../data/exercise-muscle-map.js";
 import { etatMusculaire, zoneDisponibilite, cibleVolumeHebdo, analyserSeance } from "../engine/fatigue.js";
@@ -735,6 +736,7 @@ const IC = {
   spark: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>`,
   forward: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 4 10 8-10 8zM19 5v14"/></svg>`,
   back: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 20-10-8 10-8zM5 5v14"/></svg>`,
+  star: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.9 6.1 21l1.2-6.5L2.5 9.9 9.1 9z"/></svg>`,
   layers: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg>`,
   wind: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.6 4.6A2 2 0 1 1 11 8H2M12.6 19.4A2 2 0 1 0 14 16H2M17.7 7.8A2.5 2.5 0 1 1 19.5 12H2"/></svg>`,
 };
@@ -1403,6 +1405,9 @@ function historiqueExercice(exId) {
 
 /** Fiche démonstration PREMIUM (feuille plein écran). */
 function ouvrirDetail(exo) {
+  // Trace automatique, plafonnée : retrouver l'exercice qu'on vient de
+  // consulter ne doit pas demander de retaper son nom.
+  if (exo && exo.id) { Etat.data.recentsExo = ajouterRecent(Etat.data.recentsExo, exo.id); Etat.sauver(); }
   const P = new Set(exo.musclesPrincipaux || []), Sec = new Set(exo.musclesSecondaires || []);
   const alts = alternatives(exo.id, Etat.data.profil);
   const diff = exo.difficulte || 2;
@@ -1597,6 +1602,11 @@ function controlesMedia(media, el, estVideo) {
    ====================================================================== */
 let CAT_SIL = false; // silhouette de recherche dépliée dans le catalogue
 let CAT_FILTRE = { q: "", muscle: "", equip: "" };
+/** Grille ou liste. La grille met les démonstrations en avant, la liste tient
+ *  plus d'exercices à l'écran : les deux ont leur usage, aucun n'est « le bon ». */
+let CAT_VUE = "grille";
+let CAT_TRI = "pertinence";
+let CAT_FAVORIS_SEUL = false;
 function vCatalogue(v) {
   if (!catalogueEtenduCharge()) chargerCatalogueEtendu().then(() => render());
   v.append(h(`<div class="spread"><h1>Exercices</h1><span class="pill">${CATALOGUE.length} au total</span></div>`));
@@ -1646,6 +1656,34 @@ function vCatalogue(v) {
   v.append(h(`<div class="eyebrow" style="margin-top:8px">Matériel</div>`));
   v.append(filtreLigne(equips, "equip", EQUIPMENT_LABELS));
 
+  // Rangée « Récemment consultés » : avec 343 exercices, retrouver celui qu'on
+  // vient d'ouvrir demandait de retaper son nom. Masquée pendant une recherche,
+  // où elle ne ferait que du bruit.
+  const recents = resoudreIds(Etat.data.recentsExo || [], getExercise);
+  if (recents.length && !CAT_FILTRE.q && !CAT_FAVORIS_SEUL) {
+    v.append(h(`<div class="eyebrow" style="margin-top:12px">Récemment consultés</div>`));
+    const rr = h(`<div class="row scrollx cat-recents"></div>`);
+    recents.forEach((e, i) => {
+      const b = h(`<button class="cat-recent">${vignetteHTML(e, "sm")}<span>${esc(e.nom)}</span></button>`);
+      b.addEventListener("click", () => ouvrirDetail(e));
+      rr.append(b);
+    });
+    v.append(rr);
+  }
+
+  // Barre d'outils : affichage, tri, favoris. Trois décisions qui changent la
+  // lecture de la liste, réunies au même endroit plutôt que dispersées.
+  const outils = h(`<div class="cat-outils"></div>`);
+  const bVue = h(`<button class="chip" aria-pressed="${CAT_VUE === "grille"}" aria-label="Basculer entre grille et liste">${CAT_VUE === "grille" ? IC.layers : IC.bars}<span>${CAT_VUE === "grille" ? "Grille" : "Liste"}</span></button>`);
+  bVue.addEventListener("click", () => { CAT_VUE = CAT_VUE === "grille" ? "liste" : "grille"; render(); });
+  const nbFav = (Etat.data.favoris || []).length;
+  const bFav = h(`<button class="chip${CAT_FAVORIS_SEUL ? " on" : ""}" aria-pressed="${CAT_FAVORIS_SEUL}">${IC.star}<span>Favoris${nbFav ? " · " + nbFav : ""}</span></button>`);
+  bFav.addEventListener("click", () => { CAT_FAVORIS_SEUL = !CAT_FAVORIS_SEUL; montres = PAS; render(); });
+  const selTri = h(`<select class="selchip" aria-label="Trier les exercices">${TRIS.map((t) => `<option value="${t.cle}"${t.cle === CAT_TRI ? " selected" : ""}>${esc(t.nom)}</option>`).join("")}</select>`);
+  selTri.addEventListener("change", () => { CAT_TRI = selTri.value; render(); });
+  outils.append(bVue, bFav, selTri);
+  v.append(outils);
+
   const res = h(`<div id="catRes" style="margin-top:10px"></div>`);
   v.append(res);
   // Affichage progressif : rendre les 343 exercices d'un coup produisait une
@@ -1653,25 +1691,69 @@ function vCatalogue(v) {
   const PAS = 20;
   let montres = PAS;
   const dessine = () => {
-    const tous = chercherCatalogue(CAT_FILTRE);
+    let tous = chercherCatalogue(CAT_FILTRE);
+    const favs = Etat.data.favoris || [];
+    if (CAT_FAVORIS_SEUL) tous = tous.filter((e) => favs.includes(e.id));
+    tous = ordonner(tous, { favoris: favs, tri: CAT_TRI });
     const list = tous.slice(0, montres);
     res.innerHTML = "";
     if (!tous.length) {
-      res.append(etatVide(illustration("recherche"), "Aucun exercice ne correspond", "Les filtres se cumulent : retire le matériel ou le muscle pour élargir.",
-        { action: { label: "Réinitialiser les filtres", onClick: () => { CAT_FILTRE = { q: "", muscle: "", equip: "" }; render(); } } }));
+      res.append(etatVide(illustration("recherche"),
+        CAT_FAVORIS_SEUL ? "Aucun favori pour l'instant" : "Aucun exercice ne correspond",
+        CAT_FAVORIS_SEUL ? "Touche l'étoile sur un exercice pour le retrouver ici." : "Les filtres se cumulent : retire le matériel ou le muscle pour élargir.",
+        { action: { label: CAT_FAVORIS_SEUL ? "Voir tous les exercices" : "Réinitialiser les filtres",
+          onClick: () => { CAT_FAVORIS_SEUL = false; CAT_FILTRE = { q: "", muscle: "", equip: "" }; render(); } } }));
       return;
     }
     res.append(h(`<div class="muted small" style="margin-bottom:4px">${tous.length} résultat${tous.length > 1 ? "s" : ""}</div>`));
-    for (const e of list) {
-      // Toute la ligne est cliquable : cible tactile bien plus large qu'un
-      // petit bouton en bout de ligne.
-      const row = h(`<button class="exline">
-        ${vignetteHTML(e, "sm")}
-        <span class="meta"><span class="nm">${esc(e.nom)}</span>
-          <span class="muted small">${e.musclesPrincipaux.map((m) => MUSCLE_LABELS[m] || m).join(", ")} · ${e.equipement.map((q) => EQUIPMENT_LABELS[q] || q).join(", ")}${e.source === "wger" ? ` · <span class="tag">wger</span>` : ""}</span></span>
-        <span class="chev" aria-hidden="true">›</span></button>`);
-      row.addEventListener("click", () => ouvrirDetail(e));
-      res.append(row);
+
+    const favoris = Etat.data.favoris || [];
+    /** Étoile de favori, posée sur la vignette en grille, en bout de ligne en liste. */
+    const etoile = (e) => {
+      const on = favoris.includes(e.id);
+      const b = h(`<button class="cat-fav${on ? " on" : ""}" aria-pressed="${on}" aria-label="${on ? "Retirer" : "Ajouter"} ${esc(e.nom)} des favoris">${IC.star}</button>`);
+      b.addEventListener("click", (ev) => {
+        ev.stopPropagation();          // sans quoi la fiche s'ouvre aussi
+        Etat.data.favoris = basculerFavori(Etat.data.favoris, e.id);
+        Etat.sauver(); render();
+      });
+      return b;
+    };
+
+    if (CAT_VUE === "grille") {
+      const g = h(`<div class="cat-grille"></div>`);
+      list.forEach((e, i) => {
+        const carte = h(`<button class="cat-carte">
+          <span class="cat-media">${vignetteHTML(e, "lg")}</span>
+          <span class="cat-nom">${esc(e.nom)}</span>
+          <span class="cat-meta muted">${esc((e.musclesPrincipaux || []).map((m) => MUSCLE_LABELS[m] || m)[0] || "")}</span>
+        </button>`);
+        // Chargement progressif : 343 vignettes chargées d'un coup, c'est des
+        // dizaines de Mo sur un forfait mobile et un écran figé.
+        const img = carte.querySelector("img.exo-gif");
+        if (img) { const c = chargementMedia(i); img.loading = c.loading; img.setAttribute("fetchpriority", c.fetchpriority); }
+        carte.addEventListener("click", () => ouvrirDetail(e));
+        const w = h(`<div class="cat-case"></div>`);
+        w.append(carte, etoile(e));
+        g.append(w);
+      });
+      res.append(g);
+    } else {
+      list.forEach((e, i) => {
+        // Toute la ligne est cliquable : cible tactile bien plus large qu'un
+        // petit bouton en bout de ligne.
+        const row = h(`<button class="exline">
+          ${vignetteHTML(e, "sm")}
+          <span class="meta"><span class="nm">${esc(e.nom)}</span>
+            <span class="muted small">${e.musclesPrincipaux.map((m) => MUSCLE_LABELS[m] || m).join(", ")} · ${e.equipement.map((q) => EQUIPMENT_LABELS[q] || q).join(", ")}${e.source === "wger" ? ` · <span class="tag">wger</span>` : ""}</span></span>
+          <span class="chev" aria-hidden="true">›</span></button>`);
+        const img = row.querySelector("img.exo-gif");
+        if (img) { const c = chargementMedia(i); img.loading = c.loading; img.setAttribute("fetchpriority", c.fetchpriority); }
+        row.addEventListener("click", () => ouvrirDetail(e));
+        const ligne = h(`<div class="cat-ligne"></div>`);
+        ligne.append(row, etoile(e));
+        res.append(ligne);
+      });
     }
     if (tous.length > montres) {
       const plus = h(`<button class="secondary" style="width:100%;margin-top:10px">Voir ${Math.min(PAS, tous.length - montres)} exercices de plus</button>`);

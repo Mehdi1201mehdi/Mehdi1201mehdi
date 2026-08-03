@@ -97,3 +97,99 @@ export function filtrerProgrammes(programmes, criteres = {}, getExercise = () =>
 export function nbCriteresActifs(criteres = {}) {
   return ["objectif", "niveau", "duree", "materiel", "frequence"].filter((k) => criteres[k]).length;
 }
+
+/* ==========================================================================
+   BIBLIOTHÈQUE D'EXERCICES — favoris, récents, tri.
+
+   Avec 343 exercices, retrouver « celui qu'on fait toujours » demandait de
+   retaper son nom à chaque fois. Deux mémoires y répondent, et elles ne se
+   confondent pas :
+
+     · FAVORIS — un choix explicite, qui ne disparaît jamais tout seul.
+     · RÉCENTS — une trace automatique, plafonnée, qui s'efface d'elle-même.
+
+   Les deux sont des listes d'identifiants, donc minuscules dans le stockage et
+   incluses dans la sauvegarde JSON sans la faire grossir.
+   ========================================================================== */
+
+/** Au-delà, « récent » ne veut plus rien dire et la rangée devient un mur. */
+export const MAX_RECENTS = 12;
+
+/** Modes de tri proposés. `pertinence` = l'ordre du catalogue, inchangé. */
+export const TRIS = [
+  { cle: "pertinence", nom: "Pertinence" },
+  { cle: "alpha", nom: "A → Z" },
+  { cle: "muscle", nom: "Par muscle" },
+];
+
+/**
+ * Ajoute ou retire un favori. Renvoie TOUJOURS un nouveau tableau : muter la
+ * liste en place empêcherait de détecter le changement au rendu.
+ *
+ * @param {string[]} favoris
+ * @param {string} id
+ */
+export function basculerFavori(favoris, id) {
+  const l = Array.isArray(favoris) ? favoris.filter((x) => typeof x === "string") : [];
+  if (!id) return l;
+  return l.includes(id) ? l.filter((x) => x !== id) : [id, ...l];
+}
+
+/**
+ * Note un exercice comme consulté. Le plus récent passe en tête, les doublons
+ * disparaissent, la liste est plafonnée.
+ *
+ * @param {string[]} recents
+ * @param {string} id
+ * @param {number} [max]
+ */
+export function ajouterRecent(recents, id, max = MAX_RECENTS) {
+  const l = Array.isArray(recents) ? recents.filter((x) => typeof x === "string") : [];
+  if (!id) return l;
+  const n = Math.max(1, Math.round(Number(max) || MAX_RECENTS));
+  return [id, ...l.filter((x) => x !== id)].slice(0, n);
+}
+
+/**
+ * Ordonne une liste d'exercices.
+ *
+ * Les favoris remontent TOUJOURS en tête, quel que soit le tri : c'est le seul
+ * intérêt d'en avoir. À l'intérieur de chaque groupe, le tri demandé s'applique.
+ *
+ * @param {any[]} exercices
+ * @param {{favoris?:string[], tri?:string}} [opts]
+ */
+export function ordonner(exercices, opts = {}) {
+  const l = Array.isArray(exercices) ? exercices.slice() : [];
+  const fav = new Set(Array.isArray(opts.favoris) ? opts.favoris : []);
+  const tri = TRIS.some((t) => t.cle === opts.tri) ? opts.tri : "pertinence";
+  const nom = (e) => String((e && e.nom) || "");
+  const muscle = (e) => String(((e && e.musclesPrincipaux) || [])[0] || "zzz");
+  const rang = new Map(l.map((e, i) => [e, i]));   // stabilité du tri d'origine
+
+  return l.sort((a, b) => {
+    const fa = fav.has(a && a.id) ? 0 : 1, fb = fav.has(b && b.id) ? 0 : 1;
+    if (fa !== fb) return fa - fb;
+    if (tri === "alpha") return nom(a).localeCompare(nom(b), "fr");
+    if (tri === "muscle") {
+      const c = muscle(a).localeCompare(muscle(b), "fr");
+      if (c) return c;
+      return nom(a).localeCompare(nom(b), "fr");
+    }
+    return (rang.get(a) || 0) - (rang.get(b) || 0);
+  });
+}
+
+/**
+ * Résout une liste d'identifiants en exercices, en ignorant ceux qui
+ * n'existent plus. Un exercice supprimé du catalogue ou d'un import ne doit pas
+ * laisser un trou dans la rangée des récents.
+ *
+ * @param {string[]} ids
+ * @param {(id:string)=>any} getExercise
+ */
+export function resoudreIds(ids, getExercise) {
+  return (Array.isArray(ids) ? ids : [])
+    .map((id) => { try { return getExercise(id); } catch (e) { return null; } })
+    .filter(Boolean);
+}

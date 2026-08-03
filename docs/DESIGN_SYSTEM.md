@@ -800,3 +800,53 @@ Une seule source désormais :
 Écart mesuré **constant à 10 px** de 320 à 1024 px — exactement la valeur
 déclarée. C'est le genre de dérive qu'aucun test unitaire n'attrape : il faut
 mesurer le rendu.
+
+## Bibliothèque d'exercices — 281 démonstrations enfin visibles
+
+Le catalogue affichait ses vignettes en **42 px**. À cette taille on ne distingue
+pas un geste : les 281 démonstrations animées existaient sans servir à rien.
+
+### Deux affichages, aucun « bon »
+
+| | Vignette | Usage |
+|---|---|---|
+| **Grille** (défaut) | pleine largeur de carte, ~154 px | on cherche un mouvement, on veut le VOIR |
+| **Liste** | 42 px | on connaît le nom, on veut en balayer beaucoup |
+
+2 colonnes à 320 px, 3 dès 480, 4 dès 900. Au-delà, les vignettes redeviennent
+trop petites pour qu'on distingue le geste — élargir n'améliore plus rien.
+
+### Deux mémoires qui ne se confondent pas
+
+- **Favoris** — un choix explicite, qui ne disparaît jamais tout seul. Ils
+  remontent en tête **quel que soit le tri** : c'est le seul intérêt d'en avoir.
+- **Récents** — une trace automatique, plafonnée à 12, qui s'efface d'elle-même.
+  Masquée pendant une recherche, où elle ne ferait que du bruit.
+
+Deux listes d'identifiants : minuscules dans le stockage, incluses dans la
+sauvegarde JSON sans la faire grossir. `resoudreIds()` ignore les exercices
+disparus — un import qui change ne doit pas laisser de vignette vide.
+
+### Chargement : 6 pressées, le reste paresseux
+
+343 vignettes chargées au rendu, c'est plusieurs dizaines de Mo sur un forfait
+mobile et un écran figé sur un appareil d'entrée de gamme. `chargementMedia(i)`
+donne `eager`/`fetchpriority=high` aux six premières, `lazy`/`low` ensuite.
+**Mesuré : 14 à 20 requêtes au premier rendu, jamais 343.**
+
+### Le repli est un choix d'écran, pas un accident
+
+Sous la démonstration se trouve toujours la silhouette musculaire. Tant que le
+GIF n'est pas arrivé — ou s'il n'arrive jamais, hors ligne — c'est elle qu'on
+voit. Un couple d'écouteurs `load`/`error` en phase de capture, un seul pour
+toute l'application, fait apparaître l'image quand elle est prête et **retire**
+la balise si elle échoue. Jamais un carré vide, jamais une image cassée.
+
+### Composants (`.cat-*`)
+
+`.cat-outils` (affichage · favoris · tri) · `.cat-grille` · `.cat-carte` ·
+`.cat-media` · `button.cat-fav` (disque 30 px, cible tactile 44 px via
+`::after{inset:-7px}`) · `.cat-ligne` · `.cat-recents`.
+
+Vérifié à **7 largeurs** (320 → 1024) : rapport de forme constant à 1, aucun
+débordement hors conteneur défilant, 0 erreur console.

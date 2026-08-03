@@ -35,6 +35,10 @@ export function etatVide() {
     // poids, dimensions). Les images sont des Blob dans IndexedDB — du binaire
     // n'a rien à faire dans un état mirroré en JSON vers localStorage.
     photos: [],
+    // Bibliothèque : un choix explicite (favoris) et une trace automatique
+    // (récents). Deux listes d'identifiants — minuscules dans le stockage.
+    favoris: [],
+    recentsExo: [],
     reglages: {
       theme: "dark", unites: "metrique", sons: true, vibrations: true,
       // Interface progressive : en mode débutant l'écran de séance reste
@@ -76,6 +80,8 @@ export function normaliserEtat(brut) {
   out.reviews = toArray(brut.reviews);
   out.testsVelo = toArray(brut.testsVelo);
   out.photos = toArray(brut.photos).filter((p) => p && typeof p === "object" && p.id);
+  out.favoris = toArray(brut.favoris).filter((x) => typeof x === "string");
+  out.recentsExo = toArray(brut.recentsExo).filter((x) => typeof x === "string");
   out.foodlog = brut.foodlog && typeof brut.foodlog === "object" ? brut.foodlog : {};
   out.waterlog = brut.waterlog && typeof brut.waterlog === "object" ? brut.waterlog : {};
   out.mediaCache = brut.mediaCache && typeof brut.mediaCache === "object" ? brut.mediaCache : {};

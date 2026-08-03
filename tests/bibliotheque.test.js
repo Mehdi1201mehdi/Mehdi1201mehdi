@@ -6,6 +6,7 @@ import { PROGRAMMES_SALLE } from "../src/data/programmes-salle.js";
 import {
   DUREES, FREQUENCES, MATERIELS,
   equipementsProgramme, correspondMateriel, filtrerProgrammes, nbCriteresActifs,
+  MAX_RECENTS, TRIS, basculerFavori, ajouterRecent, ordonner, resoudreIds,
 } from "../src/engine/bibliotheque.js";
 
 test("equipementsProgramme : liste le matériel réellement utilisé, sans doublon", () => {
@@ -112,4 +113,89 @@ test("filtrerProgrammes : robustesse aux entrées absentes", () => {
   assert.deepEqual(filtrerProgrammes(undefined, {}), []);
   assert.doesNotThrow(() => filtrerProgrammes(PROGRAMMES_SALLE, { materiel: "libre" }));
   assert.deepEqual(equipementsProgramme(null, getExercise), []);
+});
+
+/* ==================== Favoris, récents, tri ==================== */
+
+test("basculerFavori : ajoute en tête, retire, et ne mute jamais l'entrée", () => {
+  const base = ["a"];
+  const avec = basculerFavori(base, "b");
+  assert.deepEqual(avec, ["b", "a"], "le dernier choisi passe en tête");
+  assert.deepEqual(base, ["a"], "la liste d'origine ne bouge pas");
+  assert.deepEqual(basculerFavori(avec, "b"), ["a"], "second appel : on retire");
+});
+
+test("basculerFavori : entrées abîmées → liste propre, jamais d'erreur", () => {
+  assert.deepEqual(basculerFavori(/** @type {any} */ (null), "a"), ["a"]);
+  assert.deepEqual(basculerFavori(/** @type {any} */ ([1, null, "a"]), "b"), ["b", "a"]);
+  assert.deepEqual(basculerFavori(["a"], ""), ["a"], "identifiant vide : sans effet");
+});
+
+test("ajouterRecent : le plus récent en tête, sans doublon", () => {
+  let r = [];
+  r = ajouterRecent(r, "squat");
+  r = ajouterRecent(r, "bench");
+  r = ajouterRecent(r, "squat");
+  assert.deepEqual(r, ["squat", "bench"], "squat remonte, il n'apparaît pas deux fois");
+});
+
+test("ajouterRecent : plafonné, sinon la rangée devient un mur", () => {
+  let r = [];
+  for (let i = 0; i < 40; i++) r = ajouterRecent(r, "ex" + i);
+  assert.equal(r.length, MAX_RECENTS);
+  assert.equal(r[0], "ex39", "le dernier consulté reste en tête");
+  assert.equal(ajouterRecent([], "a", 3).length, 1);
+  let court = [];
+  for (let i = 0; i < 10; i++) court = ajouterRecent(court, "e" + i, 3);
+  assert.equal(court.length, 3);
+});
+
+test("ordonner : les favoris passent devant, quel que soit le tri", () => {
+  // C'est le seul intérêt d'avoir des favoris.
+  const l = [
+    { id: "c", nom: "Curl", musclesPrincipaux: ["biceps"] },
+    { id: "a", nom: "Abdos", musclesPrincipaux: ["abdominaux"] },
+    { id: "s", nom: "Squat", musclesPrincipaux: ["quadriceps"] },
+  ];
+  const parAlpha = ordonner(l, { tri: "alpha" }).map((e) => e.id);
+  assert.deepEqual(parAlpha, ["a", "c", "s"]);
+  const avecFav = ordonner(l, { tri: "alpha", favoris: ["s"] }).map((e) => e.id);
+  assert.equal(avecFav[0], "s", "le favori d'abord");
+  assert.deepEqual(avecFav.slice(1), ["a", "c"], "le reste garde le tri demandé");
+});
+
+test("ordonner : « pertinence » conserve l'ordre du catalogue", () => {
+  const l = [{ id: "z", nom: "Zèbre" }, { id: "a", nom: "Abeille" }];
+  assert.deepEqual(ordonner(l, { tri: "pertinence" }).map((e) => e.id), ["z", "a"]);
+  assert.deepEqual(ordonner(l, { tri: "inconnu" }).map((e) => e.id), ["z", "a"], "tri inconnu → pertinence");
+});
+
+test("ordonner : tri par muscle, puis par nom à l'intérieur du muscle", () => {
+  const l = [
+    { id: "b2", nom: "Curl marteau", musclesPrincipaux: ["biceps"] },
+    { id: "d1", nom: "Rowing", musclesPrincipaux: ["dos"] },
+    { id: "b1", nom: "Curl barre", musclesPrincipaux: ["biceps"] },
+  ];
+  assert.deepEqual(ordonner(l, { tri: "muscle" }).map((e) => e.id), ["b1", "b2", "d1"]);
+});
+
+test("ordonner : liste vide ou abîmée → tableau, jamais d'erreur", () => {
+  assert.deepEqual(ordonner(/** @type {any} */ (null)), []);
+  assert.equal(ordonner([null, undefined, { id: "a", nom: "A" }], { tri: "alpha" }).length, 3);
+});
+
+test("resoudreIds : un exercice disparu ne laisse pas de trou", () => {
+  // Un exercice supprimé du catalogue, ou un import qui a changé, ne doit pas
+  // produire une vignette vide dans la rangée des récents.
+  const get = (id) => (id === "vivant" ? { id, nom: "Vivant" } : null);
+  assert.deepEqual(resoudreIds(["vivant", "disparu"], get).map((e) => e.id), ["vivant"]);
+  assert.deepEqual(resoudreIds(/** @type {any} */ (null), get), []);
+  // Un accesseur qui lève ne doit pas faire tomber l'écran entier.
+  assert.deepEqual(resoudreIds(["x"], () => { throw new Error("boum"); }), []);
+});
+
+test("TRIS : chaque mode a une clé et un nom, aucun doublon", () => {
+  for (const t of TRIS) assert.ok(t.cle && t.nom, JSON.stringify(t));
+  const cles = TRIS.map((t) => t.cle);
+  assert.equal(new Set(cles).size, cles.length);
 });
