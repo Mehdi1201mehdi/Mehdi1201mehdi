@@ -1,7 +1,7 @@
 /* Service worker — stratégie RÉSEAU D'ABORD pour l'app (toujours la dernière
    version en ligne), cache en secours hors ligne. Les médias de démonstration
    (cross-origin) restent en cache d'abord pour l'usage hors ligne. */
-const CACHE = "coachperso-ia-v126";
+const CACHE = "coachperso-ia-v127";
 const MEDIA_CACHE = "coachperso-media-v1";
 const MEDIA_HOSTS = ["exercisedb.dev", "exercisedb.p.rapidapi.com", "wger.de", "githubusercontent.com", "cloudfront.net"];
 const ASSETS = [
@@ -50,17 +50,51 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  // App (même origine) : RÉSEAU D'ABORD, cache en secours hors ligne
+  /* App (même origine) — DEUX stratégies, et la distinction compte.
+
+     Tout était en « réseau d'abord », pour garantir qu'on ait toujours la
+     dernière version. Mesuré : 60 modules JS re-téléchargés à CHAQUE
+     lancement, soit 6,7 secondes avant que l'application soit utilisable sur un
+     téléphone d'entrée de gamme en 4G. Un prix énorme pour une garantie que le
+     mécanisme de mise à jour assure déjà — `boot.js` détecte une nouvelle
+     version et l'app affiche « Nouvelle version disponible ».
+
+     · LE DOCUMENT reste en réseau d'abord. C'est LA requête qui permet au
+       navigateur de découvrir un `sw.js` modifié, donc de déclencher la mise à
+       jour. Une seule requête au lieu de soixante.
+     · LE RESTE (modules, styles, polices, icônes) passe en CACHE D'ABORD avec
+       rafraîchissement en arrière-plan. Ces fichiers sont versionnés par
+       `CACHE` : le cache d'une version donnée est toujours cohérent avec
+       lui-même, et la version suivante arrive par l'installation du nouveau
+       service worker. */
   if (url.origin === self.location.origin) {
+    const estDocument = req.mode === "navigate" || req.destination === "document";
+
+    if (estDocument) {
+      e.respondWith((async () => {
+        try {
+          const res = await fetch(req);
+          if (res && res.ok) { const c = await caches.open(CACHE); c.put(req, res.clone()); }
+          return res;
+        } catch (err) {
+          return (await caches.match(req)) || caches.match("./index.html");
+        }
+      })());
+      return;
+    }
+
     e.respondWith((async () => {
-      try {
-        const res = await fetch(req);
-        if (res && res.ok) { const c = await caches.open(CACHE); c.put(req, res.clone()); }
+      const c = await caches.open(CACHE);
+      const hit = await c.match(req);
+      // Rafraîchissement en arrière-plan : la réponse est déjà partie, celle-ci
+      // servira au prochain lancement. Un échec réseau est sans conséquence.
+      const frais = fetch(req).then((res) => {
+        if (res && res.ok) c.put(req, res.clone());
         return res;
-      } catch (err) {
-        const hit = await caches.match(req);
-        return hit || caches.match("./index.html");
-      }
+      }).catch(() => null);
+      if (hit) return hit;
+      const res = await frais;
+      return res || caches.match("./index.html");
     })());
   }
 });

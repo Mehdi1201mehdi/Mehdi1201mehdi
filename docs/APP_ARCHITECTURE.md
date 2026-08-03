@@ -345,3 +345,61 @@ historique. Un contrôle dédié a donc été écrit, avec 14 séances et 10 pes
 | `src/ui/graphes.js` | 133 |
 | `src/ui/vignettes.js` | 87 |
 | `src/ui/dom.js` | 40 |
+
+## Démarrage : 6 681 ms → 548 ms
+
+Le découpage en modules a soulevé une question qu'il fallait poser : sur une
+application **sans build**, chaque module extrait est une requête réseau de plus
+au lancement. Mesure sur processeur bridé ×4 et réseau 4G simulé (latence
+150 ms, 1,6 Mb/s) — les conditions d'un Poco M6 :
+
+**6 681 ms avant que l'application soit utilisable. 60 modules JS rechargés à
+chaque lancement.**
+
+Le coupable n'était pas le découpage (5 modules sur 60) mais la stratégie du
+service worker : **réseau d'abord pour tout**, choisie pour garantir qu'on ait
+toujours la dernière version.
+
+### Deux stratégies au lieu d'une
+
+Cette garantie, `boot.js` l'assure déjà : il détecte une nouvelle version et
+l'application affiche « Nouvelle version disponible ». Payer 60 téléchargements
+par lancement pour la redoubler n'avait pas de sens.
+
+| Ressource | Stratégie | Pourquoi |
+|---|---|---|
+| **Document** (`index.html`) | réseau d'abord | c'est LA requête qui permet au navigateur de découvrir un `sw.js` modifié. Une seule, au lieu de soixante |
+| **Tout le reste** (modules, styles, polices, icônes) | cache d'abord + rafraîchissement en arrière-plan | ces fichiers sont versionnés par `CACHE` : le cache d'une version est toujours cohérent avec lui-même |
+
+### Mesures
+
+| | |
+|---|---|
+| Premier lancement (cache vide) | 6 681 ms — inchangé, et il n'arrive qu'une fois |
+| Lancements suivants | **548 ms** (médiane sur 4) |
+| Gain | **×12** |
+
+### Ce qui a été vérifié, parce que c'était le risque
+
+Une stratégie de cache mal faite, c'est une application figée sur une vieille
+version. Test explicite : modification **réelle** d'un module **et** montée de
+`CACHE`, puis relance.
+
+```
+caches avant : ["coachperso-ia-v127"]
+caches après : ["coachperso-ia-v128"]
+module servi : marqueur de la NOUVELLE version présent
+```
+
+L'ancien cache est purgé, le module modifié est bien servi. **Hors ligne**
+également contrôlé : application utilisable, 249 nœuds rendus, contenu réel.
+
+### Décision : le découpage s'arrête là
+
+Les blocs restants — modales, vues — sont les plus couplés à l'état vivant
+(`LIVE`, `render`, `persistLive`). Les extraire demanderait de passer ces
+dépendances en paramètre, ce qui déplacerait la complexité sans la réduire, pour
+un risque réel sur les écrans utilisés quotidiennement et **aucun gain visible**.
+
+Les cinq modules extraits couvraient ce qui était réellement partagé entre
+écrans. Le reste serait du rangement pour le rangement.
