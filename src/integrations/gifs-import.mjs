@@ -12,6 +12,21 @@
 import { readFile, readdir, writeFile, stat } from "node:fs/promises";
 import { join, extname, relative, basename } from "node:path";
 import { CATALOGUE } from "../data/exercises.js";
+import { EXTRA_EXERCISES } from "../data/exercises-extra.js";
+
+/**
+ * TOUS les exercices que l'application peut afficher.
+ *
+ * `CATALOGUE` n'en couvre que 93 : les 250 de `exercices-extra` n'étaient JAMAIS
+ * soumis au moteur de correspondance. La moitié du catalogue ne pouvait donc pas
+ * recevoir de démonstration, quel que soit le contenu du dataset. C'est la seule
+ * raison pour laquelle 119 exercices s'affichaient sans animation.
+ */
+const TOUS = (() => {
+  const vus = new Map();
+  for (const e of [...CATALOGUE, ...EXTRA_EXERCISES]) if (e && e.id && !vus.has(e.id)) vus.set(e.id, e);
+  return [...vus.values()];
+})();
 import { termePour } from "./exercisedb.js";
 
 export function normName(s) {
@@ -181,19 +196,36 @@ async function main() {
   for (const g of gifs) gifIndex.set(basename(g, extname(g)).toLowerCase(), relative(dir, g).split("\\").join("/"));
 
   const datasetIndex = indexerDataset(entrees);
-  const mappingJpg = construireMapping(CATALOGUE, datasetIndex, gifIndex, rawBase, termePour);
+  const mappingJpg = construireMapping(TOUS, datasetIndex, gifIndex, rawBase, termePour);
 
   // Préférence aux ANIMATIONS : si un .gif de même nom existe, on l'utilise.
   const gifUrlSet = new Set(gifs.map((g) => rawBase + relative(dir, g).split("\\").join("/")));
   const { mapping, animes } = preferAnimations(mappingJpg, gifUrlSet);
 
+  // FUSION, JAMAIS ÉCRASEMENT. Une association déjà en place a pu être vérifiée
+  // à l'œil ; une nouvelle passe du moteur de correspondance, sur un dataset qui
+  // a bougé, peut trouver MOINS de résultats qu'avant. Écraser reviendrait à
+  // supprimer silencieusement des démonstrations qui marchaient — c'est arrivé :
+  // une passe a rendu 190 associations là où le fichier en portait 224.
+  let ajoutes = 0, conserves = 0;
+  try {
+    const existant = (await import("../data/gifs.js")).GIFS || {};
+    for (const [id, url] of Object.entries(existant)) {
+      if (mapping[id] && mapping[id] !== url) conserves++;   // l'ancienne prime
+      if (mapping[id] === undefined) conserves++;
+      mapping[id] = url;
+    }
+    ajoutes = Object.keys(mapping).length - Object.keys(existant).length;
+  } catch (e) { /* premier import : rien à conserver */ }
+
   const n = Object.keys(mapping).length;
   if (n === 0) { console.log("Aucune correspondance trouvée — fichier gifs.js laissé inchangé."); return; }
+  console.log(`↺ fusion : ${conserves} association(s) existante(s) conservée(s), ${ajoutes} ajoutée(s).`);
   const entete = `// @ts-check\n/** Généré par src/integrations/gifs-import.mjs — ne pas éditer.\n`
     + ` * Médias référencés depuis ${repo} (branche ${branch}). ${n} exercices associés le ${new Date().toISOString().slice(0, 10)} (${animes} animés .gif).\n */\n`;
   await writeFile(out, entete + "export const GIFS = " + JSON.stringify(mapping, null, 1) + ";\n", "utf8");
-  console.log(`✅ ${n} médias associés (sur ${CATALOGUE.length} exercices), dont ${animes} animés (.gif) — dataset : ${entrees.length} entrées, ${gifs.length} fichiers .gif`);
-  const manquants = CATALOGUE.filter((e) => !mapping[e.id]);
+  console.log(`✅ ${n} médias associés (sur ${TOUS.length} exercices), dont ${animes} animés (.gif) — dataset : ${entrees.length} entrées, ${gifs.length} fichiers .gif`);
+  const manquants = TOUS.filter((e) => !mapping[e.id]);
   console.log(`ℹ️ ${manquants.length} sans image (souvent des étirements/mobilité/cardio absents du dataset) :`);
   for (const e of manquants) console.log(`   - ${e.nom}`);
 }
