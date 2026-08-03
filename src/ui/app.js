@@ -781,6 +781,7 @@ const IC = {
   back: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 20-10-8 10-8zM5 5v14"/></svg>`,
   star: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.9 6.1 21l1.2-6.5L2.5 9.9 9.1 9z"/></svg>`,
   layers: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg>`,
+  copy: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`,
   balance: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M7 21h10M3 8l4-3 4 3M3 8a2 2 0 0 0 4 0M13 8l4-3 4 3M13 8a2 2 0 0 0 4 0M5 5h14"/></svg>`,
   barreLourde: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20M5 6v12M8 8v8M16 8v8M19 6v12"/></svg>`,
   coeur: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 1 0-7.1 7.1L12 21l8.8-8.3a5 5 0 0 0 0-7.1z"/><path d="M3.5 12.5H8l1.5-3 2 5 1.5-2.5h6"/></svg>`,
@@ -1154,7 +1155,7 @@ function vProg(v) {
     const acts = h(`<div class="row" style="margin-top:8px"></div>`);
     const bOpen = h(`<button class="chip"><span class="cic">${IC.edit || IC.forward}</span>Ouvrir</button>`);
     bOpen.addEventListener("click", () => { EDIT_ROUTINE = r.id; render(); });
-    const bDup = h(`<button class="chip"><span class="cic">${IC.copy || IC.layers}</span>Dupliquer</button>`);
+    const bDup = h(`<button class="chip"><span class="cic">${IC.copy}</span>Dupliquer</button>`);
     bDup.addEventListener("click", () => { Etat.data.programmesPerso.push(dupliquerRoutine(r)); Etat.sauver(); render(); });
     const bDel = h(`<button class="chip danger" aria-label="Supprimer la routine"><span class="cic">${IC.trash}</span></button>`);
     bDel.addEventListener("click", async () => { if (await confirmer(`Supprimer la routine « ${r.nom} » ?`, { danger: true, ok: "Supprimer" })) { Etat.data.programmesPerso = Etat.data.programmesPerso.filter((x) => x.id !== r.id); Etat.sauver(); render(); } });
