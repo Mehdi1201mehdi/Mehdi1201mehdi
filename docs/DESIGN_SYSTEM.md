@@ -698,3 +698,59 @@ cliquable déborde du disque visible au lieu d'être réduite avec lui).
 **Le rapport de forme n'est jamais déformé** : une silhouette étirée ne prouve
 rien. Vérifié à 7 largeurs — ratio constant 0,75, colonnes égales de 121 px
 (320) à 241 px (desktop).
+
+## Fin de repos : dire DEPUIS QUAND, et prévenir écran verrouillé
+
+Pendant le repos, le téléphone est posé et l'écran s'éteint. Le navigateur
+**gèle alors la page** : son et vibration exigent que la page tourne, ils ne
+partent pas. Le signal n'arrive qu'au déverrouillage.
+
+### Le défaut corrigé
+
+L'app annonçait « Repos terminé » à ce moment-là — comme s'il venait de
+s'écouler, alors qu'il pouvait dater de trois minutes. **Entre une série reprise
+à l'heure et une série reprise trois minutes trop tard, ce n'est plus le même
+entraînement.**
+
+`retardSec()` mesure l'écart depuis `finAt`, `formatRetard()` l'écrit :
+`« Repos terminé il y a 3 min 05 »`. Sous 5 secondes (`RETARD_SIGNIFICATIF_SEC`)
+on garde la formulation au présent — deux secondes de décalage ne changent
+aucune série. Au-delà de dix minutes, plus de secondes : l'utilisateur a fait
+autre chose, la précision devient du bruit.
+
+**Deux chemins mènent à cette annonce**, et les deux la portent désormais :
+`finDuRepos()` (la page a tenu) et `reprendreRepos()` (la page a été rechargée,
+le cas réel du déverrouillage). Le second était le plus visible et le plus faux.
+
+### La notification, seul canal qui traverse le verrouillage
+
+`src/ui/notifs.js` — notifications **locales** : pas de serveur, pas de push, pas
+d'abonnement. Un test lit le fichier source et échoue s'il contient `fetch(`,
+`pushManager`, `WebSocket` ou une URL — l'app doit rester entièrement hors ligne.
+
+Postée par le **service worker** quand il est là : sur Android, une notification
+émise par la page seule disparaît si la page est déchargée, celle du service
+worker survit — précisément le cas qui nous intéresse.
+
+Quatre règles pour ne pas être une app qui harcèle :
+
+1. **Jamais de demande au chargement.** Réclamer les notifications avant d'avoir
+   rien montré se fait refuser, et **un refus est définitif** — Chrome ne
+   redemande plus. On attend le premier repos, où la demande a un sens évident.
+2. **Une seule notification à la fois** (`tag` fixe). Après huit séries, on ne
+   veut pas huit lignes.
+3. **Elle se ferme au retour.** Une notification « repos terminé » encore
+   affichée alors qu'on pousse déjà est du bruit, et rend les suivantes moins
+   crédibles.
+4. **Rien n'est posté si l'écran est déjà sous les yeux.**
+
+### L'interrupteur explique quand il ne peut pas marcher
+
+`Profil → Séance` propose « Prévenir écran verrouillé ». Si la permission est
+bloquée, un bandeau dit **où** la débloquer (réglages du navigateur, pas de
+l'app) : un interrupteur mort sans explication passe pour un bug de l'app alors
+que le blocage vient du navigateur.
+
+Vérifié : retard de 185 s annoncé « 3 min 05 » sur le chemin réel du
+déverrouillage ; notification captée avec son corps, son tag et sa vibration ;
+permission refusée → rien n'est envoyé, aucune erreur, message d'explication.

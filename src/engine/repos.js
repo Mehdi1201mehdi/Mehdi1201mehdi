@@ -98,3 +98,45 @@ export function formatRestant(repos, maintenant = Date.now()) {
   const r = restantSec(repos, maintenant);
   return `${Math.floor(r / 60)}:${String(r % 60).padStart(2, "0")}`;
 }
+
+/**
+ * Depuis combien de temps le repos est-il terminé ?
+ *
+ * Ce n'est pas un détail d'affichage. Pendant le repos, le téléphone est posé
+ * et l'écran se verrouille : le navigateur gèle alors la page, et le signal de
+ * fin n'arrive qu'au déverrouillage. Annoncer « repos terminé » à ce
+ * moment-là laisse croire qu'il vient de s'écouler, alors qu'il peut dater de
+ * trois minutes. Entre une série reprise à l'heure et une série reprise trois
+ * minutes trop tard, ce n'est plus le même entraînement.
+ *
+ * @param {any} repos
+ * @param {number} [maintenant]
+ * @returns {number} secondes écoulées DEPUIS la fin, 0 si le repos court encore
+ */
+export function retardSec(repos, maintenant = Date.now()) {
+  if (!repos || !Number.isFinite(repos.finAt)) return 0;
+  return Math.max(0, Math.floor((maintenant - repos.finAt) / 1000));
+}
+
+/**
+ * Au-delà de ce retard, l'app dit DEPUIS QUAND le repos est fini au lieu de
+ * l'annoncer au présent. En dessous, la précision n'apporte rien : deux
+ * secondes de décalage ne changent aucune série.
+ */
+export const RETARD_SIGNIFICATIF_SEC = 5;
+
+/**
+ * Durée lisible pour un retard : « 8 s », « 1 min 20 », « 12 min ».
+ *
+ * On ne montre les secondes que sous 10 minutes. Au-delà, l'utilisateur a
+ * clairement fait autre chose et la précision devient du bruit.
+ *
+ * @param {number} sec
+ */
+export function formatRetard(sec) {
+  const s = Math.max(0, Math.round(Number(sec) || 0));
+  if (s < 60) return `${s} s`;
+  const min = Math.floor(s / 60), reste = s % 60;
+  if (min >= 10 || reste === 0) return `${min} min`;
+  return `${min} min ${String(reste).padStart(2, "0")}`;
+}

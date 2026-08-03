@@ -41,6 +41,8 @@ export function etatVide() {
       // volontairement minimal (charge, reps, validation). Le mode avancé
       // débloque RIR/RPE, types de séries et supersets, sans rien retirer.
       modeAvance: false, metrique: "rir",
+      // Notification de fin de repos : le seul signal qui passe écran verrouillé.
+      notifsRepos: true,
       // Seuils de rang saisis à la main, par mouvement puis par sexe :
       // { "squat-barre": { H: [1, 1.5, 2, 2.5] } }. Vide = repères publiés.
       standardsForce: {},

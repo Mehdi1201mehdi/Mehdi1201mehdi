@@ -28,6 +28,7 @@ import { bilan } from "../engine/review.js";
 import { chercherFoods, portion } from "../data/foods.js";
 import { rechercher as offRechercher, parCodeBarres } from "../integrations/openfoodfacts.js";
 import { scannerDisponible, demarrerScan, normaliserCode } from "./scanner.js";
+import { etatNotifs, demanderNotifs, notifier, fermerNotifs } from "./notifs.js";
 import { POSES, nouvellePhoto, trierPhotos, paireComparaison, poidsProche, resumeStockage,
   formaterOctets, incoherences } from "../engine/photos.js";
 import { reduire, choisirImage, urlObjet } from "./photoCapture.js";
@@ -97,7 +98,7 @@ import { coefficientsPour } from "../data/exercise-muscle-map.js";
 import { etatMusculaire, zoneDisponibilite, cibleVolumeHebdo, analyserSeance } from "../engine/fatigue.js";
 import { genererProchaineSeance, resumeCorps, compatibiliteExercice, PLAN_PARAMS } from "../engine/planner.js";
 import { expliquerApprentissage, PARAMS_APPRENTISSAGE } from "../engine/apprentissage.js";
-import { creerRepos, restantSec, estEcoule, progression, ajusterRepos, restaurerRepos, formatRestant } from "../engine/repos.js";
+import { creerRepos, restantSec, estEcoule, progression, ajusterRepos, restaurerRepos, formatRestant, retardSec, formatRetard, RETARD_SIGNIFICATIF_SEC } from "../engine/repos.js";
 import { grilleMois, moisAdjacent, NOMS_JOURS_COURTS } from "../engine/calendar.js";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -2572,13 +2573,37 @@ function persistRepos() {
 
 /** Le repos est terminé : signal, nettoyage, message. */
 function finDuRepos(annonce) {
-  const ann = $("#ovAnnonce"); if (ann) ann.textContent = "Repos terminé, série suivante";
+  // Combien de temps s'est réellement écoulé depuis la fin. Écran verrouillé,
+  // le navigateur gèle la page : le signal n'arrive qu'au déverrouillage, et
+  // annoncer « repos terminé » à ce moment-là laisse croire qu'il vient de
+  // s'écouler. Entre une série reprise à l'heure et une série reprise trois
+  // minutes trop tard, ce n'est plus le même entraînement.
+  const retard = retardSec(REPOS);
+  const enRetard = retard >= RETARD_SIGNIFICATIF_SEC;
+  const message = enRetard
+    ? `Repos terminé il y a ${formatRetard(retard)}`
+    : "Repos terminé — série suivante";
+
+  const ann = $("#ovAnnonce"); if (ann) ann.textContent = enRetard ? message : "Repos terminé, série suivante";
   const visible = $("#overlay").classList.contains("show") || !!document.getElementById("restCap")?.classList.contains("show");
   stopTimer();
   jouer("reprise", Etat.data.reglages);
   try { if (Etat.data.reglages.vibrations !== false) navigator.vibrate?.([120, 60, 120]); } catch (e) {}
-  if (annonce !== false && !visible) toast("Repos terminé — série suivante");
+
+  // La notification est le SEUL canal qui traverse l'écran verrouillé : le son
+  // et la vibration exigent que la page tourne. Inutile de la poster si l'écran
+  // est déjà sous les yeux — ce serait du bruit.
+  if (document.visibilityState !== "visible" && Etat.data.reglages.notifsRepos !== false) {
+    notifier("Repos terminé", {
+      corps: (REPOS_LABEL ? REPOS_LABEL + " · " : "") + "Série suivante",
+      vibrer: Etat.data.reglages.vibrations !== false,
+    });
+  }
+  if (annonce !== false && !visible) toast(message);
 }
+
+/** Libellé du repos qui vient de s'achever, pour le corps de la notification. */
+let REPOS_LABEL = "";
 
 /**
  * Dernière seconde déjà sonnée, pour ne biper qu'UNE fois par seconde.
@@ -2635,6 +2660,11 @@ function boucleRepos() {
 function startTimer(sec, label = "") {
   DERNIER_BIP = null;   // nouveau repos : le décompte repart de zéro
   REPOS = creerRepos(sec, label);
+  REPOS_LABEL = String(label || "");
+  // On ne demande la permission qu'ICI, au premier repos : réclamer les
+  // notifications au chargement se fait refuser, et un refus est DÉFINITIF —
+  // Chrome ne redemande jamais. Au premier repos, la demande a un sens évident.
+  amorcerNotifsRepos();
   persistRepos();
   ouvrirEcranRepos();
 }
@@ -2699,17 +2729,42 @@ function reprendreRepos() {
   const restaure = restaurerRepos(Etat.data.reposEnCours);
   if (restaure) { REPOS = restaure; afficherCapsule(); return; }
   if (Etat.data.reposEnCours) {          // il existait mais il est échu
+    // DEPUIS QUAND, pas seulement « c'est fini ». C'est le chemin réellement
+    // emprunté au déverrouillage : « terminé » tout court laisse croire qu'il
+    // vient de s'écouler, alors qu'il peut dater de trois minutes.
+    const retard = retardSec(Etat.data.reposEnCours);
     Etat.data.reposEnCours = null; Etat.sauver();
-    toast("Repos terminé pendant ton absence");
+    toast(retard >= RETARD_SIGNIFICATIF_SEC
+      ? `Repos terminé il y a ${formatRetard(retard)}`
+      : "Repos terminé pendant ton absence");
   }
 }
 
 // Revenir dans l'app doit montrer le temps JUSTE immédiatement : la limitation
 // des minuteurs en arrière-plan a pu faire sauter des tics d'affichage.
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState !== "visible" || !REPOS) return;
+  if (document.visibilityState !== "visible") return;
+  // Une notification « repos terminé » encore affichée alors qu'on pousse déjà
+  // la série suivante est du bruit — et elle rend les suivantes moins crédibles.
+  fermerNotifs();
+  if (!REPOS) return;
   if (estEcoule(REPOS)) finDuRepos(); else { dessinerRepos(); boucleRepos(); tenirEcran(); }
 });
+
+/**
+ * Demande la permission de notifier, une seule fois, au premier repos.
+ * Silencieuse en cas de refus : insister transformerait l'app en application
+ * qui harcèle, et le navigateur ne redemande de toute façon jamais.
+ */
+let NOTIFS_DEMANDEES = false;
+async function amorcerNotifsRepos() {
+  if (NOTIFS_DEMANDEES) return;
+  NOTIFS_DEMANDEES = true;
+  if (Etat.data.reglages.notifsRepos === false) return;
+  const e = etatNotifs();
+  if (!e.supporte || e.permission !== "default") return;
+  await demanderNotifs();
+}
 
 /* ======================================================================
    LECTEUR DE SÉANCE GUIDÉ (plein écran, pas à pas)
@@ -5577,6 +5632,28 @@ function vSet(v) {
         // On fait ENTENDRE le réglage : un interrupteur de son muet est absurde.
         if (val) jouer("reprise", Etat.data.reglages);
       }));
+
+    // Notification de fin de repos — le seul canal qui traverse l'écran
+    // verrouillé, puisque son et vibration exigent que la page tourne.
+    const en = etatNotifs();
+    c.append(h(`<div class="spread" style="margin-top:12px"><span class="small">Prévenir écran verrouillé</span></div>`));
+    c.append(h(`<div class="hint" style="margin-top:0">Pendant le repos, le téléphone est posé et l'écran s'éteint : le navigateur gèle la page et le son ne part pas. Une notification, elle, s'affiche sur l'écran de verrouillage.</div>`));
+    c.append(chipsInline([[true, "Activé"], [false, "Désactivé"]],
+      (val) => (Etat.data.reglages.notifsRepos !== false) === val,
+      async (val) => {
+        Etat.data.reglages.notifsRepos = val; Etat.sauver();
+        // La permission ne peut se demander que depuis un geste : c'en est un.
+        if (val && etatNotifs().permission === "default") {
+          const ok = await demanderNotifs();
+          if (!ok) toast("Notifications refusées — le son et la vibration restent actifs");
+        }
+        render();
+      }));
+    // Un interrupteur mort sans explication passe pour un bug de l'app, alors
+    // que le blocage vient du navigateur.
+    if (Etat.data.reglages.notifsRepos !== false && !en.actif) {
+      c.append(h(`<div class="warn small" style="margin-top:8px">${mi(IC.alert, "mi-amber")}${esc(en.raison)}</div>`));
+    }
     b.append(c);
   });
 

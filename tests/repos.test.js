@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import {
   REPOS_MAX_SEC, creerRepos, restantSec, estEcoule, progression,
   ajusterRepos, restaurerRepos, formatRestant,
+  retardSec, formatRetard, RETARD_SIGNIFICATIF_SEC,
 } from "../src/engine/repos.js";
 
 const T = Date.parse("2026-07-28T18:00:00Z");
@@ -110,4 +111,49 @@ test("formatRestant : mm:ss, avec les secondes sur deux chiffres", () => {
   assert.equal(formatRestant(creerRepos(60, "", T), T), "1:00");
   assert.equal(formatRestant(creerRepos(9, "", T), T), "0:09");
   assert.equal(formatRestant(null, T), "0:00");
+});
+
+/* ---- Retard : le repos s'est terminé pendant que l'écran était verrouillé ---- */
+
+test("retardSec : zéro tant que le repos court", () => {
+  const t0 = 1_700_000_000_000;
+  const r = creerRepos(90, "", t0);
+  assert.equal(retardSec(r, t0), 0);
+  assert.equal(retardSec(r, t0 + 89_000), 0);
+  assert.equal(retardSec(r, t0 + 90_000), 0, "à la seconde exacte, il n'est pas en retard");
+});
+
+test("retardSec : compte les secondes écoulées DEPUIS la fin", () => {
+  // Le navigateur gèle la page écran verrouillé : le signal n'arrive qu'au
+  // déverrouillage. Annoncer « repos terminé » alors laisserait croire qu'il
+  // vient de s'écouler, alors qu'il peut dater de trois minutes.
+  const t0 = 1_700_000_000_000;
+  const r = creerRepos(60, "", t0);
+  assert.equal(retardSec(r, t0 + 60_000 + 8_000), 8);
+  assert.equal(retardSec(r, t0 + 60_000 + 200_000), 200);
+});
+
+test("retardSec : entrées abîmées → 0, jamais NaN ni négatif", () => {
+  for (const r of [null, undefined, {}, { finAt: "bientôt" }, { finAt: NaN }]) {
+    const v = retardSec(/** @type {any} */ (r), Date.now());
+    assert.equal(v, 0, JSON.stringify(r));
+  }
+});
+
+test("formatRetard : lisible, et pas de fausse précision au-delà de 10 minutes", () => {
+  assert.equal(formatRetard(0), "0 s");
+  assert.equal(formatRetard(8), "8 s");
+  assert.equal(formatRetard(59), "59 s");
+  assert.equal(formatRetard(60), "1 min");
+  assert.equal(formatRetard(80), "1 min 20");
+  assert.equal(formatRetard(125), "2 min 05", "secondes sur deux chiffres");
+  // Au-delà de dix minutes, l'utilisateur a fait autre chose : les secondes
+  // deviennent du bruit.
+  assert.equal(formatRetard(725), "12 min");
+  assert.equal(formatRetard(-5), "0 s");
+  assert.equal(formatRetard(/** @type {any} */ ("longtemps")), "0 s");
+});
+
+test("RETARD_SIGNIFICATIF_SEC : assez court pour être utile, assez long pour ne pas bavarder", () => {
+  assert.ok(RETARD_SIGNIFICATIF_SEC >= 3 && RETARD_SIGNIFICATIF_SEC <= 15);
 });
