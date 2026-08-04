@@ -1979,8 +1979,13 @@ button.cat-fav{top:8px;left:8px;right:auto;z-index:4}
 /* Compteur + tri sur une seule ligne : « 343 résultats, triés par pertinence ». */
 .cat-resbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
 .cat-resbar .selchip{margin-left:auto;flex:0 0 auto}
-.cat-outils{flex-wrap:nowrap}
-.cat-outils .chip{white-space:nowrap}
+/* Ne JAMAIS passer à la ligne (le sélecteur de tri se retrouvait seul), mais ne
+   jamais couper non plus : à 320 px les trois commandes réclament 298 px pour
+   288 disponibles. La barre défile — même traitement que les rangées de
+   critères, et rien ne disparaît. */
+.cat-outils{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.cat-outils::-webkit-scrollbar{display:none}
+.cat-outils .chip{white-space:nowrap;flex:0 0 auto}
 /* Dans la PAGE, les critères défilent horizontalement (place comptée). Dans la
    FEUILLE, ils s'enroulent : c'est tout l'intérêt d'y être passé — on voit les
    treize muscles et les neuf matériels d'un seul regard, sans faire défiler. */
