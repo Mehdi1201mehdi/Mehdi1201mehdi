@@ -131,3 +131,47 @@ export function svgBars(bars, label = "") {
   }).join("");
   return `<svg viewBox="0 0 ${W} ${H + 4}" style="width:100%;height:auto" role="img" aria-label="${esc(label)}"><text x="${pad}" y="15" font-size="12" fill="var(--ink-soft)">${esc(label)}</text>${rects}</svg>`;
 }
+
+/**
+ * SPARKLINE DE FOND — une courbe d'aire sans axe, sans repère, sans étiquette.
+ *
+ * Ce n'est pas un graphique : c'est une TEXTURE qui porte du sens. Elle se pose
+ * derrière un chiffre, touche les bords de sa tuile, et donne au regard la forme
+ * d'une progression avant même qu'il ait lu le nombre. Un graphique lisible à
+ * cet endroit volerait la vedette au chiffre ; ici la silhouette suffit.
+ *
+ * `preserveAspectRatio="none"` est volontaire : la courbe s'étire pour remplir
+ * la tuile quelle que soit sa largeur, ce qui serait faux pour une data-viz mais
+ * juste pour un fond.
+ *
+ * @param {number[]} valeurs  série chronologique, la plus ancienne d'abord
+ * @returns {string} SVG, ou chaîne vide si la série ne dit rien
+ */
+export function sparkAire(valeurs) {
+  const v = (Array.isArray(valeurs) ? valeurs : []).map(Number).filter(Number.isFinite);
+  if (v.length < 3) return "";
+  const W = 300, H = 90;
+  const max = Math.max(...v), min = Math.min(...v);
+  // Base à zéro quand la série touche le zéro : un trou dans l'entraînement doit
+  // se voir comme un creux jusqu'en bas, pas comme un simple plateau bas.
+  const bas = min > 0 && max / min < 4 ? min : 0;
+  const ech = (max - bas) || 1;
+  const X = (i) => (W * i) / (v.length - 1);
+  const Y = (n) => H - (H - 6) * ((n - bas) / ech);
+  const pts = v.map((n, i) => [X(i), Y(n)]);
+  let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    d += ` C${(p1[0] + (p2[0] - p0[0]) / 6).toFixed(1)},${(p1[1] + (p2[1] - p0[1]) / 6).toFixed(1)}`
+      + ` ${(p2[0] - (p3[0] - p1[0]) / 6).toFixed(1)},${(p2[1] - (p3[1] - p1[1]) / 6).toFixed(1)}`
+      + ` ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+  }
+  const uid = "sp" + Math.random().toString(36).slice(2, 8);
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+    <defs><linearGradient id="${uid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="var(--accent)" stop-opacity=".34"/>
+      <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>
+    <path d="${d} L${W},${H} L0,${H} Z" fill="url(#${uid})"/>
+    <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-opacity=".62"
+      stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
+}

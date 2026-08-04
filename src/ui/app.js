@@ -30,7 +30,7 @@ import { rechercher as offRechercher, parCodeBarres } from "../integrations/open
 import { scannerDisponible, demarrerScan, normaliserCode } from "./scanner.js";
 import { $, esc, h } from "./dom.js";
 import { urlDemo, vignetteExo, vignetteHTML } from "./vignettes.js";
-import { anneauSVG, anneauSignature, svgLine, categorieIMC, gaugeIMC, svgBars } from "./graphes.js";
+import { anneauSVG, anneauSignature, svgLine, categorieIMC, gaugeIMC, svgBars, sparkAire } from "./graphes.js";
 import { chargementMedia } from "../data/media-manifest.js";
 import { IC, mi, IC_MATOS, iconeMateriel, goalIcons, LEVEL_ICONS } from "./icones.js";
 import { comparerSeance, phraseBilan } from "../engine/bilanSeance.js";
@@ -750,7 +750,13 @@ function vDash(v) {
   const _sous = _sm.seances > 0
     ? `${_sm.seances} séance${_sm.seances > 1 ? "s" : ""} sur ${_cible} cette semaine`
     : (logs.length ? "Aucune séance cette semaine — c'est le moment" : "Première séance à enregistrer");
-  v.append(h(`<div class="dash-hi">
+  // LA SCÈNE. Salutation et séance du jour ne sont plus deux boîtes empilées sur
+  // un fond plat : elles partagent un décor qui touche les bords de l'écran,
+  // éclairé par le haut et éteint en fondu vers le bas. C'est ce qui donne à
+  // l'écran un HAUT et un BAS — une hiérarchie qu'aucun titre ne peut créer.
+  const scene = h(`<div class="scene bleed"></div>`);
+  v.append(scene);
+  scene.append(h(`<div class="dash-hi">
     <div class="hi-txt"><h1 class="hi-nom">${esc(salut)} <span class="hi-p">${esc(p.prenom || "Athlète")}</span></h1>
       <div class="hi-sub">${esc(_sous)}</div></div>
     ${_serie > 0 ? `<span class="streak-chip" title="Série en cours">${IC.flame}<b class="num">${_serie}</b><span>j</span></span>` : ""}
@@ -769,7 +775,10 @@ function vDash(v) {
   // programme reste juste dessous, et disparaît quand il n'y en a pas — un
   // rappel de ce qu'on n'a pas ne rend service à personne.
   const moteurActif = Etat.data.reglages.moteurAuto !== false && !!Etat.data.profil;
-  if (moteurActif) { v.append(h(`<div class="eyebrow dash-lbl">Aujourd'hui</div>`)); carteMoteur(v); }
+  if (moteurActif) carteMoteur(scene);
+  // L'arête qui ferme la scène. Un fondu seul laisse l'œil dans le flou ; cette
+  // ligne dit où la zone héro s'arrête et où la page reprend.
+  scene.append(h(`<span class="scene-edge" aria-hidden="true"></span>`));
   if (prog) v.append(carteProgrammeActuel(prog, logs, p));
 
   // Entraînement du jour du programme. Masqué quand le moteur pilote : les deux
@@ -1590,7 +1599,7 @@ function vCatalogue(v) {
   const muscles = [...new Set(CATALOGUE.flatMap((e) => e.musclesPrincipaux))].sort();
   const equips = [...new Set(CATALOGUE.flatMap((e) => e.equipement))].sort();
   const filtreLigne = (items, cle, labels) => {
-    const box = h(`<div class="row" style="overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px"></div>`);
+    const box = h(`<div class="row cat-fline"></div>`);
     const tout = h(`<button class="chip ${!CAT_FILTRE[cle] ? "on" : ""}">Tous</button>`);
     tout.addEventListener("click", () => { CAT_FILTRE[cle] = ""; render(); });
     box.append(tout);
@@ -1601,6 +1610,23 @@ function vCatalogue(v) {
     }
     return box;
   };
+  // LES FILTRES SONT DANS UNE FEUILLE, PLUS DANS LA PAGE.
+  //
+  // Avant : titre, recherche, silhouette dépliable, une ligne de 13 pastilles de
+  // muscle, une ligne de 9 pastilles de matériel, une barre d'outils. Soit ~520 px
+  // — un écran entier de téléphone — traversés AVANT de voir un seul exercice.
+  // Sur un catalogue de 343 mouvements avec 281 démonstrations animées, c'est
+  // exactement l'inverse de ce qu'il faut : les images doivent arriver en
+  // premier. Rien n'est retiré : tout est à un tap, et les filtres actifs
+  // restent visibles et retirables dans la page.
+  const construireFiltres = (hote) => {
+    hote.append(silBox);
+    hote.append(h(`<div class="eyebrow" style="margin-top:14px">Muscle</div>`));
+    hote.append(filtreLigne(muscles, "muscle", MUSCLE_LABELS));
+    hote.append(h(`<div class="eyebrow" style="margin-top:12px">Matériel</div>`));
+    hote.append(filtreLigne(equips, "equip", EQUIPMENT_LABELS));
+  };
+
   // Recherche par silhouette : toucher un muscle sur le corps filtre la liste.
   // Plus direct qu'un bandeau de 12 pastilles quand on cherche « le muscle
   // là », sans savoir comment il s'appelle.
@@ -1621,14 +1647,17 @@ function vCatalogue(v) {
     CAT_FILTRE.muscle = CAT_FILTRE.muscle === m ? "" : m;
     render();
   });
-  silHead.addEventListener("click", () => { CAT_SIL = !CAT_SIL; render(); });
+  // Repli LOCAL, sans `render()`. Redessiner tout l'écran pour ouvrir un panneau
+  // était déjà du gaspillage ; depuis que la silhouette vit dans une feuille,
+  // c'était devenu un bug : `render()` reconstruisait un silBox neuf dans la
+  // page pendant que la feuille gardait l'ancien, définitivement figé.
+  silHead.addEventListener("click", () => {
+    CAT_SIL = !CAT_SIL;
+    silCorps.hidden = !CAT_SIL;
+    silBox.classList.toggle("on", CAT_SIL);
+    silHead.setAttribute("aria-expanded", String(CAT_SIL));
+  });
   silBox.append(silHead, silCorps);
-  v.append(silBox);
-
-  v.append(h(`<div class="eyebrow" style="margin-top:10px">Muscle</div>`));
-  v.append(filtreLigne(muscles, "muscle", MUSCLE_LABELS));
-  v.append(h(`<div class="eyebrow" style="margin-top:8px">Matériel</div>`));
-  v.append(filtreLigne(equips, "equip", EQUIPMENT_LABELS));
 
   // Rangée « Récemment consultés » : avec 343 exercices, retrouver celui qu'on
   // vient d'ouvrir demandait de retaper son nom. Masquée pendant une recherche,
@@ -1648,6 +1677,10 @@ function vCatalogue(v) {
   // Barre d'outils : affichage, tri, favoris. Trois décisions qui changent la
   // lecture de la liste, réunies au même endroit plutôt que dispersées.
   const outils = h(`<div class="cat-outils"></div>`);
+  const nbFiltres = (CAT_FILTRE.muscle ? 1 : 0) + (CAT_FILTRE.equip ? 1 : 0);
+  const bFiltre = h(`<button class="chip cat-filtrer${nbFiltres ? " on" : ""}" aria-haspopup="dialog">${IC.sliders || IC.layers}<span>Filtrer${nbFiltres ? ` · ${nbFiltres}` : ""}</span></button>`);
+  bFiltre.addEventListener("click", () => ouvrirFiltresCatalogue(construireFiltres));
+  outils.append(bFiltre);
   const bVue = h(`<button class="chip" aria-pressed="${CAT_VUE === "grille"}" aria-label="Basculer entre grille et liste">${CAT_VUE === "grille" ? IC.layers : IC.bars}<span>${CAT_VUE === "grille" ? "Grille" : "Liste"}</span></button>`);
   bVue.addEventListener("click", () => { CAT_VUE = CAT_VUE === "grille" ? "liste" : "grille"; render(); });
   const nbFav = (Etat.data.favoris || []).length;
@@ -1655,8 +1688,27 @@ function vCatalogue(v) {
   bFav.addEventListener("click", () => { CAT_FAVORIS_SEUL = !CAT_FAVORIS_SEUL; montres = PAS; render(); });
   const selTri = h(`<select class="selchip" aria-label="Trier les exercices">${TRIS.map((t) => `<option value="${t.cle}"${t.cle === CAT_TRI ? " selected" : ""}>${esc(t.nom)}</option>`).join("")}</select>`);
   selTri.addEventListener("change", () => { CAT_TRI = selTri.value; render(); });
-  outils.append(bVue, bFav, selTri);
+  // Le tri ne vit PAS dans cette barre : à 390 px, quatre commandes passaient à
+  // la ligne et le sélecteur se retrouvait seul, au milieu de nulle part. Il
+  // rejoint le compteur de résultats, avec qui il forme une paire naturelle —
+  // « 343 résultats, triés par pertinence ».
+  outils.append(bVue, bFav);
   v.append(outils);
+
+  // Les filtres actifs restent DANS la page, retirables d'un tap. Un filtre
+  // caché dans une feuille qu'on a refermée est un filtre qu'on oublie, et on
+  // finit par croire que le catalogue ne contient que 40 exercices.
+  if (nbFiltres) {
+    const actifs = h(`<div class="cat-actifs"></div>`);
+    const puce = (cle, label) => {
+      const b = h(`<button class="chip on cat-actif" aria-label="Retirer le filtre ${esc(label)}">${esc(label)}<span aria-hidden="true">✕</span></button>`);
+      b.addEventListener("click", () => { CAT_FILTRE[cle] = ""; render(); });
+      return b;
+    };
+    if (CAT_FILTRE.muscle) actifs.append(puce("muscle", MUSCLE_LABELS[CAT_FILTRE.muscle] || CAT_FILTRE.muscle));
+    if (CAT_FILTRE.equip) actifs.append(puce("equip", EQUIPMENT_LABELS[CAT_FILTRE.equip] || CAT_FILTRE.equip));
+    v.append(actifs);
+  }
 
   const res = h(`<div id="catRes" style="margin-top:10px"></div>`);
   v.append(res);
@@ -1679,7 +1731,9 @@ function vCatalogue(v) {
           onClick: () => { CAT_FAVORIS_SEUL = false; CAT_FILTRE = { q: "", muscle: "", equip: "" }; render(); } } }));
       return;
     }
-    res.append(h(`<div class="muted small" style="margin-bottom:4px">${tous.length} résultat${tous.length > 1 ? "s" : ""}</div>`));
+    const barreRes = h(`<div class="cat-resbar"><span class="muted small">${tous.length} résultat${tous.length > 1 ? "s" : ""}</span></div>`);
+    barreRes.append(selTri);
+    res.append(barreRes);
 
     const favoris = Etat.data.favoris || [];
     /** Étoile de favori, posée sur la vignette en grille, en bout de ligne en liste. */
@@ -1737,6 +1791,34 @@ function vCatalogue(v) {
   };
   dessine();
   inp.addEventListener("input", () => { CAT_FILTRE.q = inp.value; montres = PAS; dessine(); });
+}
+
+/**
+ * Feuille de filtres du catalogue. Elle héberge exactement ce qui était dans la
+ * page : la silhouette cliquable, les muscles et le matériel. Un tap sur une
+ * pastille appelle `render()`, ce qui referme la feuille et redessine la liste —
+ * on voit immédiatement le résultat au lieu de rester devant ses filtres.
+ *
+ * @param {(hote:HTMLElement)=>void} remplir
+ */
+function ouvrirFiltresCatalogue(remplir) {
+  const sheet = h(`<div class="sheet"><div class="inner"></div></div>`);
+  const inner = sheet.querySelector(".inner");
+  inner.append(h(`<div class="sheet-top"><h2 style="margin:0">Filtrer</h2><button class="chip" id="cfX">✕ Fermer</button></div>`));
+  remplir(inner);
+  // Choisir un filtre referme la feuille. Rester devant ses réglages après avoir
+  // choisi oblige à un second geste pour voir ce qu'on a obtenu — et on finit
+  // par empiler des critères à l'aveugle. Le gestionnaire de la pastille a déjà
+  // appelé `render()` quand l'événement remonte ici : la liste est prête.
+  inner.addEventListener("click", (ev) => {
+    if (ev.target.closest(".cat-fline .chip") || ev.target.closest("g[data-m]")) sheet.remove();
+  });
+  const raz = h(`<button class="secondary" style="width:100%;margin-top:18px">Tout réinitialiser</button>`);
+  raz.addEventListener("click", () => { CAT_FILTRE = { q: CAT_FILTRE.q, muscle: "", equip: "" }; render(); });
+  inner.append(raz);
+  sheet.querySelector("#cfX").addEventListener("click", () => sheet.remove());
+  sheet.addEventListener("click", (ev) => { if (ev.target === sheet) sheet.remove(); });
+  document.body.append(sheet);
 }
 
 /* ======================================================================
@@ -3484,20 +3566,40 @@ function carteProgrammeActuel(prog, logs, profil) {
  * hebdomadaire du profil — pas une note arbitraire.
  */
 function grilleChiffres(logs) {
-  const g = h(`<div class="statgrid"></div>`);
+  const g = h(`<div class="bento"></div>`);
   const nb = logs.length;
-  const tonnes = volumeTotal(logs) / 1000;
-  const volTxt = tonnes >= 1 ? `${tonnes.toFixed(1).replace(".", ",")} T` : `${Math.round(volumeTotal(logs))} kg`;
+  const total = volumeTotal(logs);
+  const tonnes = total / 1000;
+  const volTxt = tonnes >= 1 ? `${tonnes.toFixed(1).replace(".", ",")} T` : `${Math.round(total)} kg`;
   const cible = Math.max(1, (Etat.data.profil?.joursParSemaine || 4) * 4);
   const recentes = logs.filter((l) => Date.parse(l.date) > Date.now() - 28 * 864e5).length;
   const regularite = Math.min(100, Math.round((recentes / cible) * 100));
   const records = classementRecords(logs, nomExo, 99).length;
-  g.append(statCard(IC.dumbbell, String(nb), "Séances"));
-  g.append(statCard(IC.bars, volTxt, "Volume"));
-  g.append(statCard(IC.activity, `${regularite} %`, "Régularité"));
-  g.append(statCard(IC.trophy, String(records), "Records"));
+
+  // TUILE MAÎTRESSE. Quatre tuiles identiques ne hiérarchisent rien : l'œil ne
+  // sait pas par où commencer et les lit toutes, ou aucune. Le tonnage cumulé
+  // est le chiffre qui raconte le travail accompli — il prend toute la largeur,
+  // et la courbe des huit dernières semaines s'affiche DERRIÈRE lui, comme une
+  // texture. La forme de la progression se lit avant même le nombre.
+  const feat = h(`<div class="bento-hero">
+    ${sparkAire(volumeParSemaine(logs, 8).map((s) => s.v))}
+    <div class="bh-txt">
+      <span class="eyebrow">Volume total soulevé</span>
+      <b class="num bh-val">${esc(volTxt)}</b>
+      <span class="bh-sub">${nb} séance${nb > 1 ? "s" : ""} enregistrée${nb > 1 ? "s" : ""}</span>
+    </div>
+    <span class="bh-ic" aria-hidden="true">${IC.bars}</span>
+  </div>`);
+  g.append(feat);
+
+  const petites = h(`<div class="bento-trio"></div>`);
+  petites.append(statCard(IC.dumbbell, String(nb), "Séances"));
+  petites.append(statCard(IC.activity, `${regularite} %`, "Régularité"));
+  petites.append(statCard(IC.trophy, String(records), "Records"));
+  g.append(petites);
   return g;
 }
+
 
 /**
  * Peint le corps en lumière dans le canevas d'un conteneur, une fois qu'il a
