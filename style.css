@@ -1989,3 +1989,59 @@ button.cat-fav{top:8px;left:8px;right:auto;z-index:4}
 .cat-fline>.chip{flex:0 0 auto}
 .sheet .cat-fline{overflow-x:visible;flex-wrap:wrap;gap:8px}
 .sheet .cat-fline>.chip{flex:0 1 auto}
+
+/* ---- 27. Séance : le poste de commande et l'exercice courant ----------------
+   C'est l'écran qu'on regarde à bout de souffle, entre deux séries. Deux choses
+   doivent s'y lire sans effort : COMBIEN DE TEMPS et OÙ J'EN SUIS. */
+
+/* La scène de séance est plus resserrée que celle de l'accueil : ici la lumière
+   ne décore pas, elle désigne le chrono. */
+.scene-train{padding-top:var(--space-1);padding-bottom:var(--space-4)}
+.scene-train::before{inset:-120px 0 0}
+.scene-train::after{display:none}          /* pas de trame : rien ne doit distraire */
+.scene-train .poste{margin-top:0;
+  background:linear-gradient(160deg, color-mix(in srgb,var(--accent) 11%,rgba(22,27,32,.76)), rgba(17,21,25,.9) 64%);
+  backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2);
+  border-color:color-mix(in srgb,var(--accent) 26%,transparent);
+  box-shadow:var(--shadow-lg), inset 0 1px 0 rgba(255,255,255,.06)}
+:root[data-theme="light"] .scene-train .poste{
+  background:linear-gradient(160deg, color-mix(in srgb,var(--accent) 8%,#fff), #fff 62%);
+  backdrop-filter:none;-webkit-backdrop-filter:none}
+
+/* L'EXERCICE COURANT. Une arête d'accent sur toute la hauteur, un fond
+   légèrement teinté, une ombre qui le sort du plan. Les exercices TERMINÉS
+   reculent — ils ne sont pas cachés (on peut vouloir corriger une série), ils
+   cessent simplement de réclamer l'attention. */
+.exocard.exo-encours{position:relative;
+  border-color:color-mix(in srgb,var(--accent) 34%,transparent);
+  background:linear-gradient(180deg, color-mix(in srgb,var(--accent) 7%,var(--surface)), var(--surface) 42%);
+  box-shadow:var(--shadow-lg), 0 0 32px -14px color-mix(in srgb,var(--accent) 60%,transparent)}
+.exocard.exo-encours::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;
+  border-radius:0 3px 3px 0;background:var(--grad);
+  box-shadow:0 0 14px -2px color-mix(in srgb,var(--accent) 70%,transparent)}
+.exocard.exo-fait{opacity:.68}
+.exocard.exo-fait:focus-within,.exocard.exo-fait:active{opacity:1}
+@media (prefers-reduced-motion:no-preference){
+  .exocard{transition:opacity .2s var(--ease)}
+}
+
+/* Cibles tactiles des pastilles musculaires. 23 px de haut sur l'écran où l'on
+   a les mains moites et où l'on bouge : c'était la plus mauvaise cible de toute
+   l'application. La pastille passe à 30 px et son ::after déborde de 7 px EN
+   HAUTEUR SEULEMENT — élargir horizontalement ferait mordre sur la voisine. Le
+   gap de la rangée passe à 14 px pour qu'aucune zone n'en recouvre une autre. */
+/* MESURÉ, PAS ESPÉRÉ. La pastille passait 23 px de haut sur l'écran où l'on a
+   les mains moites : la plus mauvaise cible de l'application. Elle monte à
+   36 px de BOÎTE — l'essentiel du gain vient de là — et un ::after de 4 px
+   déborde en hauteur seulement (élargir mordrait sur la voisine).
+
+   Résultat au test de frappe réel (`elementFromPoint`) : 40 px effectifs sur la
+   plupart, 36 px sur celles dont le voisin immédiat gagne le point. On reste
+   SOUS les 44 px recommandés, et je le dis plutôt que de l'enjoliver : porter
+   ces pastilles à 44 px chasserait les champs de saisie hors de l'écran sur une
+   carte d'exercice, ce qui coûterait plus cher que ça ne rapporte. Elles restent
+   un raccourci secondaire — la fiche complète s'ouvre aussi par la vignette,
+   elle-même à 52 px. */
+.mbadges{gap:10px;margin-top:8px}
+.mbadge{position:relative;padding:8px 12px;min-height:36px;display:inline-flex;align-items:center}
+.mbadge::after{content:"";position:absolute;left:0;right:0;top:-4px;bottom:-4px;z-index:1}

@@ -8,6 +8,7 @@
  * valider le contenu importé, et permettre soit de fusionner soit de remplacer.
  */
 import { SCHEMA_VERSION, normaliserEtat } from "../store/migrate.js";
+import { IDENTITE } from "../config/identite.js";
 
 /**
  * Champs inclus dans l'export (on exclut les caches volatils).
@@ -27,7 +28,7 @@ const CLES_EXPORT = [
 export function construireExport(data, maintenant = new Date().toISOString()) {
   const out = {};
   for (const k of CLES_EXPORT) out[k] = data ? data[k] : undefined;
-  return { app: "coach-perso-ia", schema: SCHEMA_VERSION, exportedAt: maintenant, data: out };
+  return { app: IDENTITE.idSauvegarde, schema: SCHEMA_VERSION, exportedAt: maintenant, data: out };
 }
 
 /**
@@ -38,7 +39,9 @@ export function construireExport(data, maintenant = new Date().toISOString()) {
 export function validerImport(obj) {
   if (!obj || typeof obj !== "object") return { ok: false, erreurs: ["Fichier vide ou illisible."], data: null };
   const erreurs = [];
-  if (obj.app && obj.app !== "coach-perso-ia") erreurs.push("Ce fichier ne provient pas de Coach Perso IA.");
+  // `idSauvegarde` est un identifiant technique, pas le nom affiché : renommer
+  // l'application ne doit pas faire rejeter les fichiers déjà exportés.
+  if (obj.app && obj.app !== IDENTITE.idSauvegarde) erreurs.push(`Ce fichier ne provient pas de ${IDENTITE.nom}.`);
   const src = (obj.data && typeof obj.data === "object") ? obj.data : obj;
   for (const k of ["logs", "metrics", "reviews", "programmesPerso", "exercicesPerso"]) {
     if (k in src && !Array.isArray(src[k])) erreurs.push(`Champ « ${k} » invalide (tableau attendu).`);

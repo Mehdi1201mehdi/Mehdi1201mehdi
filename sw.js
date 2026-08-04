@@ -1,7 +1,7 @@
 /* Service worker — stratégie RÉSEAU D'ABORD pour l'app (toujours la dernière
    version en ligne), cache en secours hors ligne. Les médias de démonstration
    (cross-origin) restent en cache d'abord pour l'usage hors ligne. */
-const CACHE = "coachperso-ia-v128";
+const CACHE = "coachperso-ia-v129";
 const MEDIA_CACHE = "coachperso-media-v1";
 const MEDIA_HOSTS = ["exercisedb.dev", "exercisedb.p.rapidapi.com", "wger.de", "githubusercontent.com", "cloudfront.net"];
 const ASSETS = [
@@ -17,6 +17,7 @@ const ASSETS = [
   "./src/engine/records.js", "./src/engine/stats.js", "./src/engine/backup.js", "./src/engine/powerlifting.js", "./src/engine/defis.js", "./src/engine/assistant.js", "./src/engine/outils.js", "./src/engine/fatigue.js", "./src/engine/planner.js", "./src/engine/apprentissage.js", "./src/engine/bibliotheque.js", "./src/engine/repos.js", "./src/engine/force.js", "./src/engine/trophees.js", "./src/engine/rang.js", "./src/engine/photos.js", "./src/engine/bilanSeance.js", "./src/engine/muscle.js", "./src/engine/equilibre.js",
   "./src/integrations/exercisedb.js", "./src/integrations/openfoodfacts.js", "./src/integrations/coachIA.js",
   "./src/store/state.js", "./src/store/db.js", "./src/store/migrate.js",
+  "./src/config/identite.js",
 ];
 
 self.addEventListener("install", (e) => {

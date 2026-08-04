@@ -12,9 +12,13 @@
  * `init()` (asynchrone) charge/migre les données au démarrage avant le rendu.
  */
 import { idbGet, idbSet, idbDisponible } from "./db.js";
+import { IDENTITE } from "../config/identite.js";
 import { etatVide, normaliserEtat, choisirEtat } from "./migrate.js";
 
-const KEY = "coachperso.ia.v1"; // miroir localStorage (compat historique)
+// La clé vient de src/config/identite.js — un identifiant TECHNIQUE, séparé du
+// nom affiché : renommer l'application ne doit jamais couper l'accès à
+// l'historique déjà écrit sous cette clé.
+const KEY = IDENTITE.cleStockage;
 const IDB_CLE = "state";        // clé de l'état complet dans IndexedDB
 
 /** Écriture IndexedDB différée (anti-rafale) : id du timer en cours. */

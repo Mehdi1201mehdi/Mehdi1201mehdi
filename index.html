@@ -11,6 +11,9 @@
 <meta name="theme-color" content="#07090B">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- NOM DE L'APPLICATION : lu par le navigateur AVANT tout script, donc écrit
+     ici en dur. Source de vérité : src/config/identite.js — si tu changes le nom
+     là-bas, change-le aussi sur cette ligne et sur le <title> plus bas. -->
 <meta name="apple-mobile-web-app-title" content="Coach Perso">
 <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
 <link rel="icon" href="assets/icons/icon.svg" type="image/svg+xml">
@@ -24,6 +27,7 @@
      Inter puis basculent, ce qui fait sauter la mise en page au démarrage. -->
 <link rel="preload" href="assets/fonts/anton-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="style.css">
+<!-- Doit refléter `titreComplet()` de src/config/identite.js (voir plus haut). -->
 <title>Coach Perso — Musculation</title>
 </head>
 <body>
@@ -35,12 +39,15 @@
 <a href="#view" class="skip-link">Aller au contenu</a>
 <div id="splash">
   <div class="sp-logo"><img src="assets/icons/icon.svg" alt=""></div>
+  <!-- Remplacés au chargement depuis src/config/identite.js. -->
   <div class="sp-name">COACH&nbsp;PERSO</div>
-  <div class="sp-tag">Devenez la meilleure version de vous-même</div>
+  <div class="sp-tag">Ton entraînement, tes données, hors ligne.</div>
 </div>
 <header class="top"><div class="wrap">
   <div class="brand" id="brand">
     <img class="logo" src="assets/icons/icon.svg" alt="">
+    <!-- Remplis au chargement depuis src/config/identite.js ; les valeurs écrites
+         ici évitent un en-tête vide le temps que le module se charge. -->
     <div><div class="eyebrow" id="hdEyebrow">Musculation</div><b id="hdTitle">Coach Perso</b></div>
   </div>
   <button id="themeBtn" class="chip" aria-label="Changer de thème">◐</button>

@@ -31,6 +31,7 @@ import { scannerDisponible, demarrerScan, normaliserCode } from "./scanner.js";
 import { $, esc, h } from "./dom.js";
 import { urlDemo, vignetteExo, vignetteHTML } from "./vignettes.js";
 import { anneauSVG, anneauSignature, svgLine, categorieIMC, gaugeIMC, svgBars, sparkAire } from "./graphes.js";
+import { IDENTITE, titreComplet } from "../config/identite.js";
 import { chargementMedia } from "../data/media-manifest.js";
 import { IC, mi, IC_MATOS, iconeMateriel, goalIcons, LEVEL_ICONS } from "./icones.js";
 import { comparerSeance, phraseBilan } from "../engine/bilanSeance.js";
@@ -152,8 +153,8 @@ const TITRES_ECRAN = { prog: "Programme", train: "Séance", stats: "Progrès", f
 function majHeader() {
   const brand = $("#brand"), titre = $("#hdTitle");
   if (!brand || !titre) return;
-  if (TAB === "dash") { brand.classList.remove("compact"); titre.textContent = "Coach Perso"; }
-  else { brand.classList.add("compact"); titre.textContent = TITRES_ECRAN[TAB] || "Coach Perso"; }
+  if (TAB === "dash") { brand.classList.remove("compact"); titre.textContent = IDENTITE.nom; }
+  else { brand.classList.add("compact"); titre.textContent = TITRES_ECRAN[TAB] || IDENTITE.nom; }
 }
 function majTabs() {
   $("#tabs").querySelectorAll("button[data-tab]").forEach((b) => {
@@ -2066,6 +2067,12 @@ function vTrain(v) {
   // d'un coup d'œil sous forme de barres — une par exercice — plutôt qu'en
   // pourcentage. Les identifiants (#seanceTimer, #seanceProgBar, #seanceProgTxt)
   // sont conservés : la mise à jour en direct continue de les viser.
+  // Le poste vit dans une SCÈNE pleine largeur, comme l'accueil. Sur l'écran
+  // qu'on regarde à bout de souffle entre deux séries, une carte flottant dans
+  // une gouttière de 16 px n'a pas le poids de ce qu'elle porte : le chrono est
+  // l'information la plus consultée de toute l'application.
+  const banniere = h(`<div class="scene scene-train bleed"></div>`);
+  v.append(banniere);
   const head = h(`<div class="card trainhead poste"></div>`);
   head.append(h(`<div class="spread poste-top">
     <div style="min-width:0"><span class="eyebrow accent">En cours</span>
@@ -2082,10 +2089,25 @@ function vTrain(v) {
   // sous la piste : deux lectures de la même progression, l'une fine, l'autre
   // par exercice.
   head.append(h(`<div class="bar filet"><div id="seanceProgBar" style="width:${Math.round(pr.pct * 100)}%"></div></div>`));
-  v.append(head);
+  banniere.append(head);
+  banniere.append(h(`<span class="scene-edge" aria-hidden="true"></span>`));
   $("#goGuide", head).addEventListener("click", ouvrirGuide);
   arreterChrono(); majChrono(); SESSION_TMR = setInterval(majChrono, 1000);
-  seance.exercices.forEach((e) => v.append(carteExoLive(e, seance)));
+  // L'EXERCICE COURANT EST MARQUÉ. Quatre cartes rigoureusement identiques
+  // obligent, à chaque retour sur l'écran, à relire les séries validées pour
+  // retrouver où l'on en est — en pleine séance, essoufflé, c'est le geste de
+  // trop. Une arête d'accent et un relief suffisent : on sait avant de lire.
+  const courant = exoCourant(seance);
+  seance.exercices.forEach((e, i) => {
+    const carte = carteExoLive(e, seance);
+    if (i === courant - 1) {
+      carte.classList.add("exo-encours");
+      carte.setAttribute("aria-current", "step");
+    } else if (i < courant - 1) {
+      carte.classList.add("exo-fait");
+    }
+    v.append(carte);
+  });
   const bAdd = h(`<button class="chip" style="margin-top:8px"><span class="cic">${IC.plus}</span>Ajouter un exercice</button>`);
   bAdd.addEventListener("click", () => ajouterExerciceLive(seance));
   v.append(bAdd);
@@ -5968,7 +5990,7 @@ function vSet(v) {
   don.append(bExp, bImp, file, bExpCsvSeances, bExpCsvPoids, bDel);
   section(v, "p-data", "Mes données & sauvegarde", (b) => b.append(don));
 
-  v.append(h(`<div class="card flat small muted">Coach Perso — Application de musculation personnelle, locale et hors ligne. Ne remplace pas un avis médical.</div>`));
+  v.append(h(`<div class="card flat small muted">${esc(IDENTITE.nom)} — ${esc(IDENTITE.signature)}</div>`));
 }
 
 /* ======================================================================
@@ -5981,6 +6003,7 @@ function vSet(v) {
 async function amorcerApp() {
   try {
     await Etat.init();
+    appliquerIdentite();
     appliquerTheme();
     // Séance interrompue : on la restaure MAINTENANT, pas à l'ouverture de
     // l'onglet Séance. Tant que `LIVE` restait nul, l'accueil ignorait qu'une
@@ -6007,6 +6030,25 @@ async function amorcerApp() {
     // exactement la même panne. Une app bloquée est pire qu'un écran incomplet.
     retirerSplash();
   }
+}
+
+/**
+ * Applique l'identité (src/config/identite.js) à tout ce que le HTML a écrit en
+ * dur : titre de l'onglet, nom et sur-titre de l'en-tête, slogan du démarrage.
+ * Le HTML garde des valeurs par défaut pour ne pas afficher un en-tête vide le
+ * temps que le module se charge ; cette fonction les remplace.
+ */
+function appliquerIdentite() {
+  document.title = titreComplet();
+  const t = document.getElementById("hdTitle");
+  if (t) t.textContent = IDENTITE.nom;
+  const e = document.getElementById("hdEyebrow");
+  if (e) e.textContent = IDENTITE.surTitre;
+  const n = document.querySelector("#splash .sp-name");
+  if (n) n.textContent = IDENTITE.nom;
+  // Le slogan peut être vide : on n'affiche alors rien plutôt qu'une ligne vide.
+  const s = document.querySelector("#splash .sp-tag");
+  if (s instanceof HTMLElement) { s.textContent = IDENTITE.slogan; s.hidden = !IDENTITE.slogan; }
 }
 
 /** Retire l'écran de démarrage (avec son fondu). */
