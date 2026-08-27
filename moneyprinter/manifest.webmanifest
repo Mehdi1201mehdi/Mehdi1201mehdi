@@ -1,0 +1,24 @@
+{
+  "name": "Studio Vidéo",
+  "short_name": "Studio",
+  "description": "Écrire, produire et récupérer des vidéos courtes depuis le téléphone, en pilotant MoneyPrinterTurbo.",
+  "lang": "fr",
+  "dir": "ltr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#07060C",
+  "theme_color": "#0A0910",
+  "categories": ["productivity", "video"],
+  "icons": [
+    { "src": "./assets/icones/icone-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "./assets/icones/icone-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "./assets/icones/icone-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "./assets/icones/icone.svg", "sizes": "any", "type": "image/svg+xml" }
+  ],
+  "shortcuts": [
+    { "name": "Créer une vidéo", "url": "./index.html#/creer" },
+    { "name": "Mes vidéos", "url": "./index.html#/videos" }
+  ]
+}

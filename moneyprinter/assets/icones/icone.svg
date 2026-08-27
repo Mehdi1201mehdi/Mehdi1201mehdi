@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Studio Vidéo">
+  <defs>
+    <linearGradient id="fond" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8B5CF6"/>
+      <stop offset="1" stop-color="#5B32C9"/>
+    </linearGradient>
+    <linearGradient id="lueur" x1=".5" y1="0" x2=".5" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="114" fill="#0B0A12"/>
+  <rect x="26" y="26" width="460" height="460" rx="94" fill="url(#fond)"/>
+  <rect x="26" y="26" width="460" height="460" rx="94" fill="url(#lueur)"/>
+  <path d="M212 168v176l134-88-134-88Z" fill="#FFFFFF"/>
+  <path d="M356 96l13.5 36.5L406 146l-36.5 13.5L356 196l-13.5-36.5L306 146l36.5-13.5L356 96Z" fill="#FFFFFF" opacity=".92"/>
+</svg>

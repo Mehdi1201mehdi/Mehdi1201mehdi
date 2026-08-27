@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Studio Vidéo</title>
+<meta name="description" content="Télécommande française de MoneyPrinterTurbo : écrire, produire et récupérer des vidéos courtes depuis le téléphone.">
+<meta name="theme-color" content="#0A0910">
+<meta name="color-scheme" content="dark">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Studio Vidéo">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./assets/icones/icone.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./assets/icones/icone-180.png">
+<link rel="stylesheet" href="./app.css">
+</head>
+<body>
+
+<header class="entete">
+  <div class="entete-marque">
+    <span class="entete-logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z"/>
+      </svg>
+    </span>
+    <span class="entete-nom">Studio Vidéo</span>
+  </div>
+  <h1 class="entete-titre" id="titre-ecran">Créer</h1>
+</header>
+
+<main id="contenu" class="contenu"></main>
+
+<nav class="onglets" id="onglets" aria-label="Navigation principale"></nav>
+
+<script type="module" src="./src/app.js"></script>
+</body>
+</html>
