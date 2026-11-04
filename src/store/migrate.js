@@ -47,6 +47,10 @@ export function etatVide() {
       modeAvance: false, metrique: "rir",
       // Notification de fin de repos : le seul signal qui passe écran verrouillé.
       notifsRepos: true,
+      // Voix du coach en séance guidée. ÉTEINTE par défaut : une application qui
+      // se met à parler toute seule au milieu d'une salle de sport est un
+      // problème, pas une fonctionnalité. Cf. src/ui/voix.js.
+      voix: false,
       // Seuils de rang saisis à la main, par mouvement puis par sexe :
       // { "squat-barre": { H: [1, 1.5, 2, 2.5] } }. Vide = repères publiés.
       standardsForce: {},

@@ -32,6 +32,7 @@ import { $, esc, h } from "./dom.js";
 import { urlDemo, vignetteExo, vignetteHTML } from "./vignettes.js";
 import { anneauSVG, anneauSignature, svgLine, categorieIMC, gaugeIMC, svgBars, sparkAire } from "./graphes.js";
 import { IDENTITE, titreComplet } from "../config/identite.js";
+import { dire, couperVoix, voixDisponible, phraseSerie, phraseRepos, phraseDecompte, phraseReprise, phraseFin, VOIX_DEFAUT } from "./voix.js";
 import { chargementMedia } from "../data/media-manifest.js";
 import { IC, mi, IC_MATOS, iconeMateriel, goalIcons, LEVEL_ICONS } from "./icones.js";
 import { comparerSeance, phraseBilan } from "../engine/bilanSeance.js";
@@ -3035,6 +3036,15 @@ function guidePremiereEtape() {
   }
   return exos.length ? { ei: 0, si: 0 } : null;
 }
+/** La voix est-elle active ? Éteinte par défaut, mémorisée dans les réglages. */
+function voixActive() {
+  return (Etat.data.reglages.voix ?? VOIX_DEFAUT) === true && voixDisponible();
+}
+/** Dit un texte UNIQUEMENT si la voix est allumée. Toujours passer par là. */
+function annoncer(texte, interrompre = false) {
+  if (voixActive()) dire(texte, { interrompre });
+}
+
 function ouvrirGuide() {
   if (!LIVE) return;
   const dep = guidePremiereEtape();
@@ -3047,6 +3057,9 @@ function ouvrirGuide() {
   guideRender();
 }
 function guideFermer() {
+  // La voix doit se taire AVANT tout le reste : une annonce de repos lancée
+  // juste avant la fermeture continuerait de parler sur l'écran de bilan.
+  couperVoix();
   if (GUIDE?.tmr) clearInterval(GUIDE.tmr);
   GUIDE = null;
   $("#guide")?.classList.remove("show");
@@ -3086,8 +3099,26 @@ function guideRepos(sec) {
   guideRender();
 }
 function guideFin() {
+  // Le volume est calculé AVANT la fermeture : `guideFermer()` remet `LIVE` à
+  // plat et il n'y aurait plus rien à annoncer.
+  const vol = voixActive() ? volumeLive() : 0;
   guideFermer();
+  if (voixActive()) dire(phraseFin(vol));
   terminer();
+}
+
+/** Volume soulevé dans la séance en cours, pour l'annonce de fin. */
+function volumeLive() {
+  let v = 0;
+  for (const st of Object.values((LIVE && LIVE.data) || {})) {
+    for (const s of (st && st.series) || []) {
+      if (!s.done) continue;
+      const c = parseFloat(String(s.charge || "0").replace(",", "."));
+      const r = parseInt(String(s.reps || "0"), 10);
+      if (Number.isFinite(c) && Number.isFinite(r)) v += c * r;
+    }
+  }
+  return v;
 }
 function guideRender() {
   const g = $("#guide .guide-in");
@@ -3097,15 +3128,33 @@ function guideRender() {
   const cur = exos[GUIDE.ei];
   if (!cur) { guideFin(); return; }
   const { pct, done, tot } = guideProg();
+  // Le haut-parleur vit ICI et pas dans les réglages : c'est le seul écran où
+  // la voix sert, et une option enterrée trois niveaux plus bas n'est jamais
+  // trouvée. Elle reste accessible depuis le Profil pour qui la cherche là.
+  const vx = voixActive();
+  const dispo = voixDisponible();
   const barre = `<div class="guide-top">
       <button class="guide-x" aria-label="Quitter le mode guidé">${IC.x}</button>
       <div class="guide-count">Exercice ${GUIDE.ei + 1}/${exos.length} · série ${GUIDE.si + 1}/${cur.st.series.length}</div>
+      ${dispo ? `<button class="guide-voix${vx ? " on" : ""}" aria-pressed="${vx}" aria-label="${vx ? "Couper" : "Activer"} la voix du coach">${vx ? IC.volume : IC.volumeOff}</button>` : ""}
       <div class="guide-progn num">${done}/${tot}</div>
     </div>
     <div class="bar guide-bar"><div style="width:${Math.round(pct * 100)}%"></div></div>`;
   g.innerHTML = "";
   g.append(h(barre));
   $("#guide .guide-x").addEventListener("click", () => { if (confirm) guideFermer(); });
+  const bVoix = $("#guide .guide-voix");
+  if (bVoix) {
+    bVoix.addEventListener("click", () => {
+      const on = !voixActive();
+      Etat.data.reglages.voix = on;
+      Etat.sauver();
+      // On parle tout de suite : sans retour immédiat, on ne sait pas si le
+      // volume du téléphone est coupé, et on croit que la fonction est cassée.
+      if (on) dire("Voix activée."); else couperVoix();
+      guideRender();
+    });
+  }
 
   if (GUIDE.phase === "rest") { guideRenderRepos(g, cur); return; }
   guideRenderWork(g, cur);
@@ -3136,6 +3185,16 @@ function guideRenderWork(g, cur) {
   inp.append(champCharge, champVal);
   body.append(inp);
   g.append(body);
+
+  // ANNONCE DE LA SÉRIE. Mémorisée dans `GUIDE.dit` pour ne jamais être répétée :
+  // `guideRender()` est rappelé à chaque frappe dans un champ, et sans ce garde
+  // la voix relancerait « série 2 sur 4 » à chaque chiffre tapé.
+  const cle = `${GUIDE.ei}:${GUIDE.si}`;
+  if (GUIDE.dit !== cle) {
+    const nouvelExo = GUIDE.ditExo !== GUIDE.ei;
+    GUIDE.dit = cle; GUIDE.ditExo = GUIDE.ei;
+    annoncer(phraseSerie(nom, GUIDE.si, st.series.length, nouvelExo));
+  }
 
   const acts = h(`<div class="guide-actions"></div>`);
   const bPrev = h(`<button class="chip guide-nav"${GUIDE.ei === 0 && GUIDE.si === 0 ? " disabled" : ""}><span class="cic">${IC.back}</span></button>`);
@@ -3186,9 +3245,30 @@ function guideRenderRepos(g, cur) {
     fg.style.strokeDashoffset = String(653 * (1 - GUIDE.left / GUIDE.total));
     ring.classList.toggle("urgent", GUIDE.left <= 10);
   };
-  const fini = () => { if (GUIDE.tmr) clearInterval(GUIDE.tmr); GUIDE.tmr = null; GUIDE.phase = "work"; try { if (Etat.data.reglages.vibrations !== false) navigator.vibrate?.([120, 60, 120]); } catch (e) {} guideRender(); };
+  const fini = () => {
+    if (GUIDE.tmr) clearInterval(GUIDE.tmr);
+    GUIDE.tmr = null; GUIDE.phase = "work";
+    try { if (Etat.data.reglages.vibrations !== false) navigator.vibrate?.([120, 60, 120]); } catch (e) {}
+    // « C'est parti » interrompt le « 1 » du décompte : sinon les deux
+    // s'empilent et la reprise s'annonce une seconde trop tard.
+    annoncer(phraseReprise(), true);
+    guideRender();
+  };
+  // Annoncée une seule fois : `guideRenderRepos` n'est appelé qu'à l'entrée en
+  // repos, mais le garde protège d'un futur rappel.
+  if (GUIDE.ditRepos !== GUIDE.total + ":" + GUIDE.ei + ":" + GUIDE.si) {
+    GUIDE.ditRepos = GUIDE.total + ":" + GUIDE.ei + ":" + GUIDE.si;
+    annoncer(`${phraseRepos(GUIDE.total)} À suivre, ${nomSuiv ? String(nomSuiv).replace(/\([^)]*\)/g, "").trim() : ""}.`);
+  }
   draw();
-  GUIDE.tmr = setInterval(() => { GUIDE.left--; if (GUIDE.left <= 0) { fini(); return; } draw(); }, 1000);
+  GUIDE.tmr = setInterval(() => {
+    GUIDE.left--;
+    if (GUIDE.left <= 0) { fini(); return; }
+    // Le décompte INTERROMPT : « 2 » doit effacer « 3 », pas s'empiler derrière.
+    const d = phraseDecompte(GUIDE.left);
+    if (d) annoncer(d, true);
+    draw();
+  }, 1000);
   rest.querySelector("#gPlus").addEventListener("click", () => { GUIDE.left += 15; GUIDE.total = Math.max(GUIDE.total, GUIDE.left); draw(); });
   rest.querySelector("#gMinus").addEventListener("click", () => { GUIDE.left = Math.max(1, GUIDE.left - 15); draw(); });
   rest.querySelector("#gSkip").addEventListener("click", fini);
@@ -5918,6 +5998,24 @@ function vSet(v) {
     // que le blocage vient du navigateur.
     if (Etat.data.reglages.notifsRepos !== false && !en.actif) {
       c.append(h(`<div class="warn small" style="margin-top:8px">${mi(IC.alert, "mi-amber")}${esc(en.raison)}</div>`));
+    }
+
+    // VOIX DU COACH. Le même interrupteur existe dans le lecteur guidé, là où
+    // elle sert ; il est ici pour qui cherche ses réglages à l'endroit habituel.
+    const voxOk = voixDisponible();
+    c.append(h(`<div class="spread" style="margin-top:12px"><span class="small">Voix du coach</span></div>`));
+    c.append(h(`<div class="hint" style="margin-top:0">En séance guidée, l'app annonce l'exercice, la série en cours, la durée du repos et les trois dernières secondes. Ce n'est pas un coach IA : chaque phrase est construite à partir de ta séance, toujours la même, sans réseau.</div>`));
+    c.append(chipsInline([[true, "Activée"], [false, "Coupée"]],
+      (val) => (Etat.data.reglages.voix === true) === val,
+      (val) => {
+        Etat.data.reglages.voix = val; Etat.sauver();
+        // On fait ENTENDRE le réglage, comme pour les sons : sans retour, on ne
+        // sait pas si c'est l'app ou le volume du téléphone qui est muet.
+        if (val) dire("Voix activée."); else couperVoix();
+        render();
+      }));
+    if (!voxOk) {
+      c.append(h(`<div class="warn small" style="margin-top:8px">${mi(IC.alert, "mi-amber")}Ce navigateur ne propose pas de synthèse vocale : la voix restera silencieuse.</div>`));
     }
     b.append(c);
   });
