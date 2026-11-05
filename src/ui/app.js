@@ -136,9 +136,11 @@ function appliquerTheme() {
   else document.documentElement.setAttribute("data-theme", t);
 }
 $("#themeBtn").addEventListener("click", () => {
-  const ordre = ["auto", "light", "dark"];
+  // Quatre thèmes depuis l'ajout de « Nuit » : le bouton d'en-tête les fait
+  // tourner dans l'ordre, le réglage du Profil permet de choisir directement.
+  const ordre = ["auto", "light", "dark", "nuit"];
   const cur = Etat.data.reglages.theme;
-  Etat.data.reglages.theme = ordre[(ordre.indexOf(cur) + 1) % 3];
+  Etat.data.reglages.theme = ordre[(ordre.indexOf(cur) + 1) % ordre.length];
   Etat.sauver(); appliquerTheme();
 });
 
@@ -6123,7 +6125,7 @@ function vSet(v) {
   section(v, "p-prog", "Programme d'entraînement", (b) => b.append(prof));
 
   const aff = h(`<div class="card stack"></div>`);
-  aff.append(chipsInline([["auto", "Auto"], ["light", "Clair"], ["dark", "Sombre"]], (val) => Etat.data.reglages.theme === val, (val) => { Etat.data.reglages.theme = val; Etat.sauver(); appliquerTheme(); }));
+  aff.append(chipsInline([["auto", "Auto"], ["light", "Clair"], ["dark", "Lime"], ["nuit", "Nuit"]], (val) => Etat.data.reglages.theme === val, (val) => { Etat.data.reglages.theme = val; Etat.sauver(); appliquerTheme(); }));
   section(v, "p-app", "Apparence", (b) => b.append(aff));
 
   // Démonstrations
@@ -6231,6 +6233,12 @@ async function amorcerApp() {
  */
 function appliquerIdentite() {
   document.title = titreComplet();
+  // Marque et bouton de thème peints ici : en ligne, ils suivent l'accent du
+  // thème, ce qu'un <img> isolé ne peut pas faire.
+  const lg = document.getElementById("hdLogo");
+  if (lg) lg.innerHTML = IC.marque;
+  const tb = document.getElementById("themeBtn");
+  if (tb) tb.innerHTML = IC.theme;
   const t = document.getElementById("hdTitle");
   if (t) t.textContent = IDENTITE.nom;
   const e = document.getElementById("hdEyebrow");

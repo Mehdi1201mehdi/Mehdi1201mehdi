@@ -2070,3 +2070,96 @@ button.cat-fav{top:8px;left:8px;right:auto;z-index:4}
 .guide-ring.pause .gfg{stroke:var(--amber)}
 .guide-ring.pause .guide-count-t{color:var(--amber);opacity:.9}
 .guide-ring.pause{animation:none}
+
+/* ============================================================================
+   30. THÈME « NUIT » — direction relevée sur FitAI
+   ----------------------------------------------------------------------------
+   Les valeurs de base ne sont pas devinées : elles sont LUES dans la feuille de
+   style publique de fitaiapp.com (variables `--background-color`,
+   `--card-color-solid`, `--primary-color`, `--text-secondary-color`…). Une
+   valeur hexadécimale est un fait, pas une création : on peut la mesurer et
+   s'en servir. En revanche AUCUNE de leurs images, illustrations ou icônes
+   n'est reprise — tout le reste de l'application reste dessiné ici.
+
+   Ce que cette direction change par rapport au thème lime :
+     · le fond quitte le gris neutre pour un NOIR BLEUTÉ très profond (#030014),
+       qui fait ressortir les surfaces sans les éclaircir ;
+     · les cartes sont un bleu nuit opaque (#060A24) bordé d'un bleu clair à
+       8 % — d'où l'impression de verre plutôt que de carton ;
+     · l'accent devient un BLEU FRANC (#0091FF), avec sa variante claire pour
+       le texte sur fond sombre et sa lueur à 20 %.
+
+   LES MUSCLES RESTENT EN LIME. La référence les colore en rouge-orangé ; la
+   consigne de ce projet est explicite et plus ancienne : « garde les muscles en
+   vert lime, ne repasse pas en orange ». Sur un bleu franc le lime devient même
+   une complémentaire — la planche anatomique se détache mieux qu'avant.
+
+   Le thème lime d'origine n'est pas supprimé : il reste « Sombre » dans les
+   réglages. Rien n'est perdu, on choisit.
+   ========================================================================== */
+:root[data-theme="nuit"]{
+  --bg:#030014; --bg-deep:#01000A; --surface:#060A24; --surface-2:#0B1033;
+  --surface-3:#121742; --elevated:#060A24;
+  --ink:#F2F5FA; --ink-soft:#8B95A8; --faint:#6E7A90;
+  --line:#1A2142; --hair:rgba(120,180,255,.09);
+  --accent:#0091FF; --accent-2:#0075D6; --accent-light:#45B8FF; --accent-dark:#0075D6;
+  --on-accent:#FFFFFF; --accent-ink:#45B8FF;
+  --accent-soft:rgba(0,145,255,.15); --accent-glow:rgba(0,145,255,.20); --glow:rgba(0,145,255,.20);
+  --lime:#B7E63A; --amber:#F7A33C; --amber-soft:rgba(247,163,60,.15);
+  --danger:#FF5A6E; --danger-soft:rgba(255,90,110,.15); --warning:#F7A33C;
+  --ok:#2BD98B; --ok-soft:rgba(43,217,139,.15); --orange:#F7A33C;
+  --indigo:#8B95A8; --pink:#FF5A6E;
+  /* La planche anatomique garde le lime, sur un corps bleuté. */
+  --anat-body:#131A3A; --anat-line:#243063; --anat-muscle:#1A2348;
+  --anat-primary:#B7E63A; --anat-secondary:#6E8F28;
+  --grad:linear-gradient(135deg,#45B8FF 0%,#0091FF 55%,#0075D6 100%);
+  --on-grad:#FFFFFF;
+  --shadow:0 8px 24px rgba(0,0,0,.52);
+  --shadow-lg:0 24px 60px rgba(0,0,0,.66);
+}
+/* Les cartes deviennent du verre bleuté : fond translucide, bordure claire à
+   faible opacité, exactement le rapport relevé sur la référence. */
+:root[data-theme="nuit"] .card{
+  background:linear-gradient(180deg,rgba(120,180,255,.05),rgba(6,10,36,.96));
+  border-color:rgba(120,180,255,.09);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}
+:root[data-theme="nuit"] .scene::before{
+  background:
+    radial-gradient(118% 62% at 50% 8%, rgba(0,145,255,.22) 0%, transparent 64%),
+    radial-gradient(80% 44% at 88% 2%, rgba(69,184,255,.12) 0%, transparent 60%),
+    linear-gradient(180deg,#060A24 0%, var(--bg) 74%)}
+
+/* ---- 31. La série en cours, remplie -----------------------------------------
+   Sur la référence, la série du moment est un BANDEAU PLEIN de la couleur
+   d'accent, pas un liseré. La différence n'est pas décorative : entre deux
+   séries, essoufflé, on retrouve sa ligne sans la chercher. Les bordures
+   discrètes qu'on avait demandaient de lire les chiffres pour savoir où on en
+   était.
+
+   Les champs restent transparents SUR le bandeau, soulignés d'un trait blanc :
+   un fond clair dans le bandeau découperait trois rectangles et casserait la
+   ligne. Le texte passe en blanc — c'est `--on-accent`, donc le contraste suit
+   automatiquement le thème. */
+.setrow.encours{background:var(--accent);box-shadow:0 6px 18px -8px var(--accent-glow)}
+.setrow.encours .serie,.setrow.encours .prev{color:var(--on-accent)}
+.setrow.encours .prev{opacity:.82}
+.setrow.encours input{
+  background:transparent;border-color:transparent;color:var(--on-accent);
+  border-bottom:2px solid color-mix(in srgb,var(--on-accent) 45%,transparent);
+  border-radius:0;font-weight:850}
+.setrow.encours input::placeholder{color:color-mix(in srgb,var(--on-accent) 55%,transparent)}
+.setrow.encours input:focus{
+  background:color-mix(in srgb,#000 16%,transparent);
+  border-bottom-color:var(--on-accent);box-shadow:none;outline:2px solid var(--on-accent);outline-offset:-2px}
+.setrow.encours .done{
+  background:color-mix(in srgb,var(--on-accent) 20%,transparent);
+  border-color:color-mix(in srgb,var(--on-accent) 55%,transparent);color:var(--on-accent)}
+.setrow.encours .done.on{background:var(--on-accent);color:var(--accent)}
+/* Le liseré latéral n'a plus de rôle une fois la ligne pleine. */
+.setrow.encours::before{display:none}
+/* Thème clair : l'accent y est sombre, l'encre blanche convient aussi. */
+:root[data-theme="light"] .setrow.encours input{color:#fff}
+/* La marque en ligne prend la couleur d'accent du thème actif. */
+.brand .logo{display:block;color:var(--accent);overflow:hidden}
+.brand .logo svg{width:100%;height:100%;display:block}
+#themeBtn svg{width:19px;height:19px;display:block}

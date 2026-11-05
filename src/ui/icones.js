@@ -59,6 +59,14 @@ export const IC = {
   back: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 20-10-8 10-8zM5 5v14"/></svg>`,
   star: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.9 6.1 21l1.2-6.5L2.5 9.9 9.1 9z"/></svg>`,
   layers: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg>`,
+  // LA MARQUE, en ligne plutôt qu'en <img>. Un SVG chargé par <img> est un
+  // document isolé : il ne voit pas les variables CSS de la page et restait donc
+  // lime sur le thème nuit, seule tache verte au milieu du bleu. En ligne, il
+  // hérite de `currentColor` et suit l'accent du thème, quel qu'il soit.
+  marque: `<svg viewBox="0 0 512 512" role="img" aria-label="Coach Perso"><rect width="512" height="512" rx="116" fill="currentColor"/><g fill="none" stroke="var(--on-accent)" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"><path d="M150 256h212"/><path d="M150 198v116M114 220v72"/><path d="M362 198v116M398 220v72"/></g></svg>`,
+  // Bouton de thème : le caractère « ◐ » dépendait de la police du téléphone et
+  // s'affichait à moitié. Un tracé réglé le problème une fois pour toutes.
+  theme: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg>`,
   // Haut-parleur : actif (ondes) et coupé (croix). Le même corps de cône dans
   // les deux états — seul le signal change, donc l'œil lit l'état, pas l'objet.
   volume: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>`,
