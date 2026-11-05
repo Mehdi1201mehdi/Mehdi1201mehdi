@@ -2163,3 +2163,42 @@ button.cat-fav{top:8px;left:8px;right:auto;z-index:4}
 .brand .logo{display:block;color:var(--accent);overflow:hidden}
 .brand .logo svg{width:100%;height:100%;display:block}
 #themeBtn svg{width:19px;height:19px;display:block}
+
+/* ---- 32. Bande de récupération (aperçu de séance) ---------------------------
+   L'ancienne rangée montrait des silhouettes et leur nom : joli, mais elle ne
+   disait rien que le titre de la séance ne disait déjà. Chaque tuile répond
+   maintenant à la seule question qu'on se pose avant d'attaquer — CE MUSCLE
+   EST-IL REMIS ?
+
+   Le pourcentage est en chiffres ET en barre. Le chiffre sert à comparer deux
+   muscles entre eux ; la barre donne l'état en un coup d'œil, sans lire. Les
+   deux ensemble valent mieux que l'un ou l'autre : le chiffre seul demande une
+   lecture, la barre seule ne permet aucune comparaison fine.
+
+   Trois tons seulement, repris des zones du moteur de fatigue. Cinq nuances
+   seraient indiscernables sur une barre de 3 px. */
+.recup-row{gap:9px;margin:6px 0 2px;align-items:stretch}
+button.recup-cell{
+  width:78px;padding:8px 6px 9px;min-height:auto;gap:4px;
+  background:var(--surface);border:1px solid var(--hair);border-radius:14px;color:var(--ink)}
+button.recup-cell:active{background:var(--surface-2)}
+.recup-cell .musc-sil .mini-silhouette{width:38px;height:62px;background:transparent;border:0;padding:0}
+.recup-cell .rc-nom{font-size:.62rem;font-weight:750;color:var(--ink-soft);line-height:1.15;
+  text-align:center;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.recup-cell .rc-pct{font-size:.84rem;font-weight:850;letter-spacing:-.02em;line-height:1}
+.recup-cell .rc-bar{display:block;width:100%;height:3px;border-radius:999px;background:var(--surface-3);overflow:hidden}
+.recup-cell .rc-bar i{display:block;height:100%;border-radius:999px;transition:width .4s var(--ease)}
+/* Frais ou prêt : on peut y aller. */
+.recup-cell.ton-ok .rc-pct{color:var(--ok)}
+.recup-cell.ton-ok .rc-bar i{background:var(--ok)}
+/* Disponible avec prudence. */
+.recup-cell.ton-moyen .rc-pct{color:var(--amber)}
+.recup-cell.ton-moyen .rc-bar i{background:var(--amber)}
+.recup-cell.ton-moyen{border-color:color-mix(in srgb,var(--amber) 26%,transparent)}
+/* En récupération ou à laisser tranquille : c'est l'avertissement utile. */
+.recup-cell.ton-bas .rc-pct{color:var(--danger)}
+.recup-cell.ton-bas .rc-bar i{background:var(--danger)}
+.recup-cell.ton-bas{border-color:color-mix(in srgb,var(--danger) 30%,transparent)}
+/* Muscle dont le moteur ne sait rien : on le dit, on ne le colore pas en vert. */
+.recup-cell.ton-inconnu .rc-pct{color:var(--faint)}
+@media (prefers-reduced-motion:reduce){.recup-cell .rc-bar i{transition:none}}

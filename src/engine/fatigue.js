@@ -341,3 +341,30 @@ export function cibleVolumeHebdo(muscle, niveau = "intermediaire", defs = null) 
   const taille = defs && defs[muscle] ? defs[muscle].taille : "moyen";
   return Math.round(base * (PARAMS.FACTEUR_TAILLE[taille] ?? 0.85) * 10) / 10;
 }
+
+/**
+ * READINESS D'UN GROUPE — le plus fatigué commande.
+ *
+ * Le moteur raisonne sur des clés fines (deltoïde antérieur, moyen, postérieur) ;
+ * l'interface, elle, parle « épaules ». Il faut donc agréger, et le choix de
+ * l'agrégation est la seule décision qui compte ici.
+ *
+ * On prend le MINIMUM, pas la moyenne. Annoncer « épaules prêtes » parce que
+ * deux faisceaux sur trois sont frais est exactement l'erreur qui fait enchaîner
+ * deux séances sur le même muscle épuisé : la moyenne noie la portion à bout.
+ * Le minimum, lui, dit la vérité la plus utile — ce qui limitera la séance.
+ *
+ * @param {Record<string, any>} etat   sortie d'etatMusculaire()
+ * @param {string[]} cles              clés moteur du groupe
+ * @returns {number|null} readiness 0–100, ou null si le groupe est inconnu
+ */
+export function readinessGroupe(etat, cles) {
+  const liste = (Array.isArray(cles) ? cles : []).filter((c) => etat && etat[c]);
+  if (!liste.length) return null;
+  let min = 100;
+  for (const c of liste) {
+    const r = Number(etat[c].readiness);
+    if (Number.isFinite(r) && r < min) min = r;
+  }
+  return Math.max(0, Math.min(100, Math.round(min)));
+}

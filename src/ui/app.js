@@ -105,7 +105,7 @@ import { PROGRAMMES_SALLE } from "../data/programmes-salle.js";
 import { DUREES, FREQUENCES, MATERIELS, filtrerProgrammes, nbCriteresActifs, TRIS, basculerFavori, ajouterRecent, ordonner, resoudreIds } from "../engine/bibliotheque.js";
 import { CLES_MOTEUR, LABELS_MOTEUR, DEF_MOTEUR, FIN_VERS_CATALOGUE } from "../data/muscles-moteur.js";
 import { coefficientsPour } from "../data/exercise-muscle-map.js";
-import { etatMusculaire, zoneDisponibilite, cibleVolumeHebdo, analyserSeance } from "../engine/fatigue.js";
+import { etatMusculaire, zoneDisponibilite, cibleVolumeHebdo, analyserSeance, readinessGroupe } from "../engine/fatigue.js";
 import { genererProchaineSeance, resumeCorps, compatibiliteExercice, PLAN_PARAMS } from "../engine/planner.js";
 import { expliquerApprentissage, PARAMS_APPRENTISSAGE } from "../engine/apprentissage.js";
 import { creerRepos, restantSec, estEcoule, progression, ajusterRepos, restaurerRepos, formatRestant, retardSec, formatRetard, RETARD_SIGNIFICATIF_SEC, decisionReprise, gelerRepos, degelerRepos, reposEffectif, REPOS_CHOIX } from "../engine/repos.js";
@@ -1976,8 +1976,11 @@ function vApercuSeance(v, seanceId) {
   v.append(h(`<div class="muted small">${s.exercices.length} exercices · ~${s.dureeEstimeeMin || 0} min</div>`));
   const muscles = musclesSeance(s);
   // Muscles ciblés en illustrations (une silhouette surlignée par groupe)
-  const rangee = rangeeMuscles(muscles);
-  if (rangee) v.append(rangee);
+  const rangee = bandeRecuperation(muscles);
+  if (rangee) {
+    v.append(h(`<div class="eyebrow" style="margin:14px 0 2px">Muscles travaillés · récupération</div>`));
+    v.append(rangee);
+  }
   else if (muscles.length) {
     const mc = h(`<div class="row" style="margin:10px 0"></div>`);
     muscles.slice(0, 6).forEach((m) => mc.append(h(`<span class="pill">${esc(MUSCLE_LABELS[m] || m)}</span>`)));
@@ -5711,6 +5714,55 @@ function carteRecup(v) {
 }
 
 /** Rangée de silhouettes des muscles ciblés (une par muscle, surlignée + label). */
+/**
+ * BANDE DE RÉCUPÉRATION — « où en sont les muscles que cette séance va taper ».
+ *
+ * L'ancienne rangée alignait des silhouettes avec un nom dessous : joli, mais
+ * elle ne disait rien qu'on ne savait déjà en lisant le titre de la séance.
+ * Toute la donnée utile existait pourtant depuis longtemps dans le moteur de
+ * fatigue — elle n'était visible que dans un écran séparé, qu'on n'ouvre pas
+ * avant de commencer.
+ *
+ * Chaque tuile répond maintenant à la seule question qu'on se pose avant
+ * d'attaquer : CE MUSCLE EST-IL REMIS ? Le pourcentage vient d'`etatMusculaire`
+ * (décroissance exponentielle, demi-vie fonction du volume et de l'échec), le
+ * libellé des zones existantes — rien n'est inventé ici, tout est affiché.
+ *
+ * @param {string[]} muscles clés de muscles du catalogue
+ */
+function bandeRecuperation(muscles) {
+  const list = (muscles || []).filter((m) => m !== "corps_entier").slice(0, 8);
+  if (!list.length) return null;
+  const etat = (AUTO && AUTO.etat) || etatMusculaire(Etat.data.logs || [], getExercise, Date.now());
+  const row = h(`<div class="musc-row recup-row"></div>`);
+  let connus = 0;
+  for (const m of list) {
+    // Une clé du catalogue couvre parfois plusieurs clés du moteur (les trois
+    // faisceaux de l'épaule) : readinessGroupe retient la plus fatiguée.
+    const cles = CLES_MOTEUR.filter((c) => FIN_VERS_CATALOGUE[c] === m);
+    const r = readinessGroupe(etat, cles);
+    const z = r == null ? null : zoneDisponibilite(r);
+    if (r != null) connus++;
+    const ton = !z ? "inconnu"
+      : z.cle === "frais" || z.cle === "pret" ? "ok"
+        : z.cle === "prudence" ? "moyen" : "bas";
+    const cell = h(`<button class="musc-cell recup-cell ton-${ton}" aria-label="${esc(MUSCLE_LABELS[m] || m)}${r == null ? "" : ` — ${r} % récupéré, ${esc(z.nom)}`}">
+      <span class="musc-sil">${miniSilhouette([m])}</span>
+      <span class="rc-nom">${esc(MUSCLE_LABELS[m] || m)}</span>
+      <span class="rc-pct num">${r == null ? "—" : r + " %"}</span>
+      <span class="rc-bar"><i style="width:${r == null ? 0 : r}%"></i></span>
+    </button>`);
+    // La tuile ouvre la fiche du muscle : le pourcentage donne l'alerte, la
+    // fiche donne l'historique qui l'explique.
+    cell.addEventListener("click", () => ouvrirFicheMuscle(m));
+    row.append(cell);
+  }
+  // Sans aucune donnée, la bande n'apprendrait rien : on garde l'ancienne
+  // rangée, purement illustrative, plutôt qu'une ligne de tirets.
+  if (!connus) return rangeeMuscles(muscles);
+  return row;
+}
+
 function rangeeMuscles(muscles) {
   const list = (muscles || []).filter((m) => m !== "corps_entier").slice(0, 6);
   if (!list.length) return null;
