@@ -108,7 +108,7 @@ import { coefficientsPour } from "../data/exercise-muscle-map.js";
 import { etatMusculaire, zoneDisponibilite, cibleVolumeHebdo, analyserSeance } from "../engine/fatigue.js";
 import { genererProchaineSeance, resumeCorps, compatibiliteExercice, PLAN_PARAMS } from "../engine/planner.js";
 import { expliquerApprentissage, PARAMS_APPRENTISSAGE } from "../engine/apprentissage.js";
-import { creerRepos, restantSec, estEcoule, progression, ajusterRepos, restaurerRepos, formatRestant, retardSec, formatRetard, RETARD_SIGNIFICATIF_SEC, decisionReprise } from "../engine/repos.js";
+import { creerRepos, restantSec, estEcoule, progression, ajusterRepos, restaurerRepos, formatRestant, retardSec, formatRetard, RETARD_SIGNIFICATIF_SEC, decisionReprise, gelerRepos, degelerRepos, reposEffectif, REPOS_CHOIX } from "../engine/repos.js";
 import { grilleMois, moisAdjacent, NOMS_JOURS_COURTS } from "../engine/calendar.js";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -2407,7 +2407,8 @@ function carteExoLive(e, seance) {
       // Repos : court et fixe pour un drop set / rest-pause, nul dans un
       // superset tant qu'il reste un partenaire à enchaîner.
       const suivant = seance ? prochainSuperset(seance, e.exerciceId, i) : null;
-      const r = reposApresSerie({ type: s.type, reposSec: t?.reposSec || 60, suivantSuperset: suivant });
+      // Le réglage global l'emporte sur le repos prévu par la série (0 = programme).
+      const r = reposApresSerie({ type: s.type, reposSec: reposEffectif(t?.reposSec, Etat.data.reglages.reposDefautSec), suivantSuperset: suivant });
       if (r.enchainer) { toast(`Superset ${st.supersetGroupe} → enchaîne avec ${nomExo(suivant)}`); return; }
       const suffixe = r.raison === "normal" ? "" : ` · ${r.raison}`;
       startTimer(r.sec, `${exo.nom} · série ${i + 1}${suffixe}`);
@@ -3049,7 +3050,10 @@ function ouvrirGuide() {
   if (!LIVE) return;
   const dep = guidePremiereEtape();
   if (!dep) { toast("Aucune série à guider."); return; }
-  GUIDE = { ...dep, phase: "work", tmr: null, left: 0, total: 0 };
+  // `repos` porte l'échéance absolue du repos (src/engine/repos.js) ; sans repos
+  // en cours il vaut null. `gel` porte le repos figé pendant une pause
+  // (cf. gelerRepos) — c'est le seul moment où l'app ne suit plus l'horloge.
+  GUIDE = { ...dep, phase: "work", tmr: null, repos: null, gel: null };
   let g = $("#guide");
   if (!g) { g = h(`<div id="guide" class="guide" role="dialog" aria-label="Séance guidée"><div class="guide-in"></div></div>`); document.body.append(g); }
   document.body.classList.add("guide-open");
@@ -3088,14 +3092,35 @@ function guideValider(charge, valeur, enTemps) {
   persistLive(); majProgressionSeance();
   try { if (Etat.data.reglages.vibrations !== false) navigator.vibrate?.(20); } catch (e) {}
   const t = cur.e.series.find((x) => x.type === "travail") || cur.e.series[0];
-  const repos = (t && t.reposSec) || 60;
+  const repos = reposEffectif(t && t.reposSec, Etat.data.reglages.reposDefautSec);
   const encore = guideAvancer();
   if (!encore) { guideFin(); return; }
   guideRepos(repos);
 }
 /** Écran de repos avec décompte ; à 0 (ou « passer ») → série suivante. */
 function guideRepos(sec) {
-  GUIDE.phase = "rest"; GUIDE.total = sec; GUIDE.left = sec;
+  GUIDE.phase = "rest";
+  // HORLOGE MURALE, PAS COMPTAGE DE TICS. L'ancien minuteur faisait `left--`
+  // dans un setInterval : le navigateur BRIDE les intervalles d'un onglet en
+  // arrière-plan (jusqu'à un tic par minute), si bien que verrouiller son
+  // téléphone pendant le repos ARRÊTAIT le décompte. On repose donc sur une
+  // échéance absolue, exactement comme le minuteur principal (src/engine/repos.js).
+  GUIDE.repos = creerRepos(sec);
+  GUIDE.gel = null;
+  guideRender();
+}
+
+/** Met le repos en pause : on retient ce qu'il restait, et on lâche l'échéance. */
+function guidePause() {
+  if (!GUIDE || GUIDE.phase !== "rest" || GUIDE.gel) return;
+  GUIDE.gel = gelerRepos(GUIDE.repos);
+  guideRender();
+}
+/** Reprend : une nouvelle échéance est posée à partir du temps retenu. */
+function guideReprendre() {
+  if (!GUIDE || !GUIDE.gel) return;
+  GUIDE.repos = degelerRepos(GUIDE.gel);
+  GUIDE.gel = null;
   guideRender();
 }
 function guideFin() {
@@ -3142,7 +3167,15 @@ function guideRender() {
     <div class="bar guide-bar"><div style="width:${Math.round(pct * 100)}%"></div></div>`;
   g.innerHTML = "";
   g.append(h(barre));
-  $("#guide .guide-x").addEventListener("click", () => { if (confirm) guideFermer(); });
+  // `if (confirm)` testait l'EXISTENCE de la fonction window.confirm — toujours
+  // vraie. La croix fermait donc le mode guidé sans jamais rien demander, et le
+  // travail en cours disparaissait de l'écran d'un seul geste.
+  $("#guide .guide-x").addEventListener("click", async () => {
+    const enCours = travailEnCours();
+    if (!enCours || await confirmer(
+      `Quitter le mode guidé ? ${enCours} série${enCours > 1 ? "s" : ""} déjà renseignée${enCours > 1 ? "s" : ""} ${enCours > 1 ? "sont" : "est"} conservée${enCours > 1 ? "s" : ""} : la séance reste ouverte.`,
+      { titre: "Quitter le mode guidé", ok: "Quitter" })) guideFermer();
+  });
   const bVoix = $("#guide .guide-voix");
   if (bVoix) {
     bVoix.addEventListener("click", () => {
@@ -3221,10 +3254,11 @@ function guideRenderRepos(g, cur) {
   const exos = guideExos();
   const suiv = exos[GUIDE.ei];
   const nomSuiv = suiv && (suiv.exo ? suiv.exo.nom : suiv.e.exerciceId);
+  const enPause = !!GUIDE.gel;
   const rest = h(`<div class="guide-rest">
-    <div class="eyebrow">Récupération</div>
+    <div class="eyebrow">${enPause ? "En pause" : "Récupération"}</div>
     <h1 class="guide-repos-t">Repos</h1>
-    <div class="ring guide-ring">
+    <div class="ring guide-ring${enPause ? " pause" : ""}">
       <svg viewBox="0 0 230 230"><circle cx="115" cy="115" r="104" fill="none" stroke="var(--surface-2)" stroke-width="12"/>
       <circle class="gfg" cx="115" cy="115" r="104" fill="none" stroke="var(--accent)" stroke-width="12" stroke-linecap="round" stroke-dasharray="653" stroke-dashoffset="0"/></svg>
       <div class="t num guide-count-t">0:00</div>
@@ -3232,6 +3266,7 @@ function guideRenderRepos(g, cur) {
     <div class="guide-next">À suivre : <b>${esc(nomSuiv || "")}</b> · série ${GUIDE.si + 1}</div>
     <div class="row" style="justify-content:center">
       <button class="chip" id="gMinus">−15 s</button>
+      <button class="chip" id="gPause">${enPause ? "Reprendre" : "Pause"}</button>
       <button class="chip" id="gPlus">+15 s</button>
     </div>
     <button class="primary big" id="gSkip" style="max-width:300px"><span class="btn-ico">${IC.forward}</span>Passer le repos</button>
@@ -3240,37 +3275,64 @@ function guideRenderRepos(g, cur) {
   const txt = rest.querySelector(".guide-count-t");
   const fg = rest.querySelector(".gfg");
   const ring = rest.querySelector(".guide-ring");
+
+  // L'AFFICHAGE NE CALCULE RIEN : il relit l'horloge. Un tic qui saute, un
+  // onglet bridé ou un téléphone verrouillé ne décalent donc jamais le repos.
+  const reste = () => (GUIDE.gel ? GUIDE.gel.restantSec : restantSec(GUIDE.repos));
   const draw = () => {
-    txt.textContent = `${Math.floor(GUIDE.left / 60)}:${String(GUIDE.left % 60).padStart(2, "0")}`;
-    fg.style.strokeDashoffset = String(653 * (1 - GUIDE.left / GUIDE.total));
-    ring.classList.toggle("urgent", GUIDE.left <= 10);
+    const r = reste();
+    txt.textContent = `${Math.floor(r / 60)}:${String(r % 60).padStart(2, "0")}`;
+    const part = GUIDE.gel
+      ? 1 - GUIDE.gel.restantSec / Math.max(1, GUIDE.gel.totalSec)
+      : progression(GUIDE.repos);
+    fg.style.strokeDashoffset = String(653 * part);
+    ring.classList.toggle("urgent", r <= 10 && !GUIDE.gel);
   };
   const fini = () => {
     if (GUIDE.tmr) clearInterval(GUIDE.tmr);
-    GUIDE.tmr = null; GUIDE.phase = "work";
+    GUIDE.tmr = null; GUIDE.phase = "work"; GUIDE.gel = null;
     try { if (Etat.data.reglages.vibrations !== false) navigator.vibrate?.([120, 60, 120]); } catch (e) {}
     // « C'est parti » interrompt le « 1 » du décompte : sinon les deux
     // s'empilent et la reprise s'annonce une seconde trop tard.
     annoncer(phraseReprise(), true);
     guideRender();
   };
-  // Annoncée une seule fois : `guideRenderRepos` n'est appelé qu'à l'entrée en
-  // repos, mais le garde protège d'un futur rappel.
-  if (GUIDE.ditRepos !== GUIDE.total + ":" + GUIDE.ei + ":" + GUIDE.si) {
-    GUIDE.ditRepos = GUIDE.total + ":" + GUIDE.ei + ":" + GUIDE.si;
-    annoncer(`${phraseRepos(GUIDE.total)} À suivre, ${nomSuiv ? String(nomSuiv).replace(/\([^)]*\)/g, "").trim() : ""}.`);
+
+  const totalInitial = (GUIDE.repos && GUIDE.repos.totalSec) || 0;
+  if (GUIDE.ditRepos !== totalInitial + ":" + GUIDE.ei + ":" + GUIDE.si) {
+    GUIDE.ditRepos = totalInitial + ":" + GUIDE.ei + ":" + GUIDE.si;
+    annoncer(`${phraseRepos(totalInitial)} À suivre, ${nomSuiv ? String(nomSuiv).replace(/\([^)]*\)/g, "").trim() : ""}.`);
   }
   draw();
-  GUIDE.tmr = setInterval(() => {
-    GUIDE.left--;
-    if (GUIDE.left <= 0) { fini(); return; }
-    // Le décompte INTERROMPT : « 2 » doit effacer « 3 », pas s'empiler derrière.
-    const d = phraseDecompte(GUIDE.left);
-    if (d) annoncer(d, true);
+  if (!enPause) {
+    // Quatre fois par seconde, comme le minuteur principal : l'affichage reste
+    // juste même si un tic saute, et le jalon vocal n'est jamais manqué.
+    let ditJalon = null;
+    GUIDE.tmr = setInterval(() => {
+      if (!GUIDE || GUIDE.phase !== "rest") { clearInterval(GUIDE.tmr); GUIDE.tmr = null; return; }
+      if (estEcoule(GUIDE.repos)) { fini(); return; }
+      const r = restantSec(GUIDE.repos);
+      if (r !== ditJalon) {
+        ditJalon = r;
+        const d = phraseDecompte(r);
+        if (d) annoncer(d, true);   // « 2 » doit effacer « 3 », pas s'empiler
+      }
+      draw();
+    }, 250);
+  }
+  rest.querySelector("#gPlus").addEventListener("click", () => {
+    if (GUIDE.gel) GUIDE.gel = { ...GUIDE.gel, restantSec: GUIDE.gel.restantSec + 15, totalSec: Math.max(GUIDE.gel.totalSec, GUIDE.gel.restantSec + 15) };
+    else GUIDE.repos = ajusterRepos(GUIDE.repos, 15);
     draw();
-  }, 1000);
-  rest.querySelector("#gPlus").addEventListener("click", () => { GUIDE.left += 15; GUIDE.total = Math.max(GUIDE.total, GUIDE.left); draw(); });
-  rest.querySelector("#gMinus").addEventListener("click", () => { GUIDE.left = Math.max(1, GUIDE.left - 15); draw(); });
+  });
+  rest.querySelector("#gMinus").addEventListener("click", () => {
+    if (GUIDE.gel) GUIDE.gel = { ...GUIDE.gel, restantSec: Math.max(1, GUIDE.gel.restantSec - 15) };
+    else GUIDE.repos = ajusterRepos(GUIDE.repos, -15);
+    draw();
+  });
+  rest.querySelector("#gPause").addEventListener("click", () => {
+    if (GUIDE.gel) guideReprendre(); else guidePause();
+  });
   rest.querySelector("#gSkip").addEventListener("click", fini);
 }
 
@@ -3282,7 +3344,12 @@ let SEQ = null; // { titre, items, idx, left, paused, tmr, fin }
 
 function ouvrirSequence(titre, items, opts = {}) {
   if (!items || !items.length) return;
-  SEQ = { titre, items, idx: 0, left: items[0].dureeSec, paused: false, tmr: null, teinte: opts.teinte || "accent", onFin: opts.onFin };
+  // Même correctif que le repos guidé : ÉCHÉANCE ABSOLUE, pas comptage de tics.
+  // Un échauffement se fait souvent en posant le téléphone ; l'onglet passe en
+  // arrière-plan et le navigateur bride les intervalles jusqu'à un tic par
+  // minute. Le mouvement de 40 s en durait alors plusieurs.
+  SEQ = { titre, items, idx: 0, repos: creerRepos(items[0].dureeSec), gel: null,
+    tmr: null, teinte: opts.teinte || "accent", onFin: opts.onFin };
   let g = $("#seq");
   if (!g) { g = h(`<div id="seq" class="guide seq" role="dialog" aria-label="Séquence guidée"><div class="guide-in"></div></div>`); document.body.append(g); }
   document.body.classList.add("guide-open");
@@ -3302,8 +3369,8 @@ function seqAvancer(delta) {
   const i = SEQ.idx + delta;
   if (i >= SEQ.items.length) { seqFini(); return; }
   SEQ.idx = Math.max(0, i);
-  SEQ.left = SEQ.items[SEQ.idx].dureeSec;
-  SEQ.paused = false;
+  SEQ.repos = creerRepos(SEQ.items[SEQ.idx].dureeSec);
+  SEQ.gel = null;
   seqRender();
 }
 function seqFini() {
@@ -3320,7 +3387,8 @@ function seqRender() {
   const it = SEQ.items[SEQ.idx];
   const pct = SEQ.items.slice(0, SEQ.idx).reduce((a, x) => a + x.dureeSec, 0);
   const tot = dureeSequence(SEQ.items);
-  const pctGlobal = tot ? (pct + (it.dureeSec - SEQ.left)) / tot : 0;
+  const seqRestant = () => (SEQ.gel ? SEQ.gel.restantSec : restantSec(SEQ.repos));
+  const pctGlobal = tot ? (pct + (it.dureeSec - seqRestant())) / tot : 0;
   g.innerHTML = "";
   g.append(h(`<div class="guide-top">
       <button class="guide-x" aria-label="Quitter">${IC.x}</button>
@@ -3344,8 +3412,12 @@ function seqRender() {
   const acts = h(`<div class="guide-actions"></div>`);
   const bPrev = h(`<button class="chip guide-nav"${SEQ.idx === 0 ? " disabled" : ""} aria-label="Précédent"><span class="cic">${IC.back}</span></button>`);
   bPrev.addEventListener("click", () => seqAvancer(-1));
-  const bPause = h(`<button class="primary big seq-pause">${SEQ.paused ? "Reprendre" : "Pause"}</button>`);
-  bPause.addEventListener("click", () => { SEQ.paused = !SEQ.paused; bPause.textContent = SEQ.paused ? "Reprendre" : "Pause"; });
+  const bPause = h(`<button class="primary big seq-pause">${SEQ.gel ? "Reprendre" : "Pause"}</button>`);
+  bPause.addEventListener("click", () => {
+    if (SEQ.gel) { SEQ.repos = degelerRepos(SEQ.gel); SEQ.gel = null; }
+    else SEQ.gel = gelerRepos(SEQ.repos);
+    seqRender();
+  });
   const bNext = h(`<button class="chip guide-nav" aria-label="Suivant"><span class="cic">${IC.forward}</span></button>`);
   bNext.addEventListener("click", () => seqAvancer(1));
   acts.append(bPrev, bPause, bNext);
@@ -3354,12 +3426,22 @@ function seqRender() {
   const txt = ring.querySelector(".seq-t");
   const fg = ring.querySelector(".sfg");
   const draw = () => {
-    txt.textContent = `${Math.floor(SEQ.left / 60)}:${String(SEQ.left % 60).padStart(2, "0")}`;
-    fg.style.strokeDashoffset = String(653 * (1 - SEQ.left / it.dureeSec));
-    ring.classList.toggle("urgent", SEQ.left <= 5);
+    const r = seqRestant();
+    txt.textContent = `${Math.floor(r / 60)}:${String(r % 60).padStart(2, "0")}`;
+    fg.style.strokeDashoffset = String(653 * (1 - r / Math.max(1, it.dureeSec)));
+    ring.classList.toggle("urgent", r <= 5 && !SEQ.gel);
   };
   draw();
-  SEQ.tmr = setInterval(() => { if (SEQ.paused) return; SEQ.left--; if (SEQ.left <= 0) { seqAvancer(1); return; } draw(); }, 1000);
+  ring.classList.toggle("pause", !!SEQ.gel);
+  if (!SEQ.gel) {
+    // 4 fois par seconde, comme partout : l'affichage relit l'horloge et ne
+    // dépend jamais du nombre de tics reçus.
+    SEQ.tmr = setInterval(() => {
+      if (!SEQ) return;   // la séquence a été fermée entre deux tics
+      if (estEcoule(SEQ.repos)) { seqAvancer(1); return; }
+      draw();
+    }, 250);
+  }
 }
 
 
@@ -5999,6 +6081,17 @@ function vSet(v) {
     if (Etat.data.reglages.notifsRepos !== false && !en.actif) {
       c.append(h(`<div class="warn small" style="margin-top:8px">${mi(IC.alert, "mi-amber")}${esc(en.raison)}</div>`));
     }
+
+    // REPOS PAR DÉFAUT. Chaque série porte son propre repos, calculé à la
+    // génération du programme : juste en théorie, pénible en pratique. Qui
+    // s'entraîne en force veut trois minutes PARTOUT et devait jusqu'ici éditer
+    // chaque série une par une.
+    const libelleRepos = (v) => (v === 0 ? "Programme" : v < 60 ? `${v} s` : v % 60 === 0 ? `${v / 60} min` : `${Math.floor(v / 60)} min ${v % 60}`);
+    c.append(h(`<div class="spread" style="margin-top:12px"><span class="small">Repos par défaut</span></div>`));
+    c.append(h(`<div class="hint" style="margin-top:0">« Programme » garde le repos prévu pour chaque série. Choisir une durée l'impose partout — pratique quand on travaille en force et qu'on veut le même temps sur tous les mouvements.</div>`));
+    c.append(chipsInline(REPOS_CHOIX.map((v) => [v, libelleRepos(v)]),
+      (val) => (Number(Etat.data.reglages.reposDefautSec) || 0) === val,
+      (val) => { Etat.data.reglages.reposDefautSec = val; Etat.sauver(); render(); }));
 
     // VOIX DU COACH. Le même interrupteur existe dans le lecteur guidé, là où
     // elle sert ; il est ici pour qui cherche ses réglages à l'endroit habituel.

@@ -161,3 +161,70 @@ export function decisionReprise(repos, seanceActive, maintenant = Date.now()) {
   if (!seanceActive) return "purger";          // orphelin : on nettoie en silence
   return estEcoule(repos, maintenant) ? "purger" : "reprendre";
 }
+
+/**
+ * GEL D'UN REPOS — la pause, sans perdre l'échelle de l'anneau.
+ *
+ * Mettre en pause un minuteur fondé sur une ÉCHÉANCE ABSOLUE demande de la
+ * transformer en durée : on retient ce qu'il restait, et on lâche l'échéance.
+ * Sans cela, le temps continuerait de courir pendant la pause — c'est tout le
+ * principe d'une horloge murale.
+ *
+ * Le total d'origine voyage avec le gel. C'est le détail qui compte : reprendre
+ * un repos de 90 s alors qu'il en restait 20 doit redonner un anneau rempli aux
+ * trois quarts, pas un anneau neuf. Sans `totalSec`, l'anneau sauterait à plein
+ * à chaque reprise et l'utilisateur perdrait le seul repère visuel qu'il a.
+ *
+ * @param {any} repos
+ * @param {number} [maintenant]
+ * @returns {{restantSec:number, totalSec:number, label:string}}
+ */
+export function gelerRepos(repos, maintenant = Date.now()) {
+  const restant = Math.max(1, restantSec(repos, maintenant));
+  const total = (repos && Number(repos.totalSec)) || restant;
+  return { restantSec: restant, totalSec: Math.max(total, restant), label: (repos && repos.label) || "" };
+}
+
+/**
+ * Reprise : une nouvelle échéance est posée à partir du temps retenu, et
+ * l'échelle d'origine est restaurée.
+ *
+ * @param {{restantSec:number, totalSec:number, label?:string}} gel
+ * @param {number} [maintenant]
+ */
+export function degelerRepos(gel, maintenant = Date.now()) {
+  const restant = Math.max(1, Math.round(Number(gel && gel.restantSec) || 0) || 1);
+  const r = creerRepos(restant, (gel && gel.label) || "", maintenant);
+  const total = Math.round(Number(gel && gel.totalSec) || 0);
+  r.totalSec = Math.max(total || restant, restant);
+  return r;
+}
+
+/**
+ * Durées proposées pour le repos par défaut. 0 = suivre le programme.
+ * Les valeurs couvrent les trois usages réels : hypertrophie (60–90 s),
+ * force (2–3 min), et les très lourds (5 min).
+ */
+export const REPOS_CHOIX = [0, 45, 60, 90, 120, 180, 300];
+
+/**
+ * REPOS EFFECTIF — le réglage global l'emporte sur le programme.
+ *
+ * Chaque série porte son propre `reposSec`, calculé à la génération du
+ * programme. C'est juste en théorie et pénible en pratique : qui s'entraîne en
+ * force veut 3 minutes PARTOUT, et devait jusqu'ici éditer chaque série. Le
+ * réglage global tranche une fois pour toutes.
+ *
+ * Zéro — et seulement zéro — veut dire « laisse le programme décider ». C'est
+ * la valeur par défaut : le réglage n'existe que si on s'en sert.
+ *
+ * @param {number} duProgramme  repos prévu par la série, en secondes
+ * @param {number} [reglage]    repos global choisi ; 0 ou absent = programme
+ * @returns {number} secondes, toujours ≥ 1
+ */
+export function reposEffectif(duProgramme, reglage) {
+  const g = Math.round(Number(reglage) || 0);
+  if (g > 0) return Math.min(REPOS_MAX_SEC, g);
+  const p = Math.round(Number(duProgramme) || 0);
+  return p > 0 ? Math.min(REPOS_MAX_SEC, p) : 60;
+}

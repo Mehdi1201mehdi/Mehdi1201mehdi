@@ -51,6 +51,9 @@ export function etatVide() {
       // se met à parler toute seule au milieu d'une salle de sport est un
       // problème, pas une fonctionnalité. Cf. src/ui/voix.js.
       voix: false,
+      // Repos par défaut, en secondes. 0 = suivre le repos prévu par chaque
+      // série du programme. Cf. reposEffectif() dans src/engine/repos.js.
+      reposDefautSec: 0,
       // Seuils de rang saisis à la main, par mouvement puis par sexe :
       // { "squat-barre": { H: [1, 1.5, 2, 2.5] } }. Vide = repères publiés.
       standardsForce: {},

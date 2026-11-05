@@ -10,6 +10,7 @@ import {
   REPOS_MAX_SEC, creerRepos, restantSec, estEcoule, progression,
   ajusterRepos, restaurerRepos, formatRestant,
   retardSec, formatRetard, RETARD_SIGNIFICATIF_SEC, decisionReprise,
+  gelerRepos, degelerRepos, reposEffectif, REPOS_CHOIX,
 } from "../src/engine/repos.js";
 
 const T = Date.parse("2026-07-28T18:00:00Z");
@@ -180,4 +181,109 @@ test("decisionReprise : rien à faire quand il n'y a pas de repos stocké", () =
     assert.equal(decisionReprise(/** @type {any} */ (r), true), "rien", JSON.stringify(r));
     assert.equal(decisionReprise(/** @type {any} */ (r), false), "rien");
   }
+});
+
+/* ======================= PAUSE / REPRISE =======================
+   Mettre en pause un minuteur fondé sur une ÉCHÉANCE ABSOLUE demande de la
+   transformer en durée. C'est la seule opération de tout le moteur où l'app
+   cesse de suivre l'horloge, donc la seule qui puisse perdre du temps. */
+
+test("gelerRepos : retient le temps restant, et l'échelle d'origine", () => {
+  const t0 = Date.parse("2026-01-05T12:00:00Z");
+  const r = creerRepos(90, "Développé couché", t0);
+  const gel = gelerRepos(r, t0 + 70_000);
+  assert.equal(gel.restantSec, 20);
+  // C'EST LE DÉTAIL QUI COMPTE. Sans le total d'origine, reprendre un repos de
+  // 90 s alors qu'il en reste 20 redessinerait un anneau NEUF : l'utilisateur
+  // perdrait le seul repère visuel dont il dispose pendant la récupération.
+  assert.equal(gel.totalSec, 90);
+  assert.equal(gel.label, "Développé couché");
+});
+
+test("gelerRepos : le temps NE COURT PLUS pendant la pause", () => {
+  // C'est tout le principe : sans gel, une horloge murale continue d'avancer.
+  const t0 = Date.parse("2026-01-05T12:00:00Z");
+  const gel = gelerRepos(creerRepos(60, "", t0), t0 + 10_000);
+  assert.equal(gel.restantSec, 50);
+  const plusTard = gelerRepos(creerRepos(60, "", t0), t0 + 10_000);
+  assert.equal(plusTard.restantSec, gel.restantSec, "le gel est une valeur, pas une horloge");
+});
+
+test("degelerRepos : repose une échéance et restaure l'échelle", () => {
+  const t0 = Date.parse("2026-01-05T12:00:00Z");
+  const gel = gelerRepos(creerRepos(90, "", t0), t0 + 70_000);   // 20 s restantes
+  const reprise = degelerRepos(gel, t0 + 600_000);               // 10 min plus tard
+  assert.equal(restantSec(reprise, t0 + 600_000), 20, "la pause n'a pas mangé le repos");
+  assert.equal(reprise.totalSec, 90, "l'anneau garde l'échelle du repos d'origine");
+  // Et l'horloge repart bien à partir de la reprise, pas de l'échéance d'avant.
+  assert.equal(restantSec(reprise, t0 + 605_000), 15);
+});
+
+test("geler puis dégeler plusieurs fois ne perd pas de secondes", () => {
+  // Une pause qui grignote une seconde à chaque fois finit par fausser le repos
+  // sans que personne ne sache pourquoi.
+  const t0 = Date.parse("2026-01-05T12:00:00Z");
+  let r = creerRepos(120, "", t0);
+  let t = t0;
+  for (let i = 0; i < 5; i++) {
+    t += 10_000;                       // 10 s de décompte
+    const gel = gelerRepos(r, t);
+    t += 300_000;                      // 5 min de pause
+    r = degelerRepos(gel, t);
+  }
+  assert.equal(restantSec(r, t), 120 - 50, "50 s décomptées, les pauses ne comptent pas");
+});
+
+test("gelerRepos : un repos absent ou échu ne produit jamais zéro ni NaN", () => {
+  // Un zéro ferait repartir la série suivante immédiatement à la reprise.
+  for (const cas of [null, undefined, {}, { finAt: NaN }]) {
+    const gel = gelerRepos(/** @type {any} */ (cas));
+    assert.ok(gel.restantSec >= 1, `restant ${gel.restantSec}`);
+    assert.ok(Number.isFinite(gel.totalSec) && gel.totalSec >= 1);
+  }
+  const reprise = degelerRepos(/** @type {any} */ (null));
+  assert.ok(restantSec(reprise) >= 1);
+  assert.ok(Number.isFinite(reprise.totalSec));
+});
+
+test("degelerRepos : le total ne peut pas être plus petit que le restant", () => {
+  // Sinon l'anneau dépasserait 100 % et le tracé partirait dans le décor.
+  const r = degelerRepos({ restantSec: 40, totalSec: 10 });
+  assert.ok(r.totalSec >= 40, `total ${r.totalSec}`);
+  assert.ok(progression(r) >= 0 && progression(r) <= 1);
+});
+
+/* ======================= REPOS PAR DÉFAUT =======================
+   Qui s'entraîne en force veut trois minutes PARTOUT. Sans réglage global, il
+   fallait éditer chaque série une par une. */
+
+test("reposEffectif : le réglage global l'emporte sur le programme", () => {
+  assert.equal(reposEffectif(90, 180), 180);
+  assert.equal(reposEffectif(60, 45), 45);
+});
+
+test("reposEffectif : ZÉRO veut dire « laisse le programme décider »", () => {
+  // C'est la valeur par défaut : le réglage n'existe que si on s'en sert.
+  assert.equal(reposEffectif(90, 0), 90);
+  assert.equal(reposEffectif(120, undefined), 120);
+  assert.equal(reposEffectif(75, null), 75);
+});
+
+test("reposEffectif : jamais zéro — un repos nul enchaînerait les séries", () => {
+  assert.equal(reposEffectif(0, 0), 60, "sans rien, un repos par défaut raisonnable");
+  assert.ok(reposEffectif(/** @type {any} */ ("x"), /** @type {any} */ ("y")) >= 1);
+  assert.ok(reposEffectif(-30, -30) >= 1);
+  assert.ok(Number.isFinite(reposEffectif(NaN, NaN)));
+});
+
+test("reposEffectif : borné par REPOS_MAX_SEC", () => {
+  assert.equal(reposEffectif(99999, 0), REPOS_MAX_SEC);
+  assert.equal(reposEffectif(60, 99999), REPOS_MAX_SEC);
+});
+
+test("REPOS_CHOIX : couvre les trois usages réels, et commence par « programme »", () => {
+  assert.equal(REPOS_CHOIX[0], 0, "le premier choix doit être « suivre le programme »");
+  assert.ok(REPOS_CHOIX.includes(90), "hypertrophie");
+  assert.ok(REPOS_CHOIX.includes(180), "force");
+  for (const v of REPOS_CHOIX) assert.ok(v === 0 || (v >= 30 && v <= REPOS_MAX_SEC), `valeur ${v}`);
 });
