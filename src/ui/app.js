@@ -29,7 +29,7 @@ import { chercherFoods, portion } from "../data/foods.js";
 import { rechercher as offRechercher, parCodeBarres } from "../integrations/openfoodfacts.js";
 import { scannerDisponible, demarrerScan, normaliserCode } from "./scanner.js";
 import { $, esc, h } from "./dom.js";
-import { urlDemo, vignetteExo, vignetteHTML } from "./vignettes.js";
+import { urlDemo, vignetteExo, vignetteHTML, REDUIRE_MOTION } from "./vignettes.js";
 import { anneauSVG, anneauSignature, svgLine, categorieIMC, gaugeIMC, svgBars, sparkAire } from "./graphes.js";
 import { IDENTITE, titreComplet } from "../config/identite.js";
 import { dire, couperVoix, voixDisponible, phraseSerie, phraseRepos, phraseDecompte, phraseReprise, phraseFin, VOIX_DEFAUT } from "./voix.js";
@@ -2233,6 +2233,18 @@ function vTrain(v) {
     if (i === courant - 1) {
       carte.classList.add("exo-encours");
       carte.setAttribute("aria-current", "step");
+      // PANNEAU DE DÉMONSTRATION. FitAI consacre le haut de son écran de séance
+      // à un grand panneau clair montrant le mouvement. En pleine série, la
+      // bonne exécution doit être visible sans ouvrir la moindre fiche — et
+      // seulement pour l'exercice en cours : la répéter pour les quatre cartes
+      // n'apporterait rien et ferait défiler l'écran deux fois plus.
+      const exoC = getExercise(e.exerciceId);
+      const url = exoC && urlDemo(exoC);
+      if (url && !REDUIRE_MOTION) {
+        const panneau = h(`<button class="demo-panneau" type="button" aria-label="Voir la fiche de ${esc(exoC.nom)}"><img src="${esc(url)}" alt="" decoding="async"></button>`);
+        panneau.addEventListener("click", () => ouvrirDetail(exoC));
+        carte.prepend(panneau);
+      }
     } else if (i < courant - 1) {
       carte.classList.add("exo-fait");
     }
@@ -2497,7 +2509,10 @@ function carteExoLive(e, seance) {
     // cherche du regard entre deux séries. Elle porte un rail d'accent et des
     // champs éclaircis ; les autres restent en retrait. Sans ce repère, les
     // quatre lignes se ressemblent et il faut compter.
-    const row = h(`<div class="setrow${s.done ? " vdone" : ""}${estEnCours(st.series, i) ? " encours" : ""}${s.type !== "normale" ? " serie-" + s.type : ""}">
+    // `alt` une ligne sur deux : le tableau de FitAI alterne deux fonds très
+    // proches (#050217 et #1E1F34). À bout de souffle, l'œil suit la ligne sans
+    // avoir besoin d'un filet séparateur.
+    const row = h(`<div class="setrow donnee${i % 2 ? " alt" : ""}${s.done ? " vdone" : ""}${estEnCours(st.series, i) ? " encours" : ""}${s.type !== "normale" ? " serie-" + s.type : ""}">
       ${numEl}
       ${col2El}
       <input inputmode="decimal" placeholder="${chargeAff == null ? "—" : chargeAff}" value="${s.charge}" data-f="charge" aria-label="Charge série ${i + 1}">
