@@ -44,6 +44,10 @@
   --ok:#2478FF; --ok-soft:rgba(36,120,255,.14); --orange:#FF8A00; --indigo:#9CA1B4; --pink:#F500FE;
   /* Échelle de récupération, relevée sur la légende de l'onglet Récupération. */
   --recup-fatigue:#F500FE; --recup-encours:#FA8CFF; --recup-frais:#FFFFFF;
+  /* Panneau clair : le fond des vignettes et de la planche de démonstration.
+     FitAI pose ses dessins au trait sur du blanc pur, y compris en thème
+     sombre — c'est ce contraste qui rend un exercice reconnaissable d'un coup. */
+  --panel:#FFFFFF; --on-panel:#0B0D14;
   /* Figures anatomiques : corps CLAIR, muscle cible rouge — comme FitAI. */
   --anat-body:#C7CAD4; --anat-line:#8D93A3; --anat-muscle:#A8ACB9;
   --anat-primary:#C35B3D; --anat-secondary:#7E3A29;
@@ -113,6 +117,10 @@
   --ok:#2478FF; --ok-soft:rgba(36,120,255,.14); --orange:#FF8A00; --indigo:#9CA1B4; --pink:#F500FE;
   /* Échelle de récupération, relevée sur la légende de l'onglet Récupération. */
   --recup-fatigue:#F500FE; --recup-encours:#FA8CFF; --recup-frais:#FFFFFF;
+  /* Panneau clair : le fond des vignettes et de la planche de démonstration.
+     FitAI pose ses dessins au trait sur du blanc pur, y compris en thème
+     sombre — c'est ce contraste qui rend un exercice reconnaissable d'un coup. */
+  --panel:#FFFFFF; --on-panel:#0B0D14;
   /* Figures anatomiques : corps CLAIR, muscle cible rouge — comme FitAI. */
   --anat-body:#C7CAD4; --anat-line:#8D93A3; --anat-muscle:#A8ACB9;
   --anat-primary:#C35B3D; --anat-secondary:#7E3A29;
@@ -628,6 +636,77 @@ nav.tabs .ico{width:24px;height:24px;display:block;transition:transform .2s var(
   .recup-row{grid-template-columns:1fr 14px}
   .recup-vig{display:none}
 }
+
+/* ---- Onglet Routines ------------------------------------------------------
+   Reprend la carte de routine de FitAI : titre et action en haut, bande des
+   muscles sollicités, puis rail des vignettes. Les deux bandes défilent
+   horizontalement — une routine de dix exercices ne doit pas allonger la carte
+   au point de n'en voir qu'une par écran. */
+.rt-sous{display:flex;gap:0;margin:0 0 14px;border-bottom:1px solid var(--hair)}
+.rt-sous-b{flex:1;background:none;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;
+  border-radius:0;  /* sans cela, le rayon global arrondissait le soulignement */
+  color:var(--ink-soft);font-size:.95rem;font-weight:600;padding:10px 4px;min-height:var(--tap);
+  transition:color .18s var(--ease),border-color .18s var(--ease)}
+.rt-sous-b.on{color:var(--accent);border-bottom-color:var(--accent)}
+
+.rt-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.rt-a{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:var(--h-cta);
+  border-radius:var(--radius-btn);font-size:.92rem;font-weight:650;padding:0 12px;
+  transition:background .18s var(--ease),transform .18s var(--ease)}
+.rt-a:active{transform:scale(.98)}
+.rt-a.ghost{background:none;border:1.5px solid var(--accent);color:var(--accent)}
+.rt-a.solid{background:var(--accent);border:1.5px solid var(--accent);color:var(--on-accent)}
+.rt-a .cic{display:grid;place-items:center;width:18px;height:18px}
+.rt-a .cic svg{width:18px;height:18px}
+
+.rt-card{background:var(--surface);border-radius:var(--radius);padding:12px;margin-bottom:12px}
+.rt-card.on{box-shadow:inset 0 0 0 1.5px var(--accent)}
+.rt-head{display:flex;align-items:center;gap:6px}
+.rt-titre{flex:1;min-width:0;display:flex;align-items:center;gap:10px;background:none;border:0;
+  color:var(--ink);text-align:left;padding:4px 0;min-height:44px}
+.rt-titre svg{width:21px;height:21px;color:var(--accent);flex:none}
+.rt-titre span{min-width:0;display:flex;flex-direction:column;gap:1px}
+.rt-titre b{font-size:1.02rem;font-weight:700;letter-spacing:-.01em;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rt-titre em{font-style:normal;font-size:.72rem;color:var(--ink-soft);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rt-start{display:inline-flex;align-items:center;gap:5px;flex:none;
+  background:none;border:1.5px solid var(--accent);color:var(--accent);
+  border-radius:var(--radius-pill);padding:0 14px;min-height:44px;font-size:.84rem;font-weight:650}
+.rt-start .cic{display:grid;place-items:center;width:15px;height:15px}
+.rt-start .cic svg{width:15px;height:15px}
+.rt-menu{flex:none;width:30px;height:38px;display:grid;place-items:center;
+  background:none;border:0;color:var(--faint)}
+.rt-menu svg{width:17px;height:17px}
+
+/* Bandes défilantes : la barre de défilement est masquée, le débordement reste
+   perceptible par la vignette coupée au bord — comme chez FitAI. */
+.rt-muscles,.rt-rail{display:flex;gap:8px;overflow-x:auto;overflow-y:hidden;
+  scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+.rt-muscles::-webkit-scrollbar,.rt-rail::-webkit-scrollbar{display:none}
+.rt-muscles{margin-top:6px}
+.rt-m{flex:none;width:60px;display:flex;flex-direction:column;align-items:center;gap:3px}
+.rt-m em{font-style:normal;font-size:.62rem;font-weight:650;color:var(--ink);
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rt-mfig{display:block;width:60px;height:66px;border-radius:8px;overflow:hidden;
+  background:var(--bg);border:1px solid var(--hair)}
+.rt-mfig .mini-silhouette{width:100%;height:100%;display:block}
+.rt-rail{margin-top:10px}
+/* La vignette blanche est la signature de FitAI : fond clair sous un dessin au
+   trait, sur une application sombre. C'est ce qui rend la liste lisible. */
+.rt-vig{flex:none;width:62px;height:62px;border-radius:10px;overflow:hidden;background:var(--panel)}
+/* La vignette standard porte son propre cadre et une pastille de matériel :
+   utiles dans une liste, parasites dans un rail de 62 px où l'on ne cherche
+   qu'à reconnaître le mouvement. On ne garde que le dessin. */
+.rt-vig .exo-vign,.rt-vig .exo-vign.sm{display:block;position:relative;width:100%;height:100%;
+  min-height:0;padding:0;border:0;border-radius:0;background:var(--panel);box-shadow:none}
+.rt-vig .exo-matos{display:none}
+/* `.exo-gif.ok` pose un fond sombre arrondi, encastré de 2 px : dans une liste
+   il détoure la démonstration, ici il dessinait un liseré fantôme sur le blanc. */
+.rt-vig .exo-vign.sm .exo-gif,.rt-vig .exo-vign.sm .exo-gif.ok,
+.rt-vig .exo-vign.sm .mini-silhouette{position:absolute;inset:0;
+  width:100%;height:100%;border-radius:0;background:none;object-fit:contain;display:block}
+@media (max-width:339px){.rt-m,.rt-mfig{width:54px}.rt-vig{width:54px;height:54px}}
 
 /* ---- Motion : reveal en cascade des sections ---- */
 @keyframes revealUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}

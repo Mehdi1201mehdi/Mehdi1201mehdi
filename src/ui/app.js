@@ -973,6 +973,69 @@ function macroBar(label, valeur, cible, unite, cls) {
 let EDIT_ROUTINE = null; // id de la routine en cours d'édition (onglet Programme)
 let PROG_JOUR_SEL = null; // jour ISO (1=lundi) sélectionné dans le ruban de l'onglet Programme
 
+/** Sous-onglet de l'écran Routines : « mes » routines ou « explorer ». */
+let PROG_SOUS = "mes";
+
+/**
+ * Carte de routine, reprise de l'onglet Routines de FitAI (capture 1080×2460).
+ *
+ * Trois étages dans un ordre qui n'est pas arbitraire : le titre et l'action
+ * d'abord, parce qu'en salle on vient pour démarrer ; puis les muscles
+ * sollicités, qui disent en un coup d'œil ce que la séance va coûter ; puis le
+ * rail des vignettes, qui dit ce qu'on va faire. Les deux bandes défilent
+ * horizontalement — une routine de dix exercices ne doit pas allonger la carte.
+ *
+ * @param {{nom:string, soustitre?:string, exercices:any[], onDemarrer?:Function,
+ *          onOuvrir?:Function, onMenu?:Function, actif?:boolean}} o
+ */
+function carteRoutineFitai(o) {
+  const card = h(`<div class="rt-card${o.actif ? " on" : ""}"></div>`);
+
+  const head = h(`<div class="rt-head"></div>`);
+  const titre = h(`<button class="rt-titre" type="button">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+    <span><b>${esc(o.nom)}</b>${o.soustitre ? `<em>${esc(o.soustitre)}</em>` : ""}</span></button>`);
+  if (o.onOuvrir) titre.addEventListener("click", () => o.onOuvrir());
+  head.append(titre);
+  if (o.onDemarrer) {
+    const b = h(`<button class="rt-start" type="button"><span class="cic">${IC.play}</span>Démarrer</button>`);
+    b.addEventListener("click", (e) => { e.stopPropagation(); o.onDemarrer(); });
+    head.append(b);
+  }
+  if (o.onMenu) {
+    const m = h(`<button class="rt-menu" type="button" aria-label="Options de la routine ${esc(o.nom)}">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></button>`);
+    m.addEventListener("click", (e) => { e.stopPropagation(); o.onMenu(e); });
+    head.append(m);
+  }
+  card.append(head);
+
+  const exos = (o.exercices || []).filter(Boolean);
+
+  // Bande des muscles : les principaux, sans doublon, dans l'ordre d'apparition.
+  const muscles = [];
+  for (const exo of exos) for (const m of (exo.musclesPrincipaux || [])) if (!muscles.includes(m)) muscles.push(m);
+  if (muscles.length) {
+    const bande = h(`<div class="rt-muscles" role="list"></div>`);
+    muscles.slice(0, 8).forEach((m) => {
+      bande.append(h(`<span class="rt-m" role="listitem">
+        <em>${esc(MUSCLE_LABELS[m] || m)}</em>
+        <span class="rt-mfig">${miniSilhouette([m])}</span></span>`));
+    });
+    card.append(bande);
+  }
+
+  // Rail des vignettes : ce que la séance contient, dans l'ordre.
+  if (exos.length) {
+    const rail = h(`<div class="rt-rail" role="list"></div>`);
+    exos.slice(0, 14).forEach((exo) => {
+      rail.append(h(`<span class="rt-vig" role="listitem" title="${esc(exo.nom || "")}">${vignetteHTML(exo, "sm")}</span>`));
+    });
+    card.append(rail);
+  }
+  return card;
+}
+
 function vProg(v) {
   if (EDIT_ROUTINE) { vRoutineEditor(v, EDIT_ROUTINE); return; }
   const prog = Etat.data.programme, p = Etat.data.profil;
@@ -1006,71 +1069,80 @@ function vProg(v) {
     return;
   }
 
-  // En-tête : « Mon programme » + nom du split + Modifier
-  const head = h(`<div class="spread" style="margin-bottom:14px"></div>`);
-  head.append(h(`<div><div class="eyebrow">Mon programme</div><h1 style="margin:2px 0 0">${esc(splitLabel(prog.split))}</h1></div>`));
-  const bEdit = h(`<button class="chip">Modifier</button>`);
-  bEdit.addEventListener("click", () => nav("cat"));
-  head.append(bEdit);
-  v.append(head);
+  // ---- Deux sous-onglets, comme l'onglet Routines de FitAI.
+  const sous = h(`<div class="rt-sous" role="tablist" aria-label="Type de routines"></div>`);
+  [["mes", "Mes routines"], ["explorer", "Explorer"]].forEach(([k, lab]) => {
+    const b = h(`<button class="rt-sous-b${PROG_SOUS === k ? " on" : ""}" role="tab" aria-selected="${PROG_SOUS === k}">${lab}</button>`);
+    b.addEventListener("click", () => { if (PROG_SOUS !== k) { PROG_SOUS = k; render(); } });
+    sous.append(b);
+  });
+  v.append(sous);
 
-  // Semaine du programme : sélecteur de jour en ruban + un seul jour déployé
-  // (remplace l'ancien empilement des 7 jours, qui produisait un long
-  // enchaînement de cartes quasi identiques).
-  // Nuances de la signature lime : le ruban de la semaine reste monochrome,
-  // comme sur la maquette, tout en distinguant les séances entre elles.
-  const COULEURS = ["#B7E63A", "#C8F55A", "#91C91E", "#A8DE30", "#87BE17", "#D4FF6E", "#7BAA12"];
+  if (PROG_SOUS === "explorer") { blocExplorer(v); return; }
+
+  // ---- Les deux actions de tête : écrire soi-même, ou laisser le moteur.
+  const actions = h(`<div class="rt-actions"></div>`);
+  const bNew = h(`<button class="rt-a ghost" type="button"><span class="cic">${IC.plus}</span>Nouvelle routine</button>`);
+  bNew.addEventListener("click", nouvelleRoutine);
+  const bGen = h(`<button class="rt-a solid" type="button"><span class="cic">${IC.spark}</span>Créer</button>`);
+  bGen.addEventListener("click", async () => {
+    if (!p) { toast("Renseigne d'abord ton profil"); return; }
+    if (prog && !await confirmer("Regénérer le programme à partir de ton profil ? L'actuel sera remplacé.", { ok: "Regénérer" })) return;
+    Etat.data.programme = genererProgramme(p); Etat.sauver();
+    toast("Programme généré"); render();
+  });
+  actions.append(bNew, bGen);
+  v.append(actions);
+
+  // ---- Une carte par séance du programme. Le ruban de jours a laissé la place
+  // aux cartes : le jour n'a pas disparu, il est devenu le sous-titre de chaque
+  // carte, et toutes les séances sont visibles d'un coup au lieu d'une seule.
   const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
-  const JOURS_COURTS = ["L", "M", "M", "J", "V", "S", "D"];
   const planning = planningJours(prog.seances.length);
-  const parJour = {};
-  prog.seances.forEach((s, i) => { if (planning[i]) parJour[planning[i]] = { s, i }; });
   const auj = ((new Date().getDay() + 6) % 7) + 1;
-  if (PROG_JOUR_SEL == null) PROG_JOUR_SEL = auj;
-
-  const strip = h(`<div class="daystrip" role="tablist" aria-label="Jour de la semaine"></div>`);
-  for (let wd = 1; wd <= 7; wd++) {
-    const cell = parJour[wd];
-    const col = cell ? COULEURS[cell.i % COULEURS.length] : null;
-    const btn = h(`<button class="daypill${wd === PROG_JOUR_SEL ? " on" : ""}${wd === auj ? " today" : ""}" role="tab" aria-selected="${wd === PROG_JOUR_SEL}" aria-label="${esc(JOURS[wd - 1])}${wd === auj ? " (aujourd'hui)" : ""}"><span class="dp-d">${JOURS_COURTS[wd - 1]}</span><span class="dp-dot" style="${col ? `background:${col}` : ""}"></span></button>`);
-    btn.addEventListener("click", () => { if (PROG_JOUR_SEL !== wd) { PROG_JOUR_SEL = wd; render(); } });
-    strip.append(btn);
-  }
-  v.append(strip);
-
-  const wd = PROG_JOUR_SEL, cell = parJour[wd];
-  const panel = h(`<div class="daypanel"></div>`);
-  if (cell) {
-    const s = cell.s, col = COULEURS[cell.i % COULEURS.length];
-    const muscles = (s.groupesCibles || []).map((m) => MUSCLE_LABELS[m] || m).slice(0, 3).join(" · ");
-    const meta = `${muscles}${muscles ? " · " : ""}${s.exercices.length} exos · ${s.dureeEstimeeMin || 0} min`;
-    const d = h(`<div class="daycard${wd === auj ? " today" : ""}"></div>`);
-    d.append(h(`<div class="dc-head"><span class="dc-ic" style="background:${col}26;color:${col}">${IC.dumbbell}</span><span class="dc-main"><span class="dc-day">${JOURS[wd - 1]}${wd === auj ? " · Aujourd'hui" : ""}</span><b class="dc-name">${esc(s.nom)}</b><span class="muted small">${esc(meta)}</span></span><span class="dc-fig" aria-hidden="true">${silhouetteAuto(s.groupesCibles || [])}</span></div>`));
-    s.exercices.forEach((e, i) => d.append(carteExoApercu(e, i + 1)));
-    if (wd === auj) {
-      const b = h(`<button class="primary big" style="margin-top:11px"><span class="btn-ico">${IC.play}</span>Commencer la séance</button>`);
-      b.addEventListener("click", () => { LIVE = null; APERCU = s.id; nav("train"); });
-      d.append(b);
-    }
-    panel.append(d);
-  } else {
-    panel.append(h(`<div class="daycard rest"><span class="dc-ic" style="background:var(--surface-2);color:var(--ink-soft)">${IC.moon}</span><span class="dc-main"><span class="dc-day">${JOURS[wd - 1]}</span><b class="dc-name">Repos</b><span class="muted small">Récupération</span></span></div>`));
-  }
-  v.append(panel);
-
-  v.append(h(`<div class="hint" style="margin:12px 0 6px">${esc(prog.justificationGlobale)}</div>`));
-  const bCat = h(`<button class="chip" style="margin:2px 0 10px"><span class="cic">${IC.search}</span>Catalogue d'exercices</button>`);
-  bCat.addEventListener("click", () => nav("cat"));
-  v.append(bCat);
-
-  // ---- Bibliothèque de programmes : une seule entrée, la liste s'ouvre en
-  // feuille. 23 cartes empilées ici allongeaient l'écran de 3 000 px.
-  const nbPgm = PROGRAMMES_SALLE.length;
-  const bBib = h(`<button class="card wcard sil warm-cta" style="width:100%;margin-top:18px;text-align:left"><span class="mi mi-indigo" style="width:34px;height:34px">${IC.layers}</span><span class="g"><b>Bibliothèque de programmes</b><br><span class="muted small">${nbPgm} programmes prêts à installer · débutant à avancé</span></span><span class="chev" aria-hidden="true">›</span></button>`);
-  bBib.addEventListener("click", ouvrirBibliothequeProgrammes);
-  v.append(bBib);
+  prog.seances.forEach((s, i) => {
+    const jour = planning[i] ? JOURS[planning[i] - 1] : null;
+    const exos = (s.exercices || []).map((e) => getExercise(e.exerciceId)).filter(Boolean);
+    const meta = [jour, `${s.exercices.length} exos`, s.dureeEstimeeMin ? `${s.dureeEstimeeMin} min` : null]
+      .filter(Boolean).join(" · ");
+    const ouvrir = () => { LIVE = null; APERCU = s.id; nav("train"); };
+    v.append(carteRoutineFitai({
+      nom: s.nom, soustitre: meta, exercices: exos,
+      actif: planning[i] === auj, onOuvrir: ouvrir, onDemarrer: ouvrir,
+    }));
+  });
+  if (prog.justificationGlobale) v.append(h(`<div class="hint">${esc(prog.justificationGlobale)}</div>`));
 
   carteRoutines(v);
+}
+
+/** Crée une routine vide et ouvre son éditeur. Partagé par les deux entrées. */
+async function nouvelleRoutine() {
+  const nom = await demanderTexte("Nom de la routine", "Ma routine", { ok: "Créer" });
+  if (nom === null) return;
+  const r = creerRoutine(nom);
+  (Etat.data.programmesPerso ||= []).push(r);
+  Etat.sauver(); EDIT_ROUTINE = r.id; render();
+}
+
+/**
+ * Sous-onglet « Explorer » : les programmes prêts à installer, présentés comme
+ * les routines — on doit pouvoir en adopter un et le modifier ensuite, ce que
+ * FitAI appelle « save it, it becomes yours to edit ».
+ */
+function blocExplorer(v) {
+  const bFiltres = h(`<button class="rt-a ghost" style="width:100%;margin-bottom:10px" type="button"><span class="cic">${IC.sliders}</span>Filtrer les ${PROGRAMMES_SALLE.length} programmes</button>`);
+  bFiltres.addEventListener("click", ouvrirBibliothequeProgrammes);
+  v.append(bFiltres);
+  PROGRAMMES_SALLE.forEach((pr) => {
+    const exos = (pr.seances || []).flatMap((s) => (s.exercices || []).map((e) => getExercise(e.exerciceId))).filter(Boolean);
+    const meta = [pr.accroche, `${pr.joursParSemaine} j/sem.`, `${pr.dureeMin} min`].filter(Boolean).join(" · ");
+    v.append(carteRoutineFitai({
+      nom: pr.nom, soustitre: meta, exercices: exos,
+      onOuvrir: () => installerProgrammeClassique(pr),
+      onDemarrer: () => installerProgrammeClassique(pr),
+    }));
+  });
 }
 
 /**
@@ -1082,33 +1154,50 @@ function vProg(v) {
  * moment précis où elles sont le plus utiles.
  */
 function carteRoutines(v) {
-  v.append(h(`<div class="spread dash-lbl"><span class="eyebrow">Mes routines</span></div>`));
-  (Etat.data.programmesPerso || []).forEach((r) => {
-    const nbEx = r.seances.reduce((a, s) => a + s.exercices.length, 0);
-    const card = h(`<div class="card"><div class="spread"><b>${esc(r.nom)}</b><span class="pill">${r.seances.length} séance(s)</span></div><div class="muted small">${nbEx} exercice(s)</div></div>`);
-    const acts = h(`<div class="row" style="margin-top:8px"></div>`);
-    const bOpen = h(`<button class="chip"><span class="cic">${IC.forward}</span>Ouvrir</button>`);
-    bOpen.addEventListener("click", () => { EDIT_ROUTINE = r.id; render(); });
-    const bDup = h(`<button class="chip"><span class="cic">${IC.copy}</span>Dupliquer</button>`);
-    bDup.addEventListener("click", () => { Etat.data.programmesPerso.push(dupliquerRoutine(r)); Etat.sauver(); render(); });
-    const bDel = h(`<button class="chip danger" aria-label="Supprimer la routine"><span class="cic">${IC.trash}</span></button>`);
-    bDel.addEventListener("click", async () => { if (await confirmer(`Supprimer la routine « ${r.nom} » ?`, { danger: true, ok: "Supprimer" })) { Etat.data.programmesPerso = Etat.data.programmesPerso.filter((x) => x.id !== r.id); Etat.sauver(); render(); } });
-    acts.append(bOpen, bDup, bDel); card.append(acts);
-    v.append(card);
+  const miennes = Etat.data.programmesPerso || [];
+  if (miennes.length) v.append(h(`<div class="eyebrow" style="margin:18px 0 8px">Mes routines</div>`));
+  miennes.forEach((r) => {
+    // Une routine peut contenir plusieurs séances : le rail montre tous leurs
+    // exercices, dans l'ordre, c'est ce qui la décrit le mieux d'un coup d'œil.
+    const exos = r.seances.flatMap((s) => (s.exercices || []).map((e) => getExercise(e.exerciceId))).filter(Boolean);
+    const meta = `${r.seances.length} séance${r.seances.length > 1 ? "s" : ""} · ${exos.length} exercice${exos.length > 1 ? "s" : ""}`;
+    v.append(carteRoutineFitai({
+      nom: r.nom, soustitre: meta, exercices: exos,
+      onOuvrir: () => { EDIT_ROUTINE = r.id; render(); },
+      onDemarrer: () => { EDIT_ROUTINE = r.id; render(); },
+      onMenu: () => menuRoutine(r),
+    }));
   });
-  const barre = h(`<div class="row" style="margin-top:8px"></div>`);
-  const bNew = h(`<button class="primary"><span class="btn-ico">${IC.plus}</span>Nouvelle routine</button>`);
-  bNew.addEventListener("click", async () => {
-    const nom = await demanderTexte("Nom de la routine", "Ma routine", { ok: "Créer" });
-    if (nom === null) return;
-    const r = creerRoutine(nom);
-    (Etat.data.programmesPerso ||= []).push(r);
-    Etat.sauver(); EDIT_ROUTINE = r.id; render();
-  });
-  const bFromLog = h(`<button class="chip"><span class="cic">${IC.cornerDown}</span>Depuis une séance passée</button>`);
+  const bFromLog = h(`<button class="rt-a ghost" style="width:100%;margin-top:10px" type="button"><span class="cic">${IC.cornerDown}</span>Créer depuis une séance passée</button>`);
   bFromLog.addEventListener("click", dupliquerSeancePassee);
-  barre.append(bNew, bFromLog);
-  v.append(barre);
+  v.append(bFromLog);
+}
+
+/**
+ * Menu « ⋮ » d'une routine personnelle.
+ *
+ * Les trois actions vivaient en boutons alignés sous chaque carte ; chez FitAI
+ * elles sont derrière un menu, et la carte ne porte que ce qu'on regarde. Même
+ * fonctions, exactement : ouvrir, dupliquer, supprimer.
+ */
+function menuRoutine(r) {
+  const sheet = h(`<div class="sheet"><div class="inner"></div></div>`);
+  const inner = sheet.querySelector(".inner");
+  inner.append(h(`<div class="sheet-top"><h2 style="margin:0">${esc(r.nom)}</h2><button class="chip" id="rX">✕ Fermer</button></div>`));
+  const ajouter = (icone, label, fn, danger = false) => {
+    const b = h(`<button class="plusitem${danger ? " danger" : ""}" type="button"><span class="cic">${icone}</span><span class="g"><b>${label}</b></span></button>`);
+    b.addEventListener("click", async () => { sheet.remove(); await fn(); });
+    inner.append(b);
+  };
+  ajouter(IC.forward, "Ouvrir", () => { EDIT_ROUTINE = r.id; render(); });
+  ajouter(IC.copy, "Dupliquer", () => { Etat.data.programmesPerso.push(dupliquerRoutine(r)); Etat.sauver(); render(); });
+  ajouter(IC.trash, "Supprimer", async () => {
+    if (!await confirmer(`Supprimer la routine « ${r.nom} » ?`, { danger: true, ok: "Supprimer" })) return;
+    Etat.data.programmesPerso = Etat.data.programmesPerso.filter((x) => x.id !== r.id);
+    Etat.sauver(); render();
+  }, true);
+  sheet.querySelector("#rX").addEventListener("click", () => sheet.remove());
+  document.body.append(sheet);
 }
 
 /**
