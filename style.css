@@ -708,6 +708,17 @@ nav.tabs .ico{width:24px;height:24px;display:block;transition:transform .2s var(
   width:100%;height:100%;border-radius:0;background:none;object-fit:contain;display:block}
 @media (max-width:339px){.rt-m,.rt-mfig{width:54px}.rt-vig{width:54px;height:54px}}
 
+/* Ligne du catalogue, alignée sur la grammaire FitAI : la vignette blanche de
+   62 px, le nom, le muscle, puis la barre de niveau. Le reste de `.exline`
+   (séparateur, zone cliquable pleine largeur) ne bouge pas. */
+.exline .lx-vig{flex:0 0 auto}
+.exline .nm{font-size:.95rem;font-weight:700;line-height:1.2;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.exline .meta .small{font-size:.72rem;margin-top:1px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.exline .lx-niv{margin-top:5px}
+.exline{align-items:center;min-height:80px}
+
 /* En-tête : FitAI ne met que son nom, sans sur-titre. Le mot « Musculation »
    au-dessus de « Coach Perso » n'apprenait rien et volait une ligne en haut de
    chaque écran. L'élément reste dans le DOM : le script qui le remplit depuis

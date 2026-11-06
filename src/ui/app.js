@@ -1689,7 +1689,10 @@ let CAT_SIL = false; // silhouette de recherche dépliée dans le catalogue
 let CAT_FILTRE = { q: "", muscle: "", equip: "" };
 /** Grille ou liste. La grille met les démonstrations en avant, la liste tient
  *  plus d'exercices à l'écran : les deux ont leur usage, aucun n'est « le bon ». */
-let CAT_VUE = "grille";
+// Liste par défaut, comme l'onglet Exercices de FitAI : une ligne montre le
+// nom complet, le muscle et le niveau, là où la grille ne montre qu'une image
+// et un nom tronqué. La grille reste à un tap, le choix n'est pas retiré.
+let CAT_VUE = "liste";
 let CAT_TRI = "pertinence";
 let CAT_FAVORIS_SEUL = false;
 function vCatalogue(v) {
@@ -1872,11 +1875,18 @@ function vCatalogue(v) {
       list.forEach((e, i) => {
         // Toute la ligne est cliquable : cible tactile bien plus large qu'un
         // petit bouton en bout de ligne.
+        // Mise en page reprise des listes de FitAI : vignette blanche, nom,
+        // muscle, puis la barre de niveau à cinq segments. Le chevron disparaît
+        // — toute la ligne est déjà cliquable, il ne faisait que prendre la
+        // place où l'étoile de favori doit se trouver.
+        const niv = Math.max(1, Math.min(5, e.difficulte || 1));
         const row = h(`<button class="exline">
-          ${vignetteHTML(e, "sm")}
+          <span class="lx-vig">${vignetteHTML(e, "sm")}</span>
           <span class="meta"><span class="nm">${esc(e.nom)}</span>
-            <span class="muted small">${e.musclesPrincipaux.map((m) => MUSCLE_LABELS[m] || m).join(", ")} · ${e.equipement.map((q) => EQUIPMENT_LABELS[q] || q).join(", ")}${e.source === "wger" ? ` · <span class="tag">wger</span>` : ""}</span></span>
-          <span class="chev" aria-hidden="true">›</span></button>`);
+            <span class="muted small">${e.musclesPrincipaux.map((m) => MUSCLE_LABELS[m] || m).join(", ")} · ${e.equipement.map((q) => EQUIPMENT_LABELS[q] || q).join(", ")}${e.source === "wger" ? ` · <span class="tag">wger</span>` : ""}</span>
+            <span class="lx-niv" role="img" aria-label="Niveau ${niv} sur 5">${
+              [1, 2, 3, 4, 5].map((i) => `<i${i <= niv ? ' class="on"' : ""}></i>`).join("")}</span></span>
+          </button>`);
         const img = row.querySelector("img.exo-gif");
         if (img) { const c = chargementMedia(i); img.loading = c.loading; img.setAttribute("fetchpriority", c.fetchpriority); }
         row.addEventListener("click", () => ouvrirDetail(e));
