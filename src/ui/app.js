@@ -1376,7 +1376,10 @@ function installerProgrammeClassique(pr) {
 function vRoutineEditor(v, routineId) {
   const r = (Etat.data.programmesPerso || []).find((x) => x.id === routineId);
   if (!r) { EDIT_ROUTINE = null; render(); return; }
-  const head = h(`<div class="spread"><button class="chip" id="back">← Retour</button><button class="chip" id="ren"><span class="cic">${IC.forward}</span>Renommer</button></div>`);
+  // Le crayon plutôt que la flèche de lecture : « ▷| Renommer » ne voulait rien
+  // dire. Même geste, icône qui le nomme.
+  const CRAYON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>`;
+  const head = h(`<div class="spread"><button class="chip" id="back">← Retour</button><button class="chip" id="ren"><span class="cic">${CRAYON}</span>Renommer</button></div>`);
   v.append(head);
   v.append(h(`<h1 style="margin:6px 0">${esc(r.nom)}</h1>`));
   $("#back", v).addEventListener("click", () => { EDIT_ROUTINE = null; render(); });
@@ -1392,11 +1395,18 @@ function carteSeanceEditor(r, s) {
   const c = h(`<details class="card" open></details>`);
   c.append(h(`<summary class="spread"><b>${esc(s.nom)}</b><span class="pill">${s.exercices.length} exos · ~${s.dureeEstimeeMin || 0} min</span></summary>`));
   const acts = h(`<div class="row" style="margin:6px 0"></div>`);
-  const bRen = h(`<button class="chip"><span class="cic">${IC.forward}</span>Nom</button>`);
+  const bRen = h(`<button class="chip"><span class="cic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></span>Renommer</button>`);
   bRen.addEventListener("click", async () => { const n = await demanderTexte("Nom de la séance", s.nom); if (n !== null) { renommer(s, n); Etat.sauver(); render(); } });
   const bDel = h(`<button class="chip danger"><span class="cic">${IC.trash}</span>Séance</button>`);
   bDel.addEventListener("click", async () => { if (await confirmer(`Supprimer la séance « ${s.nom} » ?`, { danger: true, ok: "Supprimer" })) { supprimerSeance(r, s.id); Etat.sauver(); render(); } });
   acts.append(bRen, bDel); c.append(acts);
+  // « Muscles sollicités · avant et après », comme le haut du détail de routine
+  // de FitAI : on voit ce que la séance coûtera avant même de l'avoir écrite.
+  const bande = bandeRecuperation(musclesSeance(s), s);
+  if (bande) {
+    c.append(h(`<div class="eyebrow" style="margin:10px 0 2px">Muscles sollicités · avant et après</div>`));
+    c.append(bande);
+  }
   s.exercices.forEach((e, i) => c.append(ligneExoEditor(s, e, i)));
   const bAddE = h(`<button class="chip"><span class="cic">${IC.plus}</span>Exercice</button>`);
   bAddE.addEventListener("click", () => choisirExercice((exId) => { ajouterExercice(s, exId, { nbSeries: 3 }); Etat.sauver(); render(); }));
@@ -1404,19 +1414,83 @@ function carteSeanceEditor(r, s) {
   return c;
 }
 
+/**
+ * Ligne d'exercice dans l'éditeur de routine.
+ *
+ * Reprend la ligne du détail de routine de FitAI : poignée de réordonnancement,
+ * vignette blanche, barre de niveau, nom, volume, puis les actions — remplacer,
+ * éditer — et le muscle ciblé. Les réglages (séries, répétitions, repos) ne
+ * disparaissent pas derrière un écran : le crayon les déplie SUR PLACE. On garde
+ * l'édition directe de Coach Perso dans la mise en page de FitAI.
+ */
 function ligneExoEditor(s, e, i) {
   const exo = getExercise(e.exerciceId);
   const t = e.series[0] || {};
   const enTemps = !!t.dureeSec;
-  const row = h(`<div class="card flat" style="margin:6px 0"></div>`);
-  row.append(h(`<div class="row" style="gap:10px;align-items:center">${vignetteHTML(exo, "sm")}<b style="flex:1;min-width:0">${i + 1}. ${esc(exo ? exo.nom : e.exerciceId)}</b></div>`));
-  const ctr = h(`<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px"></div>`);
-  const inNb = h(`<label class="small">Séries <input type="number" min="1" max="10" value="${e.series.length}" style="width:52px" /></label>`);
-  const inRepos = h(`<label class="small">Repos(s) <input type="number" min="0" max="600" step="15" value="${t.reposSec || 90}" style="width:64px" /></label>`);
+  const nom = exo ? exo.nom : e.exerciceId;
+  const muscle = exo && (exo.musclesPrincipaux || [])[0];
+  const niv = exo ? Math.max(1, Math.min(5, exo.difficulte || 1)) : 1;
+  const resume = `${e.series.length} série${e.series.length > 1 ? "s" : ""} × `
+    + (enTemps ? `${t.dureeSec || 40} s` : (t.repsCible || [8, 12]).join("-") + " reps")
+    + ` ; ${formatRepos(t.reposSec || 90)} de repos`;
+
+  const row = h(`<div class="red-row"></div>`);
+
+  // Poignée : un appui propose de monter ou descendre. Le glisser-déposer
+  // demanderait une gestion tactile complète pour le même résultat.
+  const poignee = h(`<button class="red-grip" type="button" aria-label="Déplacer ${esc(nom)}">
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></button>`);
+  poignee.addEventListener("click", () => menuExoRoutine(s, e, i, nom));
+  row.append(poignee);
+
+  row.append(h(`<span class="red-vig">${vignetteHTML(exo, "sm")}</span>`));
+
+  const mid = h(`<div class="red-mid"></div>`);
+  mid.append(h(`<span class="lx-niv" role="img" aria-label="Niveau ${niv} sur 5">${
+    [1, 2, 3, 4, 5].map((k) => `<i${k <= niv ? ' class="on"' : ""}></i>`).join("")}</span>`));
+  mid.append(h(`<b class="red-nom">${esc(nom)}</b>`));
+  mid.append(h(`<span class="red-meta">${esc(resume)}</span>`));
+  const actions = h(`<div class="red-act"></div>`);
+  const bSwap = h(`<button class="red-ic" type="button" aria-label="Remplacer ${esc(nom)}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h13l-3.5-3.5M21 16H8l3.5 3.5"/></svg></button>`);
+  bSwap.addEventListener("click", () => choisirExercice((exId) => {
+    e.exerciceId = exId;
+    s.dureeEstimeeMin = estimerDureeSeance(s);
+    Etat.sauver(); render();
+  }));
+  const bEdit = h(`<button class="red-ic" type="button" aria-expanded="false" aria-label="Régler ${esc(nom)}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>`);
+  actions.append(bSwap, bEdit);
+  mid.append(actions);
+  row.append(mid);
+
+  if (muscle) {
+    row.append(h(`<span class="red-mus">
+      <em>${esc(MUSCLE_LABELS[muscle] || muscle)}</em>
+      <span class="red-mfig">${miniSilhouette([muscle])}</span></span>`));
+  }
+
+  const bMenu = h(`<button class="red-menu" type="button" aria-label="Options de ${esc(nom)}">
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></button>`);
+  bMenu.addEventListener("click", () => menuExoRoutine(s, e, i, nom));
+  row.append(bMenu);
+
+  // ---- Réglages dépliables, sous la ligne, sur toute la largeur.
+  const ctr = h(`<div class="red-reglages" hidden></div>`);
+  const inNb = h(`<label class="small">Séries <input type="number" min="1" max="10" value="${e.series.length}" /></label>`);
+  const inRepos = h(`<label class="small">Repos (s) <input type="number" min="0" max="600" step="15" value="${t.reposSec || 90}" /></label>`);
   const inCible = enTemps
-    ? h(`<label class="small">Durée(s) <input type="number" min="5" max="600" value="${t.dureeSec || 40}" style="width:64px" /></label>`)
-    : h(`<label class="small">Reps <input type="text" value="${(t.repsCible || [8, 12]).join("-")}" placeholder="8-12" style="width:64px" /></label>`);
-  ctr.append(inNb, inCible, inRepos); row.append(ctr);
+    ? h(`<label class="small">Durée (s) <input type="number" min="5" max="600" value="${t.dureeSec || 40}" /></label>`)
+    : h(`<label class="small">Reps <input type="text" value="${(t.repsCible || [8, 12]).join("-")}" placeholder="8-12" /></label>`);
+  ctr.append(inNb, inCible, inRepos);
+  row.append(ctr);
+  bEdit.addEventListener("click", () => {
+    const ouvert = ctr.hidden;
+    ctr.hidden = !ouvert;
+    bEdit.setAttribute("aria-expanded", String(ouvert));
+    bEdit.classList.toggle("on", ouvert);
+  });
+
   const apply = () => {
     const params = { nbSeries: parseInt(inNb.querySelector("input").value, 10) || e.series.length };
     const repos = parseInt(inRepos.querySelector("input").value, 10);
@@ -1429,14 +1503,34 @@ function ligneExoEditor(s, e, i) {
     definirSeries(e, params);
     s.dureeEstimeeMin = estimerDureeSeance(s);
     Etat.sauver();
+    render();
   };
   ctr.querySelectorAll("input").forEach((inp) => inp.addEventListener("change", apply));
-  const nav2 = h(`<div class="row" style="margin-top:6px"></div>`);
-  const up = h(`<button class="chip" aria-label="Monter l'exercice">↑</button>`); up.addEventListener("click", () => { deplacerExercice(s, i, -1); Etat.sauver(); render(); });
-  const down = h(`<button class="chip" aria-label="Descendre l'exercice">↓</button>`); down.addEventListener("click", () => { deplacerExercice(s, i, 1); Etat.sauver(); render(); });
-  const del = h(`<button class="chip danger" aria-label="Retirer l'exercice"><span class="cic">${IC.trash}</span></button>`); del.addEventListener("click", () => { supprimerExerciceIndex(s, i); Etat.sauver(); render(); });
-  nav2.append(up, down, del); row.append(nav2);
   return row;
+}
+
+/**
+ * Menu « ⋮ » d'un exercice de routine : monter, descendre, remplacer, retirer.
+ * Les flèches ↑ ↓ qui occupaient une ligne entière sous chaque exercice vivent
+ * désormais ici — même fonction, sans encombrer la liste.
+ */
+function menuExoRoutine(s, e, i, nom) {
+  const sheet = h(`<div class="sheet"><div class="inner"></div></div>`);
+  const inner = sheet.querySelector(".inner");
+  inner.append(h(`<div class="sheet-top"><h2 style="margin:0">${esc(nom)}</h2><button class="chip" id="exX">✕ Fermer</button></div>`));
+  const item = (icone, label, fn, danger = false) => {
+    const b = h(`<button class="plusitem${danger ? " danger" : ""}" type="button"><span class="cic">${icone}</span><span class="g"><b>${label}</b></span></button>`);
+    b.addEventListener("click", () => { sheet.remove(); fn(); });
+    inner.append(b);
+  };
+  if (i > 0) item(IC.back, "Monter", () => { deplacerExercice(s, i, -1); Etat.sauver(); render(); });
+  if (i < s.exercices.length - 1) item(IC.forward, "Descendre", () => { deplacerExercice(s, i, 1); Etat.sauver(); render(); });
+  item(IC.swap, "Remplacer par un autre exercice", () => choisirExercice((exId) => {
+    e.exerciceId = exId; s.dureeEstimeeMin = estimerDureeSeance(s); Etat.sauver(); render();
+  }));
+  item(IC.trash, "Retirer de la routine", () => { supprimerExerciceIndex(s, i); Etat.sauver(); render(); }, true);
+  sheet.querySelector("#exX").addEventListener("click", () => sheet.remove());
+  document.body.append(sheet);
 }
 
 /** Crée une routine à partir d'une séance déjà réalisée (historique). */
