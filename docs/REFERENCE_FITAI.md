@@ -64,6 +64,71 @@ pour que tu la connaisses.
 
 ---
 
+## 0 bis. Captures de l'application réelle — ce qui corrige ce qui précède
+
+**Ajouté le 6 novembre 2026.** Tout ce qui est écrit avant cette section vient du
+**site** `fitaiapp.com`. Mehdi a ensuite fourni **neuf captures d'écran de
+l'application elle-même**, en français, sur Android, en **1080 × 2460**. Elles
+corrigent et complètent l'analyse. En cas de contradiction, **ces mesures-ci font
+foi** : elles portent sur l'application, à pleine résolution, là où le site ne
+publiait que des vignettes de 191 px compressées.
+
+Écrans fournis : onglet Routines · détail de routine (×2) · onglet Exercices ·
+onglet Récupération · onglet Séance · onglet Compte (×3, en défilant).
+
+### Corrections apportées aux mesures du site
+
+| Rôle | Mesuré sur le SITE (faux pour l'app) | Mesuré sur l'APPLICATION |
+|---|---|---|
+| Fond de page | `#040017` | **`#050217`** (99,8 % de la zone) |
+| Carte | `#011431` — **n'existe pas dans l'app**, artefact de compression | **`#1E1F34`** (100 %) |
+| Surface secondaire | `#1D1E33` | **`#27274B`** |
+| Accent | `#2477FF` | **`#2478FF`** (à un point près : le site était juste) |
+| Magenta de récupération | `#FD0075` — **faux** | **`#F500FE`**, puis `#FA8CFF`, puis blanc |
+| Texte secondaire | `#8B95A8` (valeur du site) | **`#9CA1B4`** |
+
+Le bleu, le fond et la carte du site étaient donc de bonnes approximations ; le
+magenta, non. La leçon vaut pour la suite : **une capture marketing réduite à
+191 px ne permet pas de relever une couleur portée par quelques pixels.**
+
+### Barre d'onglets — enfin observée
+
+Cinq onglets, de gauche à droite : **Routines · Exercices · Séance ·
+Récupération · Compte**. « Séance » est bien l'onglet central, ce que le
+dictionnaire annonçait sans le montrer.
+
+- Fond : identique à la page (`#050217`), barre **plate** collée au bas, sans
+  capsule flottante ni flou.
+- Onglet actif : pastille `#27274B` arrondie **derrière la seule icône**, icône
+  et libellé en `#2478FF`. Inactif : `#969BAF`.
+- Icônes **au trait** (et non pleines comme sur le site) : liste dans un carré
+  arrondi, silhouette qui s'étire, haltère, cercle de rotation avec un « + »,
+  buste dans un cercle.
+
+### Autres relevés
+
+- **Bouton flottant de l'assistant** : cercle en dégradé **bleu → violet**,
+  `#2478FF` → `#795DFF`, bulle de dialogue blanche avec étincelles. Présent sur
+  tous les onglets.
+- **Double pourcentage** : au-dessus de chaque muscle d'une routine, FitAI
+  affiche « **100 % à 46 %** » — fraîcheur actuelle, puis celle qui restera
+  après la séance — avec une barre magenta. Le second nombre est en magenta.
+- **Modèle économique, enfin visible** : bouton **vert `#148614`** « Essayer
+  gratuitement » dans l'en-tête de chaque écran, bandeau promotionnel flottant
+  (« 75 % de réduction ! » avec compte à rebours), **contenu verrouillé et
+  flouté** au-delà de trois exercices dans le catalogue, et « Voir les 12
+  muscles avec PRO » sur l'onglet Récupération. Le vert est donc la couleur de
+  l'abonnement, pas du système de design.
+- **Onglet Compte** : carte profil (avatar, prénom, « 40 ans · 180 cm »), trois
+  colonnes **Objectif · Poids · Fréquence**, calendrier des séances avec série
+  hebdomadaire, succès et médailles (« 1 sur 54 »), mensurations avec chips de
+  métrique et courbe, stats en barres, lexique.
+- **Onglet Récupération** : grand corps anatomique 3D à gauche, liste
+  muscle/pourcentage à droite, légende à trois paliers, bouton « Séance sur
+  muscles reposés ».
+
+---
+
 ## A. Analyse visuelle
 
 ### A.1 — Le site vitrine (valeurs mesurées)
@@ -714,7 +779,19 @@ ru, sv, th, uk, vi, zh). Le `sitemap.xml` ne liste toutefois que les URL `/en`, 
 
 ## E. Ce que je n'ai pas pu observer
 
-Liste explicite. **Rien ici n'est comblé par une hypothèse.**
+> **Mise à jour du 6 novembre 2026.** Cette section a été écrite à partir du
+> site seul. Les captures de l'application (section 0 bis) ont depuis levé une
+> grande partie de ces angles morts : la **barre d'onglets**, l'onglet
+> **Workout**, l'onglet **Recover** et sa carte corporelle, l'onglet
+> **Account** avec son calendrier, ses succès, ses mensurations et ses stats,
+> l'onglet **Exercise**, ainsi que les **tarifs et le modèle d'abonnement**
+> (bandeau vert, contenu verrouillé, mention PRO) sont désormais observés.
+>
+> **Restent non observés** : l'onboarding, la conversation avec l'assistant, la
+> « Coach chip » pendant une série, la bande de notation RPE, l'écran de fin de
+> séance, l'éditeur de routine, et les animations de l'interface.
+
+Liste explicite d'origine. **Rien ici n'est comblé par une hypothèse.**
 
 **Écrans d'application jamais montrés par le site** (donc aucune information sur leur
 mise en page, leurs couleurs, leur typographie ou leurs composants) :

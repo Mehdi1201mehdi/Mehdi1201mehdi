@@ -2,6 +2,12 @@
 
 Légende : ✅ opérationnel · ⚠️ partiel · ❌ absent · 🔒 volontairement exclu
 
+> **Navigation.** Depuis l'alignement sur FitAI, la barre compte cinq onglets :
+> **Routines · Exercices · Séance · Récupération · Compte**. « Progrès » n'y est
+> plus — il s'ouvre depuis le Compte, comme les statistiques de FitAI. Aucune vue
+> n'a été supprimée : la séance active, Nutrition et le programme Anatoly restent
+> routés hors barre.
+
 ## Entraînement
 
 | Fonction | État | Où |
@@ -21,8 +27,10 @@ Légende : ✅ opérationnel · ⚠️ partiel · ❌ absent · 🔒 volontairem
 | Échauffement / étirements guidés | ✅ | Aperçu de séance / fin de séance |
 | Reprise après fermeture | ✅ | Automatique |
 | Signalement de douleur | ✅ | Menu « ⋯ » |
-| Supersets, drop sets, rest-pause | ❌ | — |
+| Supersets, drop sets, rest-pause | ✅ | Séance (mode avancé) — cf. « Options avancées de séance » |
 | Tempo | ⚠️ | Stocké, non éditable |
+| Panneau de démonstration de l'exercice en cours | ✅ | Séance — grand visuel clair en haut de la carte active |
+| Coût projeté de la séance (« 100 % à 50 % ») | ✅ | Aperçu de séance — avant / après par muscle |
 
 ## Exercices
 

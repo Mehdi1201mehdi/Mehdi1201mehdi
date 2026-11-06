@@ -7,30 +7,46 @@ coder une valeur en dur**, toujours référencer un token.
 
 ## Couleurs (thème sombre par défaut)
 
-Direction alignée sur la maquette Claude Design **Coach Perso.dc** (juillet 2026) :
-noirs bleutés plus profonds, cartes **plates** (surface pleine + filet `--hair`),
-dégradé d'accent bleu→bleu, barre d'onglets pleine largeur.
+Palette **relevée au pixel sur des captures pleine résolution (1080 × 2460) de
+l'application FitAI** — novembre 2026. Chaque valeur est un aplat majoritaire
+mesuré sur une zone, pas une estimation ni une reprise de leur site (dont le
+bleu, `#0091FF`, est plus cyan ; il survit dans le thème `nuit`).
+Détail de la méthode et des mesures : `docs/REFERENCE_FITAI.md`.
 
-| Token | Valeur | Usage |
-|---|---|---|
-| `--bg` | `#0B0D10` | Fond des surfaces d'app |
-| `--bg-deep` | `#05070A` | Fond global le plus profond (page) |
-| `--surface` | `#12151A` | Cartes (plates) |
-| `--surface-2` | `#181C22` | Surfaces surélevées, boutons secondaires, pistes d'icônes |
-| `--elevated` | `#0B0D10` | Barre d'onglets |
-| `--ink` | `#EDEFF2` | Texte principal (blanc teinté, jamais `#fff` pur) |
-| `--ink-soft` | `#8B94A3` | Texte secondaire |
-| `--faint` | `#5A626E` | Texte tertiaire / inactif (nav) |
-| `--line` | `#20252D` | Filets, séparateurs, pistes de barres |
-| `--hair` | `rgba(255,255,255,.06)` | Bordure hairline des cartes |
-| `--accent` | `#3B82F6` | **Accent** : CTA, actif, progression |
-| `--accent-2` | `#2563EB` | Fin de dégradé d'accent (bleu profond) |
-| `--accent-ink` | `#7DA9FF` | Texte d'accent (liens) |
-| `--accent-soft` | `rgba(59,130,246,.14)` | Fond d'accent atténué (pastilles d'icônes) |
-| `--ok` `--amber` `--danger` | `#22C55E` `#F59E0B` `#EF4444` | Succès / attention / danger |
-| `--orange` `--indigo` `--pink` | `#F97316` `#818CF8` `#EC4899` | Accents secondaires d'icônes (jours, macros) |
+| Token | Valeur | Usage | Mesure |
+|---|---|---|---|
+| `--bg` | `#050217` | Fond de page et barre d'onglets | 99,8 % de la zone |
+| `--bg-deep` | `#02000C` | Fond le plus profond | dérivé |
+| `--surface` | `#1E1F34` | Cartes | 100 % de la zone |
+| `--surface-2` | `#27274B` | Pastille d'onglet actif, pilules secondaires, lignes alternées | 60 % de la zone |
+| `--surface-3` | `#2F3055` | Troisième niveau | dérivé |
+| `--ink` | `#FFFFFF` | Texte principal | mesuré |
+| `--ink-soft` | `#9CA1B4` | Texte secondaire | mesuré |
+| `--faint` | `#969BAF` | Libellé d'onglet inactif | mesuré |
+| `--accent` | `#2478FF` | **Accent unique** : CTA, actif, série validée | 85 % du bouton |
+| `--accent-light` / `--accent-dark` | `#5B9BFF` / `#1A66E0` | Variantes | dérivées |
+| `--ok` | `= --accent` | **FitAI valide en BLEU**, jamais en vert | observé |
+| `--danger` | `#E53935` | Alerte | donut d'activation |
+| `--amber` | `#FFB800` | Étoiles de notation | CSS du site |
+| `--orange` | `#FF8A00` | Muscle primaire des graphiques | donut |
+| `--recup-fatigue` / `--recup-encours` / `--recup-frais` | `#F500FE` / `#FA8CFF` / `#FFFFFF` | Échelle de récupération à trois paliers | légende de l'onglet Récupération |
+| `--panel` | `#FFFFFF` | Vignettes et panneau de démonstration | observé |
+| `--fab-a` / `--fab-b` | `#2478FF` / `#795DFF` | Dégradé du bouton flottant | mesuré |
 
-Thème clair : voir `:root[data-theme="light"]`. Anatomie : `--anat-body/-line/-muscle`.
+**Deux règles tirées de l'observation**, et qui tiennent :
+
+- *Aucun vert nulle part.* Le succès se dit en bleu d'accent — la série validée
+  est un aplat `--accent` avec une coche blanche. Le seul vert de FitAI
+  (`#148614`) est celui de son bandeau d'abonnement : il n'entre pas dans le
+  système. Une ombre lime codée en dur traînait sous tous les boutons primaires
+  depuis l'ancienne identité ; elle a été retirée.
+- *Le dégradé est réservé au bouton flottant de l'assistant.* Partout ailleurs
+  les boutons sont des aplats — `--grad` existe encore comme token, mais vaut un
+  aplat d'accent.
+
+Thème clair : voir `:root[data-theme="light"]`. Thème `nuit` : palette du **site**
+FitAI, conservée telle quelle. Anatomie : `--anat-body/-line/-muscle` — corps
+**clair** et muscle cible rouge, comme leurs planches.
 
 ## Typographie
 
@@ -40,9 +56,31 @@ Thème clair : voir `:root[data-theme="light"]`. Anatomie : `--anat-body/-line/-
 - Stats : `.num` (chiffres tabulaires, `letter-spacing:-.01em`). Les grands chiffres
   doivent ressortir (poids 850, `.stat b` 1.5rem/850).
 
+## Composants repris de FitAI
+
+- **Barre d'onglets** — plate, collée au bas, du même fond que la page, séparée
+  par un filet. Cinq onglets : Routines · Exercices · Séance · Récupération ·
+  Compte. L'actif ne colore pas tout le bouton : une pastille `--surface-2`
+  arrondie se place derrière la **seule icône**.
+- **Vignette d'exercice** — carré blanc (`--panel`) à coins arrondis, dessin au
+  trait, muscle en rouge. C'est le contraste du clair sur le sombre qui rend un
+  mouvement reconnaissable. Dans les rails, neutraliser le cadre et la pastille
+  de matériel de `.exo-vign` : utiles dans une liste, parasites dans 62 px.
+- **Barre de niveau** — cinq segments de 11 × 6 px. Le catalogue cote de 1 à 4 :
+  la cinquième case reste vide plutôt que d'étirer l'échelle.
+- **Ligne d'exercice** (`ligneExoFitai`) — vignette · nom et volume et niveau ·
+  muscle ciblé avec sa figure et sa fraîcheur. Une seule ligne partout.
+- **Tableau des séries** — lignes pleine largeur touchant les deux bords de la
+  carte, alternance de deux fonds proches, série validée en aplat d'accent, un
+  simple trait sous chaque valeur modifiable plutôt qu'un cadre par cellule.
+- **Grammaire des boutons** — primaire quasi rectangulaire (`--radius-btn`),
+  secondaires en pilules pleinement arrondies, flottant en cercle parfait.
+
 ## Rayons, espaces, ombres, motion
 
-- Rayons : `--radius:18px` (cartes), `--radius-sm:12px`, `--radius-btn:14px` (boutons/CTA).
+- Rayons : `--radius:18px` (cartes), `--radius-sm:12px`, `--radius-btn:12px`
+  (CTA ≈ 12 dp mesuré), `--radius-pill:999px`. Hauteur de CTA : `--h-cta:56px`
+  (152 px à 2,75× sur la capture).
 - Ombres : `--shadow` (carte), `--shadow-lg` (modale/survol).
 - Dégradé d'accent : `--grad:linear-gradient(135deg,var(--accent),var(--accent-2))`.
 - Easing : `--ease:cubic-bezier(.22,1,.36,1)`. Durées 120–320 ms. GPU only
