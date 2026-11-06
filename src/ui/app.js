@@ -6245,7 +6245,11 @@ function vSet(v) {
   const row = h(`<div class="ringstat"></div>`);
   row.append(h(`<div class="avatar">${esc((p.prenom || "A").slice(0, 1).toUpperCase())}</div>`));
   const pi = h(`<div style="flex:1;min-width:0"></div>`);
-  pi.append(h(`<h2 style="margin:0 0 3px">${esc(p.prenom || "Athlète")}</h2>`));
+  pi.append(h(`<h2 style="margin:0 0 1px">${esc(p.prenom || "Athlète")}</h2>`));
+  // Sous-titre « 40 ans · 180 cm », comme la carte Profil de FitAI : l'identité
+  // tient en une ligne, les mesures qui bougent sont dans les colonnes dessous.
+  const ident = [p.age ? `${p.age} ans` : null, p.tailleCm ? `${p.tailleCm} cm` : null].filter(Boolean).join(" · ");
+  if (ident) pi.append(h(`<div class="muted small" style="margin-bottom:3px">${esc(ident)}</div>`));
   const bModif = h(`<button class="linklike">Modifier le profil</button>`);
   bModif.addEventListener("click", async () => { if (await confirmer("Modifier ton profil ? Tu repasses par les questions et ton programme est régénéré (ton historique est conservé).", { ok: "Modifier" })) { DRAFT = { ...p }; STEP = 0; Etat.data.profil = null; render(); } });
   pi.append(bModif);
@@ -6253,11 +6257,13 @@ function vSet(v) {
   hero.append(row);
   v.append(hero);
 
-  // 3 colonnes : Poids · Taille · Âge
+  // 3 colonnes : Objectif · Poids · Fréquence — exactement celles de la carte
+  // Profil de FitAI. Elles répondent à « où je vais, où j'en suis, à quel
+  // rythme » ; la taille et l'âge ne changent pas et sont remontés au-dessus.
   const ps = h(`<div class="profstats"></div>`);
+  ps.append(h(`<div><b>${esc(GOAL_LABELS[p.objectif] || p.objectif || "—")}</b><span>Objectif</span></div>`));
   ps.append(h(`<div><b>${p.poidsKg ? p.poidsKg + " kg" : "—"}</b><span>Poids</span></div>`));
-  ps.append(h(`<div><b>${p.tailleCm ? p.tailleCm + " cm" : "—"}</b><span>Taille</span></div>`));
-  ps.append(h(`<div><b>${p.age || "—"}</b><span>Âge</span></div>`));
+  ps.append(h(`<div><b>${p.joursParSemaine ? p.joursParSemaine + "/sem." : "—"}</b><span>Fréquence</span></div>`));
   v.append(ps);
 
   // Lignes d'informations
@@ -6278,8 +6284,12 @@ function vSet(v) {
     b.addEventListener("click", () => nav(tab));
     outils.append(b);
   };
+  // « Progrès » ouvre ici. Depuis le passage aux cinq onglets de FitAI
+  // (Routines · Exercices · Séance · Récupération · Compte), il n'est plus dans
+  // la barre — comme chez eux, où les statistiques vivent dans le Compte. Cette
+  // entrée est donc son SEUL accès : ne pas la retirer.
+  outil(IC.bars, "mi-blue", "Progrès — stats, records, mensurations", "stats");
   outil(IC.apple, "mi-green", "Nutrition", "food");
-  outil(IC.search, "mi-blue", "Catalogue d'exercices", "cat");
   outil(IC.dumbbell, "mi-indigo", "Programme Anatoly", "anatoly");
   const bCoach = h(`<button class="plusitem"><span class="pm-ic mi-blue">${IC.message}</span><span class="pm-main"><b>Coach — poser une question</b></span><span class="chev">›</span></button>`);
   bCoach.addEventListener("click", () => ouvrirCoach());
