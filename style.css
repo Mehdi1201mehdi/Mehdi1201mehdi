@@ -48,6 +48,10 @@
      FitAI pose ses dessins au trait sur du blanc pur, y compris en thème
      sombre — c'est ce contraste qui rend un exercice reconnaissable d'un coup. */
   --panel:#FFFFFF; --on-panel:#0B0D14;
+  /* Bouton flottant de l'assistant : dégradé bleu → violet mesuré sur les
+     captures (#2478FF au départ, #795DFF à l'arrivée). C'est le seul endroit de
+     l'application où deux teintes se succèdent — il signale « ici, on parle ». */
+  --fab-a:#2478FF; --fab-b:#795DFF;
   /* Figures anatomiques : corps CLAIR, muscle cible rouge — comme FitAI. */
   --anat-body:#C7CAD4; --anat-line:#8D93A3; --anat-muscle:#A8ACB9;
   --anat-primary:#C35B3D; --anat-secondary:#7E3A29;
@@ -121,6 +125,10 @@
      FitAI pose ses dessins au trait sur du blanc pur, y compris en thème
      sombre — c'est ce contraste qui rend un exercice reconnaissable d'un coup. */
   --panel:#FFFFFF; --on-panel:#0B0D14;
+  /* Bouton flottant de l'assistant : dégradé bleu → violet mesuré sur les
+     captures (#2478FF au départ, #795DFF à l'arrivée). C'est le seul endroit de
+     l'application où deux teintes se succèdent — il signale « ici, on parle ». */
+  --fab-a:#2478FF; --fab-b:#795DFF;
   /* Figures anatomiques : corps CLAIR, muscle cible rouge — comme FitAI. */
   --anat-body:#C7CAD4; --anat-line:#8D93A3; --anat-muscle:#A8ACB9;
   --anat-primary:#C35B3D; --anat-secondary:#7E3A29;
@@ -707,6 +715,20 @@ nav.tabs .ico{width:24px;height:24px;display:block;transition:transform .2s var(
 .rt-vig .exo-vign.sm .mini-silhouette{position:absolute;inset:0;
   width:100%;height:100%;border-radius:0;background:none;object-fit:contain;display:block}
 @media (max-width:339px){.rt-m,.rt-mfig{width:54px}.rt-vig{width:54px;height:54px}}
+
+/* ---- Bouton flottant de l'assistant --------------------------------------
+   Posé au-dessus de la barre d'onglets, à droite, comme chez FitAI. Il flotte
+   sur tous les écrans de consultation et disparaît en séance. */
+#fabCoach{position:fixed;right:14px;z-index:calc(var(--z-nav) + 1);
+  bottom:calc(72px + env(safe-area-inset-bottom));
+  width:56px;height:56px;border:0;border-radius:50%;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--fab-a) 0%,var(--fab-b) 100%);color:#FFF;
+  box-shadow:0 10px 26px rgba(36,120,255,.38);
+  transition:transform .18s var(--ease),opacity .18s var(--ease)}
+#fabCoach[hidden]{display:none}
+#fabCoach svg{width:27px;height:27px}
+#fabCoach:active{transform:scale(.94)}
+@media (prefers-reduced-motion: reduce){#fabCoach{transition:none}}
 
 /* Ligne du catalogue, alignée sur la grammaire FitAI : la vignette blanche de
    62 px, le nom, le muscle, puis la barre de niveau. Le reste de `.exline`

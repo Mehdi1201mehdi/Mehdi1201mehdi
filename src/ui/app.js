@@ -135,6 +135,10 @@ function appliquerTheme() {
   if (t === "auto") document.documentElement.removeAttribute("data-theme");
   else document.documentElement.setAttribute("data-theme", t);
 }
+// Bouton flottant de l'assistant : une seule liaison, au chargement. Sa
+// visibilité, elle, est recalculée à chaque changement d'onglet dans majTabs().
+$("#fabCoach")?.addEventListener("click", () => ouvrirCoach());
+
 $("#themeBtn").addEventListener("click", () => {
   // Quatre thèmes depuis l'ajout de « Nuit » : le bouton d'en-tête les fait
   // tourner dans l'ordre, le réglage du Profil permet de choisir directement.
@@ -155,14 +159,22 @@ const TABS = { dash: vDash, prog: vProg, cat: vCatalogue, recup: vRecup, train: 
 const TABS_PLUS = ["food", "anatoly", "stats", "train"];
 /** Titre affiché dans l'en-tête compact des écrans autres que l'Accueil. */
 const TITRES_ECRAN = { prog: "Programme", train: "Séance", stats: "Progrès", food: "Nutrition", cat: "Catalogue", anatoly: "Anatoly", set: "Profil" };
-/** En-tête contextuel : la marque complète ne s'affiche que sur l'Accueil ;
- *  ailleurs, le titre de l'écran remplace l'eyebrow « Musculation » répété
- *  (évite la redondance avec la nav basse et libère de la hauteur). */
+/**
+ * En-tête : la marque, et rien d'autre.
+ *
+ * Le titre reprenait le nom de l'écran courant (« Profil », « Catalogue »…).
+ * C'était une redondance : la barre d'onglets du bas dit déjà où l'on est, et
+ * elle le dit en permanence. FitAI n'affiche jamais que son nom, sur les cinq
+ * onglets. Un en-tête qui ne bouge pas donne un point fixe à l'application.
+ *
+ * `TITRES_ECRAN` reste utilisé ailleurs (titre du document, accessibilité) :
+ * seul l'affichage dans la barre du haut change.
+ */
 function majHeader() {
   const brand = $("#brand"), titre = $("#hdTitle");
   if (!brand || !titre) return;
-  if (TAB === "dash") { brand.classList.remove("compact"); titre.textContent = IDENTITE.nom; }
-  else { brand.classList.add("compact"); titre.textContent = TITRES_ECRAN[TAB] || IDENTITE.nom; }
+  brand.classList.toggle("compact", TAB !== "dash");
+  titre.textContent = IDENTITE.nom;
 }
 function majTabs() {
   $("#tabs").querySelectorAll("button[data-tab]").forEach((b) => {
@@ -171,6 +183,10 @@ function majTabs() {
     if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); // lecteurs d'écran : onglet actif
   });
   placerPilule();
+  // Le bouton flottant suit les écrans de consultation. Il disparaît pendant
+  // une séance : là, le pouce ne doit rencontrer que « Enregistrer la série ».
+  const fab = $("#fabCoach");
+  if (fab) fab.hidden = !Etat.data.profil || TAB === "train";
   const plus = $("#plusBtn");
   if (plus) {
     const on = TABS_PLUS.includes(TAB);
