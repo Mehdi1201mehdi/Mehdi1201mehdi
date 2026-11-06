@@ -3941,6 +3941,67 @@ function sousTitreHero(nom, muscles) {
   return liste;
 }
 
+/**
+ * Disponibilité ramenée aux muscles du CATALOGUE (ceux que portent les
+ * exercices), à partir de l'état fin du moteur. Le groupe le plus entamé
+ * l'emporte : c'est lui qui limitera la séance.
+ * @returns {Record<string, number>}
+ */
+function dispoParMuscle(etat) {
+  /** @type {Record<string, number>} */
+  const parCat = {};
+  for (const cle of CLES_MOTEUR) {
+    const cat = FIN_VERS_CATALOGUE[cle];
+    if (!cat || !etat[cle]) continue;
+    parCat[cat] = Math.min(parCat[cat] ?? 100, etat[cle].readiness);
+  }
+  return parCat;
+}
+
+/**
+ * Ligne d'exercice, reprise des listes de FitAI (captures « Séance » et
+ * « Détail de routine ») : vignette blanche à gauche, nom et volume au centre
+ * avec la barre de niveau à cinq segments, muscle ciblé et sa fraîcheur à
+ * droite. Une seule ligne sert partout — séance du jour, routine, catalogue.
+ *
+ * @param {{exo:any, meta?:string, dispo?:Record<string,number>,
+ *          onClick?:Function, suffixe?:HTMLElement}} o
+ */
+function ligneExoFitai(o) {
+  const exo = o.exo;
+  const muscle = (exo.musclesPrincipaux || [])[0] || null;
+  const row = h(`<div class="lx"></div>`);
+  row.append(h(`<span class="lx-vig">${vignetteHTML(exo, "sm")}</span>`));
+
+  const mid = h(`<div class="lx-mid"></div>`);
+  mid.append(h(`<b class="lx-nom">${esc(exo.nom)}</b>`));
+  if (o.meta) mid.append(h(`<span class="lx-meta">${esc(o.meta)}</span>`));
+  // Cinq cases, comme FitAI. Le catalogue cote de 1 à 4 : la cinquième reste
+  // vide plutôt que d'étirer artificiellement l'échelle.
+  const niv = Math.max(1, Math.min(5, exo.difficulte || 1));
+  mid.append(h(`<span class="lx-niv" role="img" aria-label="Niveau ${niv} sur 5">${
+    [1, 2, 3, 4, 5].map((i) => `<i${i <= niv ? ' class="on"' : ""}></i>`).join("")}</span>`));
+  row.append(mid);
+
+  if (muscle) {
+    const pct = o.dispo ? o.dispo[muscle] : null;
+    row.append(h(`<span class="lx-mus">
+      <em>${esc(MUSCLE_LABELS[muscle] || muscle)}</em>
+      <span class="lx-mfig">${miniSilhouette([muscle])}</span>
+      ${pct != null ? `<b class="num" style="color:${couleurDispo(pct)}">${Math.round(pct)} %</b>` : ""}
+    </span>`));
+  }
+  if (o.suffixe) row.append(o.suffixe);
+  if (o.onClick) {
+    row.classList.add("tap");
+    row.setAttribute("role", "button");
+    row.setAttribute("tabindex", "0");
+    row.addEventListener("click", () => o.onClick());
+    row.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); o.onClick(); } });
+  }
+  return row;
+}
+
 function carteMoteur(v) {
   const logs = Etat.data.logs || [];
   const gen = calculerAuto();
@@ -3970,24 +4031,35 @@ function carteMoteur(v) {
     b.addEventListener("click", () => { LIVE = null; APERCU = null; nav("train"); });
     c.append(b);
   } else {
-    // Composition « séance du jour » : badge, titre fort, muscles ciblés,
-    // trois chiffres, et la silhouette des groupes visés en fond discret.
+    // PROCHAINE SÉANCE — la carte de l'onglet Séance de FitAI. L'écran
+    // n'affichait que trois compteurs ; or avant de partir à la salle, ce qu'on
+    // veut savoir c'est ce qu'on va FAIRE, exercice par exercice. La liste
+    // remplace donc les compteurs, qui reviennent en une ligne sous le titre.
     const muscles = (gen.muscles || []).map((m) => LABELS_MOTEUR[m] || m);
     const nbSeries = gen.exercices.reduce((n, x) => n + (x.series || 0), 0);
-    const hero = h(`<div class="hero-seance">
-      <div class="hero-fig" aria-hidden="true">${silhouetteAuto((gen.muscles || []).map((m) => FIN_VERS_CATALOGUE[m]).filter(Boolean))}</div>
-      <div class="hero-top"><span class="tagline">Séance du jour</span><span class="badge accent">${gen.compatibilite} % compatible</span></div>
-      <div class="hero-corps">
-        <h2 class="hero-titre" data-flip="titre-seance">${esc(gen.nom)}</h2>
-        <div class="hero-sub">${esc(sousTitreHero(gen.nom, muscles))}</div>
-        <div class="hero-chiffres">
-          <span><b class="num">${gen.exercices.length}</b><span>Exercices</span></span>
-          <span><b class="num">${nbSeries}</b><span>Séries</span></span>
-          <span><b class="num">${gen.dureeEstimee}</b><span>Min</span></span>
-        </div>
-      </div>
-    </div>`);
-    c.append(hero);
+    const dispo = dispoParMuscle(gen.etat);
+
+    const head = h(`<div class="ps-head"><span class="eyebrow">Prochaine séance</span></div>`);
+    const bPlans = h(`<button class="ps-plans" type="button"><span class="cic">${IC.layers}</span>Plans</button>`);
+    bPlans.addEventListener("click", () => nav("prog"));
+    head.append(bPlans);
+    c.append(head);
+
+    c.append(h(`<h2 class="ps-titre" data-flip="titre-seance">${esc(gen.nom)}</h2>`));
+    c.append(h(`<div class="ps-sous">${esc(sousTitreHero(gen.nom, muscles))}
+      · ${gen.exercices.length} exos · ${nbSeries} séries · ${gen.dureeEstimee} min
+      · ${gen.compatibilite} % compatible</div>`));
+
+    const liste = h(`<div class="ps-liste"></div>`);
+    gen.exercices.forEach((x) => {
+      const exo = x.exo;
+      if (!exo) return;
+      const plage = exo.repsPertinent || [8, 12];
+      const nb = x.series || 0;
+      const meta = `${nb} série${nb > 1 ? "s" : ""} × ${plage[0]}-${plage[1]} reps`;
+      liste.append(ligneExoFitai({ exo, meta, dispo, onClick: () => ouvrirDetail(exo) }));
+    });
+    c.append(liste);
     // Une séance déjà entamée prime sur la proposition du jour : on la reprend,
     // on ne la remplace pas.
     const enCours = travailEnCours();

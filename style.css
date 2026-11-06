@@ -708,6 +708,64 @@ nav.tabs .ico{width:24px;height:24px;display:block;transition:transform .2s var(
   width:100%;height:100%;border-radius:0;background:none;object-fit:contain;display:block}
 @media (max-width:339px){.rt-m,.rt-mfig{width:54px}.rt-vig{width:54px;height:54px}}
 
+/* En-tête : FitAI ne met que son nom, sans sur-titre. Le mot « Musculation »
+   au-dessus de « Coach Perso » n'apprenait rien et volait une ligne en haut de
+   chaque écran. L'élément reste dans le DOM : le script qui le remplit depuis
+   src/config/identite.js continue de fonctionner sans modification. */
+header.top #hdEyebrow{display:none}
+header.top #hdTitle{font-size:1.12rem;letter-spacing:-.02em}
+
+/* ---- Carte « Prochaine séance » et lignes d'exercice ----------------------
+   L'onglet Séance de FitAI pose la liste des exercices directement dans la
+   carte : on sait ce qu'on va faire avant d'entrer dans la salle, sans ouvrir
+   un seul écran de plus. */
+.ps-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.ps-plans{display:inline-flex;align-items:center;gap:6px;flex:none;
+  background:none;border:1.5px solid var(--accent);color:var(--accent);
+  border-radius:var(--radius-pill);padding:0 14px;min-height:44px;font-size:.84rem;font-weight:650}
+.ps-plans .cic{display:grid;place-items:center;width:15px;height:15px}
+.ps-plans .cic svg{width:15px;height:15px}
+.ps-titre{margin:8px 0 2px;font-size:1.3rem;font-weight:750;letter-spacing:-.02em;line-height:1.18}
+.ps-sous{font-size:.74rem;color:var(--ink-soft);line-height:1.4}
+.ps-liste{margin-top:10px}
+
+/* Ligne d'exercice — vignette, texte, muscle. Trois colonnes fixes : le nom
+   s'élide, les deux bords ne bougent jamais d'une ligne à l'autre. */
+.lx{display:grid;grid-template-columns:62px minmax(0,1fr) auto;align-items:center;gap:10px;
+  padding:9px 0;border-top:1px solid var(--hair)}
+.ps-liste .lx:first-child{border-top:0}
+.lx.tap{cursor:pointer;border-radius:10px;transition:background .16s var(--ease)}
+.lx.tap:hover,.lx.tap:focus-visible{background:var(--surface-2)}
+.lx-vig{width:62px;height:62px;border-radius:10px;overflow:hidden;background:var(--panel);display:block}
+.lx-vig .exo-vign,.lx-vig .exo-vign.sm{display:block;position:relative;width:100%;height:100%;
+  min-height:0;padding:0;border:0;border-radius:0;background:var(--panel);box-shadow:none}
+.lx-vig .exo-matos{display:none}
+.lx-vig .exo-vign.sm .exo-gif,.lx-vig .exo-vign.sm .exo-gif.ok,
+.lx-vig .exo-vign.sm .mini-silhouette{position:absolute;inset:0;width:100%;height:100%;
+  border-radius:0;background:none;object-fit:contain;display:block}
+.lx-mid{min-width:0;display:flex;flex-direction:column;gap:3px}
+.lx-nom{font-size:.92rem;font-weight:700;line-height:1.2;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lx-meta{font-size:.72rem;color:var(--ink-soft);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Barre de niveau à cinq segments : la signature visuelle de FitAI, reprise
+   telle quelle. Le catalogue cote de 1 à 4, la cinquième case reste vide. */
+.lx-niv{display:flex;gap:3px;margin-top:1px}
+.lx-niv i{width:11px;height:6px;border-radius:2px;background:var(--surface-2);display:block}
+.lx-niv i.on{background:var(--accent)}
+.lx-mus{flex:none;width:58px;display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}
+.lx-mus em{font-style:normal;font-size:.58rem;font-weight:650;color:var(--ink-soft);
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lx-mfig{display:block;width:44px;height:50px;border-radius:7px;overflow:hidden;
+  background:var(--bg);border:1px solid var(--hair)}
+.lx-mfig .mini-silhouette{width:100%;height:100%;display:block}
+.lx-mus b{font-size:.78rem;font-weight:800;letter-spacing:-.02em}
+@media (max-width:339px){
+  .lx{grid-template-columns:52px minmax(0,1fr) auto;gap:8px}
+  .lx-vig{width:52px;height:52px}
+  .lx-mus{width:46px}.lx-mfig{width:38px;height:44px}
+}
+
 /* ---- Motion : reveal en cascade des sections ---- */
 @keyframes revealUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 .reveal>*{animation:revealUp .5s var(--ease) both}
