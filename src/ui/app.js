@@ -105,7 +105,7 @@ import { PROGRAMMES_SALLE } from "../data/programmes-salle.js";
 import { DUREES, FREQUENCES, MATERIELS, filtrerProgrammes, nbCriteresActifs, TRIS, basculerFavori, ajouterRecent, ordonner, resoudreIds } from "../engine/bibliotheque.js";
 import { CLES_MOTEUR, LABELS_MOTEUR, DEF_MOTEUR, FIN_VERS_CATALOGUE } from "../data/muscles-moteur.js";
 import { coefficientsPour } from "../data/exercise-muscle-map.js";
-import { etatMusculaire, zoneDisponibilite, cibleVolumeHebdo, analyserSeance, readinessGroupe } from "../engine/fatigue.js";
+import { etatMusculaire, zoneDisponibilite, cibleVolumeHebdo, analyserSeance, readinessGroupe, saturation, combinerFatigue } from "../engine/fatigue.js";
 import { genererProchaineSeance, resumeCorps, compatibiliteExercice, PLAN_PARAMS } from "../engine/planner.js";
 import { expliquerApprentissage, PARAMS_APPRENTISSAGE } from "../engine/apprentissage.js";
 import { creerRepos, restantSec, estEcoule, progression, ajusterRepos, restaurerRepos, formatRestant, retardSec, formatRetard, RETARD_SIGNIFICATIF_SEC, decisionReprise, gelerRepos, degelerRepos, reposEffectif, REPOS_CHOIX } from "../engine/repos.js";
@@ -2100,9 +2100,9 @@ function vApercuSeance(v, seanceId) {
   v.append(h(`<div class="muted small">${s.exercices.length} exercices · ~${s.dureeEstimeeMin || 0} min</div>`));
   const muscles = musclesSeance(s);
   // Muscles ciblés en illustrations (une silhouette surlignée par groupe)
-  const rangee = bandeRecuperation(muscles);
+  const rangee = bandeRecuperation(muscles, s);
   if (rangee) {
-    v.append(h(`<div class="eyebrow" style="margin:14px 0 2px">Muscles travaillés · récupération</div>`));
+    v.append(h(`<div class="eyebrow" style="margin:14px 0 2px">Muscles sollicités · avant et après</div>`));
     v.append(rangee);
   }
   else if (muscles.length) {
@@ -4241,7 +4241,7 @@ function vRecup(v) {
     .sort((a, b) => a.r - b.r)
     .forEach(({ cle, r }) => {
       const cat = FIN_VERS_CATALOGUE[cle];
-      const row = h(`<button class="recup-row" type="button">
+      const row = h(`<button class="rcp-row" type="button">
         <span class="recup-vig">${cat ? miniSilhouette([cat]) : ""}</span>
         <span class="recup-txt"><b>${esc(LABELS_MOTEUR[cle])}</b>
           <em class="num" style="color:${couleurDispo(r)}">${Math.round(r)} %</em></span>
@@ -6026,10 +6026,54 @@ function carteRecup(v) {
  *
  * @param {string[]} muscles clés de muscles du catalogue
  */
-function bandeRecuperation(muscles) {
+/**
+ * Ce que la séance VA COÛTER, muscle par muscle.
+ *
+ * FitAI affiche « 100 % à 46 % » au-dessus de chaque muscle d'une routine : la
+ * fraîcheur actuelle, puis celle qui restera une fois la séance faite. C'est
+ * l'information la plus utile avant de commencer — elle dit si le programme de
+ * demain tiendra encore.
+ *
+ * Le calcul n'invente rien : il réutilise la chaîne du moteur de fatigue
+ * (`analyserSeance` → `saturation` → `combinerFatigue`). `analyserSeance`
+ * attend un JOURNAL de séance réalisée ; on lui en fabrique un à partir des
+ * séries PRÉVUES. Deux hypothèses, et elles sont assumées : les répétitions
+ * sont prises au milieu de la fourchette visée, et l'effort à RIR 2 — une série
+ * de travail menée près de l'échec sans y aller. Les séries d'échauffement sont
+ * exclues, comme elles le sont dans le calcul d'une séance réelle.
+ *
+ * @returns {Record<string, number>|null} readiness projeté par muscle du catalogue
+ */
+function projectionSeance(seance, etat) {
+  if (!seance || !Array.isArray(seance.exercices) || !seance.exercices.length) return null;
+  const journal = { exercices: seance.exercices.map((e) => ({
+    exerciceId: e.exerciceId,
+    series: (e.series || []).filter((s) => s.type !== "echauffement").map((s) => ({
+      reps: s.dureeSec ? 0 : (s.repsCible ? Math.round((s.repsCible[0] + s.repsCible[1]) / 2) : 10),
+      chargeKg: 0,
+      dureeSec: s.dureeSec || 0,
+      rir: 2,
+    })),
+  })) };
+  const { parMuscle } = analyserSeance(journal, getExercise);
+  /** @type {Record<string, number>} */
+  const out = {};
+  for (const [cleFine, d] of Object.entries(parMuscle)) {
+    const cat = FIN_VERS_CATALOGUE[cleFine] || cleFine;
+    const fatigueAvant = etat && etat[cleFine] ? 100 - etat[cleFine].readiness : 0;
+    const reste = Math.round(100 - combinerFatigue(fatigueAvant, saturation(d.stress)));
+    // Une catégorie peut couvrir plusieurs clés fines : on retient la plus
+    // entamée, c'est elle qui limitera la prochaine séance.
+    out[cat] = out[cat] == null ? reste : Math.min(out[cat], reste);
+  }
+  return out;
+}
+
+function bandeRecuperation(muscles, seance = null) {
   const list = (muscles || []).filter((m) => m !== "corps_entier").slice(0, 8);
   if (!list.length) return null;
   const etat = (AUTO && AUTO.etat) || etatMusculaire(Etat.data.logs || [], getExercise, Date.now());
+  const apresParMuscle = projectionSeance(seance, etat);
   const row = h(`<div class="musc-row recup-row"></div>`);
   let connus = 0;
   for (const m of list) {
@@ -6045,8 +6089,12 @@ function bandeRecuperation(muscles) {
     const cell = h(`<button class="musc-cell recup-cell ton-${ton}" aria-label="${esc(MUSCLE_LABELS[m] || m)}${r == null ? "" : ` — ${r} % récupéré, ${esc(z.nom)}`}">
       <span class="musc-sil">${miniSilhouette([m])}</span>
       <span class="rc-nom">${esc(MUSCLE_LABELS[m] || m)}</span>
-      <span class="rc-pct num">${r == null ? "—" : r + " %"}</span>
-      <span class="rc-bar"><i style="width:${r == null ? 0 : r}%"></i></span>
+      <span class="rc-pct num">${r == null ? "—"
+        : (apresParMuscle && apresParMuscle[m] != null
+          ? `${r} %<em> à </em><b>${apresParMuscle[m]} %</b>`
+          : `${r} %`)}</span>
+      <span class="rc-bar"><i style="width:${
+        apresParMuscle && apresParMuscle[m] != null ? apresParMuscle[m] : (r == null ? 0 : r)}%"></i></span>
     </button>`);
     // La tuile ouvre la fiche du muscle : le pourcentage donne l'alerte, la
     // fiche donne l'historique qui l'explique.

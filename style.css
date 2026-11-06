@@ -627,12 +627,12 @@ nav.tabs .ico{width:24px;height:24px;display:block;transition:transform .2s var(
 .recup-liste{display:flex;flex-direction:column;gap:4px;min-width:0}
 .recup-entete{display:flex;justify-content:space-between;gap:6px;padding:0 4px 4px;
   font-size:.64rem;font-weight:700;color:var(--ink-soft);letter-spacing:.02em}
-.recup-row{display:grid;grid-template-columns:34px 1fr 16px;align-items:center;gap:8px;
+.rcp-row{display:grid;grid-template-columns:34px 1fr 16px;align-items:center;gap:8px;
   width:100%;text-align:left;border:0;background:var(--surface);color:var(--ink);
   border-radius:var(--radius-sm);padding:6px 8px;min-height:var(--tap);
   transition:background .18s var(--ease),transform .18s var(--ease)}
-.recup-row:active{transform:scale(.98)}
-.recup-row:hover{background:var(--surface-2)}
+.rcp-row:active{transform:scale(.98)}
+.rcp-row:hover{background:var(--surface-2)}
 /* La vignette reprend le cadre fin de FitAI : fond sombre, filet discret. */
 .recup-vig{display:grid;place-items:center;width:34px;height:38px;border-radius:8px;
   background:var(--bg);border:1px solid var(--hair);overflow:hidden}
@@ -645,7 +645,7 @@ nav.tabs .ico{width:24px;height:24px;display:block;transition:transform .2s var(
 .recup-cta{width:100%;margin-top:14px;min-height:var(--h-cta)}
 /* En dessous de 340 px la vignette mange le nom : on la retire, le chiffre reste. */
 @media (max-width:339px){
-  .recup-row{grid-template-columns:1fr 14px}
+  .rcp-row{grid-template-columns:1fr 14px}
   .recup-vig{display:none}
 }
 
@@ -760,6 +760,16 @@ nav.tabs .ico{width:24px;height:24px;display:block;transition:transform .2s var(
 .exocard .mbadge{flex:none;min-height:32px;padding:5px 10px;font-size:.68rem;white-space:nowrap}
 /* La pastille reste petite à l'œil mais garde une zone de contact de 44 px. */
 .exocard .mbadge::after{content:"";position:absolute;inset:-6px}
+
+/* « 100 % à 46 % » : la fraîcheur d'aujourd'hui, puis celle qui restera une
+   fois la séance faite. Le chiffre d'arrivée est en magenta, comme l'échelle de
+   récupération ; la barre montre ce qu'il restera, pas ce qu'on a. */
+.rc-pct em{font-style:normal;font-weight:600;color:var(--ink-soft);font-size:.82em}
+.rc-pct b{color:var(--recup-fatigue);font-weight:850}
+/* La cellule portait un seul nombre et tenait en 78 px ; elle en porte deux et
+   le texte se cassait en deux lignes avec le nom tronqué. Elle s'élargit, et la
+   bande défile plutôt que de passer à la ligne. */
+.recup-row .rc-bar i{background:var(--recup-encours)}
 
 /* ---- Bouton flottant de l'assistant --------------------------------------
    Posé au-dessus de la barre d'onglets, à droite, comme chez FitAI. Il flotte
@@ -2475,14 +2485,16 @@ button.cat-fav{top:8px;left:8px;right:auto;z-index:4}
    Trois tons seulement, repris des zones du moteur de fatigue. Cinq nuances
    seraient indiscernables sur une barre de 3 px. */
 .recup-row{gap:9px;margin:6px 0 2px;align-items:stretch}
+/* 118 px et non 78 : la cellule porte désormais DEUX nombres (« 100 % à 45 % »),
+   la fraîcheur d'aujourd'hui et celle qui restera après la séance. */
 button.recup-cell{
-  width:78px;padding:8px 6px 9px;min-height:auto;gap:4px;
+  width:118px;padding:8px 6px 9px;min-height:auto;gap:4px;
   background:var(--surface);border:1px solid var(--hair);border-radius:14px;color:var(--ink)}
 button.recup-cell:active{background:var(--surface-2)}
 .recup-cell .musc-sil .mini-silhouette{width:38px;height:62px;background:transparent;border:0;padding:0}
 .recup-cell .rc-nom{font-size:.62rem;font-weight:750;color:var(--ink-soft);line-height:1.15;
-  text-align:center;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.recup-cell .rc-pct{font-size:.84rem;font-weight:850;letter-spacing:-.02em;line-height:1}
+  text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.recup-cell .rc-pct{font-size:.74rem;font-weight:850;letter-spacing:-.02em;line-height:1;white-space:nowrap}
 .recup-cell .rc-bar{display:block;width:100%;height:3px;border-radius:999px;background:var(--surface-3);overflow:hidden}
 .recup-cell .rc-bar i{display:block;height:100%;border-radius:999px;transition:width .4s var(--ease)}
 /* Frais ou prêt : on peut y aller. */
