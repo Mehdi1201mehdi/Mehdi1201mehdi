@@ -28,28 +28,44 @@
 }
 /* SOMBRE PAR DÉFAUT — univers « Coach Perso » (musculation premium, noirs profonds) */
 :root{
-  --bg:#0D1013; --bg-deep:#07090B; --surface:#15191D; --surface-2:#1B2025; --surface-3:#20262B; --elevated:#111518;
-  --ink:#F5F7F8; --ink-soft:#9AA3AD; --faint:#838D99;
-  --line:#252C32; --hair:rgba(255,255,255,.07);
-  --accent:#B7E63A; --accent-2:#91C91E; --accent-light:#C8F55A; --accent-dark:#91C91E; --on-accent:#101507;
-  --accent-ink:#C8F55A; --accent-soft:rgba(183,230,58,.12); --accent-glow:rgba(183,230,58,.20); --glow:rgba(183,230,58,.20);
-  --lime:#B7E63A; --amber:#F59E0B; --amber-soft:rgba(245,158,11,.14); --danger:#EF4444; --danger-soft:rgba(239,68,68,.14);
-  --warning:#F59E0B;
-  --ok:#B7E63A; --ok-soft:rgba(183,230,58,.14); --orange:#F59E0B; --indigo:#9AA3AD; --pink:#EF4444;
-  --anat-body:#30363B; --anat-line:#454D54; --anat-muscle:#3A4249;
-  --anat-primary:#B7E63A; --anat-secondary:#789A30;
+  /* Palette relevée au pixel sur des captures PLEINE RÉSOLUTION (1080×2460) de
+     l'application FitAI — cf. docs/REFERENCE_FITAI.md. Chaque valeur est un aplat
+     majoritaire mesuré, pas une estimation. Ne pas confondre avec la palette du
+     SITE FitAI (plus cyan, #0091FF), conservée dans le thème « nuit » plus bas. */
+  --bg:#050217; --bg-deep:#02000C; --surface:#1E1F34; --surface-2:#27274B; --surface-3:#2F3055; --elevated:#1A1B2E;
+  --ink:#FFFFFF; --ink-soft:#9CA1B4; --faint:#969BAF;
+  --line:#27274B; --hair:rgba(156,161,180,.14);
+  --accent:#2478FF; --accent-2:#1F6FEF; --accent-light:#5B9BFF; --accent-dark:#1A66E0; --on-accent:#FFFFFF;
+  --accent-ink:#2478FF; --accent-soft:rgba(36,120,255,.14); --accent-glow:rgba(36,120,255,.22); --glow:rgba(36,120,255,.22);
+  --lime:#2478FF; --amber:#FFB800; --amber-soft:rgba(255,184,0,.14); --danger:#E53935; --danger-soft:rgba(229,57,53,.15);
+  --warning:#FFB800;
+  /* FitAI valide en BLEU — coche et ligne de série actives. Le seul vert de l'app
+     (#148614) est celui du bandeau d'abonnement : il n'entre pas dans le système. */
+  --ok:#2478FF; --ok-soft:rgba(36,120,255,.14); --orange:#FF8A00; --indigo:#9CA1B4; --pink:#F500FE;
+  /* Échelle de récupération, relevée sur la légende de l'onglet Récupération. */
+  --recup-fatigue:#F500FE; --recup-encours:#FA8CFF; --recup-frais:#FFFFFF;
+  /* Figures anatomiques : corps CLAIR, muscle cible rouge — comme FitAI. */
+  --anat-body:#C7CAD4; --anat-line:#8D93A3; --anat-muscle:#A8ACB9;
+  --anat-primary:#C35B3D; --anat-secondary:#7E3A29;
   --shadow:0 8px 24px rgba(0,0,0,.44);
   --shadow-lg:0 24px 60px rgba(0,0,0,.55);
-  --radius:20px; --radius-sm:14px; --radius-btn:14px; --radius-lg:24px;
+  /* Rayons mesurés sur les captures : bouton principal ≈ 12 dp (33 px de courbe
+     à 2,75×), cartes ≈ 18 dp, pastilles et chips entièrement arrondies. */
+  --radius:18px; --radius-sm:12px; --radius-btn:12px; --radius-lg:24px; --radius-pill:999px;
+  /* Hauteur du bouton principal mesurée : 152 px à 2,75× = 55 dp. */
+  --h-cta:56px;
   --shadow:0 8px 24px rgba(0,0,0,.42);
   --shadow-lg:0 24px 60px rgba(0,0,0,.6);
-  --grad:linear-gradient(135deg,#C8F55A 0%,#A8DE30 58%,#87BE17 100%);
-  /* Le dégradé est lime dans les DEUX thèmes : son encre ne suit donc pas le thème. */
-  --on-grad:#101507;
+  /* FitAI remplit ses boutons d'un APLAT, pas d'un dégradé : #2478FF mesuré à
+     85 % de la surface du bouton. Le token reste un gradient pour ne rien casser. */
+  --grad:linear-gradient(180deg,var(--accent) 0%,var(--accent) 100%);
+  --on-grad:#FFFFFF;
   --ease:cubic-bezier(.22,1,.36,1);
-  /* Deux familles, deux rôles. Anton porte les titres ; Inter porte TOUT le
-     reste, et en particulier chaque chiffre — cf. la règle ci-dessous. */
-  --font-titre:"Anton","Inter","SF Pro Display",system-ui,sans-serif;
+  /* FitAI n'emploie qu'UNE famille, de l'en-tête au chiffre : les titres sont le
+     même sans en gras serré, jamais une display condensée. Anton reste chargée
+     (@font-face plus haut) pour pouvoir revenir en arrière d'une seule ligne. */
+  --font-titre:"Inter","SF Pro Display",system-ui,sans-serif;
+  --titre-weight:800; --titre-tracking:-.02em;
   --tap:50px; font-size:16px;
 
   /* Espacements — échelle unique, aucune valeur arbitraire ailleurs */
@@ -81,16 +97,25 @@
   --z-splash:130;    /* écran de démarrage */
 }
 :root[data-theme="dark"]{
-  --bg:#0D1013; --bg-deep:#07090B; --surface:#15191D; --surface-2:#1B2025; --surface-3:#20262B; --elevated:#111518;
-  --ink:#F5F7F8; --ink-soft:#9AA3AD; --faint:#838D99;
-  --line:#252C32; --hair:rgba(255,255,255,.07);
-  --accent:#B7E63A; --accent-2:#91C91E; --accent-light:#C8F55A; --accent-dark:#91C91E; --on-accent:#101507;
-  --accent-ink:#C8F55A; --accent-soft:rgba(183,230,58,.12); --accent-glow:rgba(183,230,58,.20); --glow:rgba(183,230,58,.20);
-  --lime:#B7E63A; --amber:#F59E0B; --amber-soft:rgba(245,158,11,.14); --danger:#EF4444; --danger-soft:rgba(239,68,68,.14);
-  --warning:#F59E0B;
-  --ok:#B7E63A; --ok-soft:rgba(183,230,58,.14); --orange:#F59E0B; --indigo:#9AA3AD; --pink:#EF4444;
-  --anat-body:#30363B; --anat-line:#454D54; --anat-muscle:#3A4249;
-  --anat-primary:#B7E63A; --anat-secondary:#789A30;
+  /* Palette relevée au pixel sur des captures PLEINE RÉSOLUTION (1080×2460) de
+     l'application FitAI — cf. docs/REFERENCE_FITAI.md. Chaque valeur est un aplat
+     majoritaire mesuré, pas une estimation. Ne pas confondre avec la palette du
+     SITE FitAI (plus cyan, #0091FF), conservée dans le thème « nuit » plus bas. */
+  --bg:#050217; --bg-deep:#02000C; --surface:#1E1F34; --surface-2:#27274B; --surface-3:#2F3055; --elevated:#1A1B2E;
+  --ink:#FFFFFF; --ink-soft:#9CA1B4; --faint:#969BAF;
+  --line:#27274B; --hair:rgba(156,161,180,.14);
+  --accent:#2478FF; --accent-2:#1F6FEF; --accent-light:#5B9BFF; --accent-dark:#1A66E0; --on-accent:#FFFFFF;
+  --accent-ink:#2478FF; --accent-soft:rgba(36,120,255,.14); --accent-glow:rgba(36,120,255,.22); --glow:rgba(36,120,255,.22);
+  --lime:#2478FF; --amber:#FFB800; --amber-soft:rgba(255,184,0,.14); --danger:#E53935; --danger-soft:rgba(229,57,53,.15);
+  --warning:#FFB800;
+  /* FitAI valide en BLEU — coche et ligne de série actives. Le seul vert de l'app
+     (#148614) est celui du bandeau d'abonnement : il n'entre pas dans le système. */
+  --ok:#2478FF; --ok-soft:rgba(36,120,255,.14); --orange:#FF8A00; --indigo:#9CA1B4; --pink:#F500FE;
+  /* Échelle de récupération, relevée sur la légende de l'onglet Récupération. */
+  --recup-fatigue:#F500FE; --recup-encours:#FA8CFF; --recup-frais:#FFFFFF;
+  /* Figures anatomiques : corps CLAIR, muscle cible rouge — comme FitAI. */
+  --anat-body:#C7CAD4; --anat-line:#8D93A3; --anat-muscle:#A8ACB9;
+  --anat-primary:#C35B3D; --anat-secondary:#7E3A29;
   --shadow:0 8px 24px rgba(0,0,0,.44);
   --shadow-lg:0 24px 60px rgba(0,0,0,.55);
 }
@@ -532,21 +557,78 @@ button.linklike{background:transparent;border:none;min-height:44px;display:inlin
 .ss-tag{display:inline-block;margin-top:3px;padding:1px 7px;border-radius:999px;font-size:var(--fs-caption);
   font-weight:800;letter-spacing:.04em;background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent)}
 
+/* ---- Barre d'onglets ------------------------------------------------------
+   Reproduit la barre de FitAI, relevée sur capture 1080×2460 : une barre PLATE
+   collée au bas de l'écran, du même bleu-noir que la page (#050217, mesuré à
+   99,8 % sur la zone), séparée du contenu par un simple filet. Pas de capsule
+   flottante, pas de flou, pas d'ombre portée.
+   L'onglet actif ne colore pas tout le bouton : une pastille rectangulaire
+   arrondie (#27274B, mesurée à 60 % de la zone) se place DERRIÈRE la seule
+   icône, l'icône et le libellé passant en bleu d'accent. */
 nav.tabs{position:fixed;left:0;right:0;z-index:var(--z-nav);pointer-events:none;
-  bottom:calc(10px + env(safe-area-inset-bottom));background:none;border:0;backdrop-filter:none}
-nav.tabs .wrap{display:flex;gap:2px;margin:0 auto;max-width:min(440px,calc(100% - 24px));padding:7px;
-  pointer-events:auto;border-radius:22px;
-  background:rgba(17,21,24,.92);backdrop-filter:blur(22px) saturate(1.35);-webkit-backdrop-filter:blur(22px) saturate(1.35);
-  border:1px solid rgba(255,255,255,.08);box-shadow:0 18px 50px rgba(0,0,0,.55)}
-:root[data-theme="light"] nav.tabs .wrap{background:rgba(255,255,255,.92);border-color:var(--line);box-shadow:0 14px 34px rgba(20,28,12,.16)}
-nav.tabs button{flex:1;border:none;background:none;min-height:46px;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;gap:3px;font-size:var(--fs-caption);font-weight:650;color:var(--faint);padding:6px 2px;border-radius:15px;
-  transition:color .18s var(--ease),background .18s var(--ease),transform .2s var(--ease)}
-nav.tabs button.on{color:var(--accent);background:rgba(183,230,58,.075)}
-:root[data-theme="light"] nav.tabs button.on{background:var(--accent-soft)}
+  bottom:0;background:none;border:0;backdrop-filter:none}
+nav.tabs .wrap{display:flex;gap:0;margin:0;max-width:none;
+  padding:6px 4px calc(6px + env(safe-area-inset-bottom));
+  pointer-events:auto;border-radius:0;
+  background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none;
+  border:0;border-top:1px solid var(--hair);box-shadow:none}
+:root[data-theme="light"] nav.tabs .wrap{background:var(--bg);border-top-color:var(--line);box-shadow:none}
+nav.tabs button{flex:1;min-width:0;border:none;background:none;min-height:54px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:3px;font-size:.68rem;font-weight:600;color:var(--faint);
+  padding:2px 1px;border-radius:0;letter-spacing:-.01em;
+  transition:color .18s var(--ease),transform .2s var(--ease)}
+/* La pastille vit dans ce conteneur : elle entoure l'icône, pas le libellé. */
+nav.tabs .tb-i{display:grid;place-items:center;width:62px;height:34px;border-radius:14px;
+  transition:background .18s var(--ease)}
+nav.tabs button.on{color:var(--accent);background:none}
+/* Le fond de la pastille est porté par #tabPill (qui glisse d'un onglet à
+   l'autre) ; .tb-i ne garde qu'un repli si le script n'a pas pu la placer. */
+nav.tabs .wrap:not(:has(.tab-pill.pret)) button.on .tb-i{background:var(--surface-2)}
 nav.tabs button:active{transform:scale(.97)}
-nav.tabs .ico{width:23px;height:23px;display:block;transition:transform .2s var(--ease)}
-nav.tabs button.on .ico{transform:translateY(-1px)}
+nav.tabs .ico{width:24px;height:24px;display:block;transition:transform .2s var(--ease)}
+/* Sous 360 px, « Récupération » ne tient plus : on réduit sans tronquer. */
+@media (max-width:359px){nav.tabs button{font-size:.6rem}nav.tabs .tb-i{width:52px}}
+/* ---- Onglet Récupération --------------------------------------------------
+   Disposition relevée sur FitAI : deux colonnes dès 320 px — le corps à gauche,
+   la liste muscle par muscle à droite. Le corps n'est pas réduit à une vignette
+   décorative : c'est lui qu'on regarde, la liste ne fait que le chiffrer. */
+.recup-grille{display:grid;grid-template-columns:1.05fr .95fr;gap:10px;align-items:start}
+.recup-corps{position:relative}
+.recup-corps .anat2{gap:4px}
+/* Le corps occupe tout le cadre : sans réserve en bas, « AVANT » / « ARRIÈRE »
+   se posaient sur les pieds. On creuse une bande pour le libellé. */
+.recup-corps .anview{aspect-ratio:1/2.22;padding-bottom:15px}
+.recup-corps .bodysvg{inset:0 0 15px}
+.recup-corps .anview .lab{bottom:1px;font-size:.58rem;letter-spacing:.04em}
+.recup-legende{display:flex;flex-wrap:wrap;gap:4px 10px;justify-content:center;margin-top:8px;
+  font-size:.66rem;color:var(--ink-soft)}
+.recup-legende span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.recup-legende i{width:8px;height:8px;border-radius:50%;flex:none}
+.recup-liste{display:flex;flex-direction:column;gap:4px;min-width:0}
+.recup-entete{display:flex;justify-content:space-between;gap:6px;padding:0 4px 4px;
+  font-size:.64rem;font-weight:700;color:var(--ink-soft);letter-spacing:.02em}
+.recup-row{display:grid;grid-template-columns:34px 1fr 16px;align-items:center;gap:8px;
+  width:100%;text-align:left;border:0;background:var(--surface);color:var(--ink);
+  border-radius:var(--radius-sm);padding:6px 8px;min-height:var(--tap);
+  transition:background .18s var(--ease),transform .18s var(--ease)}
+.recup-row:active{transform:scale(.98)}
+.recup-row:hover{background:var(--surface-2)}
+/* La vignette reprend le cadre fin de FitAI : fond sombre, filet discret. */
+.recup-vig{display:grid;place-items:center;width:34px;height:38px;border-radius:8px;
+  background:var(--bg);border:1px solid var(--hair);overflow:hidden}
+.recup-vig .mini-silhouette{width:100%;height:100%;display:block}
+.recup-txt{display:flex;flex-direction:column;gap:1px;min-width:0}
+.recup-txt b{font-size:.74rem;font-weight:650;line-height:1.15;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.recup-txt em{font-style:normal;font-size:.95rem;font-weight:800;letter-spacing:-.02em}
+.recup-fl{width:16px;height:16px;color:var(--faint);flex:none}
+.recup-cta{width:100%;margin-top:14px;min-height:var(--h-cta)}
+/* En dessous de 340 px la vignette mange le nom : on la retire, le chiffre reste. */
+@media (max-width:339px){
+  .recup-row{grid-template-columns:1fr 14px}
+  .recup-vig{display:none}
+}
+
 /* ---- Motion : reveal en cascade des sections ---- */
 @keyframes revealUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 .reveal>*{animation:revealUp .5s var(--ease) both}
@@ -1324,13 +1406,13 @@ body{background-color:var(--bg)}
    L'indicateur ne clignote plus d'un onglet à l'autre : il GLISSE. Un seul
    élément déplacé en `transform`, donc zéro reflow. */
 nav.tabs .wrap{position:relative}
-.tab-pill{position:absolute;top:7px;bottom:7px;left:0;width:0;border-radius:15px;pointer-events:none;
-  background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 17%,transparent),
-                                     color-mix(in srgb,var(--accent) 9%,transparent));
-  border:1px solid color-mix(in srgb,var(--accent) 26%,transparent);
-  box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 20%,transparent);
+/* Pastille de l'onglet actif : elle n'entoure QUE l'icône, comme chez FitAI.
+   Aplat #27274B (mesuré), sans bordure ni lueur. Sa position et sa taille sont
+   calées sur le .tb-i actif par placerPilule(). */
+.tab-pill{position:absolute;top:6px;left:0;width:0;height:34px;border-radius:14px;pointer-events:none;
+  background:var(--surface-2);border:0;box-shadow:none;
   opacity:0;transform:translate3d(0,0,0);
-  transition:transform .34s var(--ease),width .34s var(--ease),opacity .2s ease}
+  transition:transform .3s var(--ease),width .3s var(--ease),opacity .2s ease}
 .tab-pill.pret{opacity:1}
 /* La pilule remplace le fond de l'onglet actif. */
 nav.tabs button.on{background:none}

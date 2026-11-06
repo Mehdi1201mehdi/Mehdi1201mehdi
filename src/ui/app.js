@@ -146,8 +146,13 @@ $("#themeBtn").addEventListener("click", () => {
 
 /* ---------- navigation ---------- */
 let TAB = "dash";
-const TABS = { dash: vDash, prog: vProg, cat: vCatalogue, train: vTrain, food: vNutrition, stats: vStats, set: vSet, anatoly: vAnatoly };
-const TABS_PLUS = ["food", "anatoly", "cat"]; // sous-écrans hors barre (accès via Accueil / Profil)
+const TABS = { dash: vDash, prog: vProg, cat: vCatalogue, recup: vRecup, train: vTrain, food: vNutrition, stats: vStats, set: vSet, anatoly: vAnatoly };
+// Sous-écrans hors barre. Depuis le passage aux 5 onglets de FitAI
+// (Routines · Exercices · Séance · Récupération · Compte), « Progrès » et la
+// séance active ne sont plus dans la barre : ils restent atteignables, l'un
+// depuis le Compte (comme la carte « Stats » de FitAI), l'autre au démarrage
+// d'une séance. Aucune vue n'a été supprimée.
+const TABS_PLUS = ["food", "anatoly", "stats", "train"];
 /** Titre affiché dans l'en-tête compact des écrans autres que l'Accueil. */
 const TITRES_ECRAN = { prog: "Programme", train: "Séance", stats: "Progrès", food: "Nutrition", cat: "Catalogue", anatoly: "Anatoly", set: "Profil" };
 /** En-tête contextuel : la marque complète ne s'affiche que sur l'Accueil ;
@@ -185,11 +190,15 @@ function placerPilule() {
   const pil = $("#tabPill"), nav2 = $("#tabs");
   if (!pil || !nav2 || nav2.hidden) return;
   const actif = nav2.querySelector("button[data-tab].on");
-  if (!actif) { pil.classList.remove("pret"); return; }
-  const w = actif.offsetWidth;
+  // La pastille n'entoure que l'ICÔNE (comme FitAI), pas tout le bouton : on se
+  // cale donc sur le .tb-i, dont la position est relative au bouton, lui-même
+  // positionné dans .wrap — d'où l'addition des deux décalages.
+  const ico = actif && actif.querySelector(".tb-i");
+  if (!actif || !ico) { pil.classList.remove("pret"); return; }
+  const w = ico.offsetWidth;
   if (!w) return;   // barre pas encore mesurable (onglets masqués au démarrage)
   pil.style.width = w + "px";
-  pil.style.transform = `translate3d(${actif.offsetLeft}px,0,0)`;
+  pil.style.transform = `translate3d(${actif.offsetLeft + ico.offsetLeft}px,0,0)`;
   pil.classList.add("pret");
 }
 // La largeur des onglets suit celle de l'écran : la pilule doit suivre aussi.
@@ -3701,13 +3710,18 @@ async function demarrerAuto() {
   nav("train");
 }
 
-/** Couleur d'une disponibilité, cohérente avec les zones du moteur. */
+/**
+ * Couleur d'une disponibilité.
+ *
+ * Trois paliers, comme la légende de l'onglet Récupération de FitAI — « Frais »,
+ * « En récupération », « Fatigué » — au lieu des cinq teintes précédentes. Une
+ * échelle à trois crans se lit d'un coup d'œil entre deux séries ; cinq
+ * demandaient de réfléchir.
+ */
 function couleurDispo(r) {
-  if (r >= 90) return "var(--ok)";
-  if (r >= 75) return "var(--accent)";
-  if (r >= 60) return "var(--amber)";
-  if (r >= 40) return "var(--orange)";
-  return "var(--danger)";
+  if (r >= 85) return "var(--recup-frais)";
+  if (r >= 50) return "var(--recup-encours)";
+  return "var(--recup-fatigue)";
 }
 
 /**
@@ -3850,9 +3864,12 @@ function carteMoteur(v) {
   const corps = h(`<button class="card corps-resume" aria-label="Voir l'état musculaire"></button>`);
   corps.append(h(`<span class="spread moteur-head"><span class="eyebrow">Ton corps</span><span class="chev">État musculaire ›</span></span>`));
   const tri = h(`<div class="moteur-tri"></div>`);
-  tri.append(h(`<span><b class="num" style="color:var(--accent)">${res.prets}</b><span>prêts</span></span>`));
-  tri.append(h(`<span><b class="num" style="color:var(--amber)">${res.recup}</b><span>en récup.</span></span>`));
-  tri.append(h(`<span><b class="num" style="color:var(--danger)">${res.sollicites}</b><span>sollicités</span></span>`));
+  // Les trois compteurs reprennent l'échelle de la légende « Récupération »
+  // (frais · en récupération · fatigué) : une seule grammaire de couleur pour
+  // un même état, qu'on le lise ici ou sur la carte corporelle.
+  tri.append(h(`<span><b class="num" style="color:var(--recup-frais)">${res.prets}</b><span>prêts</span></span>`));
+  tri.append(h(`<span><b class="num" style="color:var(--recup-encours)">${res.recup}</b><span>en récup.</span></span>`));
+  tri.append(h(`<span><b class="num" style="color:var(--recup-fatigue)">${res.sollicites}</b><span>sollicités</span></span>`));
   corps.append(tri);
   corps.addEventListener("click", () => ouvrirEtatMusculaire());
 
@@ -3962,6 +3979,83 @@ function detailMuscle(cle, etat, profil) {
   sheet.querySelector("#dmX").addEventListener("click", () => sheet.remove());
   sheet.addEventListener("click", (ev) => { if (ev.target === sheet) sheet.remove(); });
   document.body.append(sheet);
+}
+
+/**
+ * Onglet « Récupération ».
+ *
+ * Reprend la disposition de l'écran du même nom de FitAI, relevée sur capture :
+ * un grand corps à gauche teinté par la disponibilité, la liste muscle par
+ * muscle à droite (vignette · nom · pourcentage · chevron), la légende en trois
+ * paliers sous le corps, et en bas l'action « Séance sur muscles reposés ».
+ *
+ * Aucune donnée nouvelle : tout vient du moteur de fatigue déjà en place
+ * (`etatMusculaire`), exactement comme la feuille « État musculaire », qui reste
+ * accessible depuis l'Accueil et n'est pas modifiée.
+ */
+function vRecup(v) {
+  const gen = AUTO || calculerAuto();
+  const etat = gen.etat;
+  const p = Etat.data.profil || {};
+
+  // Disponibilité par catégorie du catalogue : le groupe fin le PLUS entamé
+  // l'emporte, sinon un muscle frais masquerait un muscle à plat sur la figure.
+  /** @type {Record<string, number>} */
+  const parCat = {};
+  for (const cle of CLES_MOTEUR) {
+    const cat = FIN_VERS_CATALOGUE[cle];
+    if (!cat) continue;
+    parCat[cat] = Math.min(parCat[cat] ?? 100, etat[cle].readiness);
+  }
+  /** @type {Record<string, number>} */
+  const intensites = {};
+  for (const [cat, r] of Object.entries(parCat)) intensites[cat] = (100 - r) / 100;
+
+  const grille = h(`<div class="recup-grille"></div>`);
+
+  // ---- Colonne gauche : le corps, cliquable muscle par muscle.
+  const corps = h(`<div class="recup-corps">
+    <div class="corps-lumiere"><canvas aria-hidden="true"></canvas>${muscleHeatmap(intensites)}</div>
+    <div class="recup-legende">
+      <span><i style="background:var(--recup-fatigue)"></i>Fatigué</span>
+      <span><i style="background:var(--recup-encours)"></i>En récupération</span>
+      <span><i style="background:var(--recup-frais)"></i>Frais</span>
+    </div></div>`);
+  peindreCorps(corps, intensites);
+  corps.addEventListener("click", (ev) => {
+    const g = ev.target.closest("g[data-m]");
+    if (!g) return;
+    const cat = g.getAttribute("data-m");
+    const fins = CLES_MOTEUR.filter((c) => FIN_VERS_CATALOGUE[c] === cat);
+    if (!fins.length) return;
+    detailMuscle(fins.sort((a, b) => etat[a].readiness - etat[b].readiness)[0], etat, p);
+  });
+  grille.append(corps);
+
+  // ---- Colonne droite : le plus entamé en premier, c'est ce qu'on cherche.
+  const col = h(`<div class="recup-liste">
+    <div class="recup-entete"><span>Muscle</span><span>Récupération</span></div></div>`);
+  CLES_MOTEUR.map((cle) => ({ cle, r: etat[cle].readiness }))
+    .sort((a, b) => a.r - b.r)
+    .forEach(({ cle, r }) => {
+      const cat = FIN_VERS_CATALOGUE[cle];
+      const row = h(`<button class="recup-row" type="button">
+        <span class="recup-vig">${cat ? miniSilhouette([cat]) : ""}</span>
+        <span class="recup-txt"><b>${esc(LABELS_MOTEUR[cle])}</b>
+          <em class="num" style="color:${couleurDispo(r)}">${Math.round(r)} %</em></span>
+        <svg class="recup-fl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>`);
+      row.addEventListener("click", () => detailMuscle(cle, etat, p));
+      col.append(row);
+    });
+  grille.append(col);
+  v.append(grille);
+
+  // ---- Action du bas : la séance que le moteur bâtit sur les muscles frais.
+  const cta = h(`<button class="btn primary recup-cta" type="button"><span class="cic">${IC.spark}</span>Séance sur muscles reposés</button>`);
+  cta.addEventListener("click", () => { if (AUTO && !AUTO.repos && AUTO.exercices.length) demarrerAuto(); else nav("dash"); });
+  v.append(cta);
+  v.append(h(`<div class="hint">Disponibilités estimées à partir de tes séances : volume, proximité de l'échec et temps écoulé. Ce ne sont pas des mesures physiologiques.</div>`));
 }
 
 /** Écran « État musculaire » : les 18 groupes, barres + silhouettes. */
