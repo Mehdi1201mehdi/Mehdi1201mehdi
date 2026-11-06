@@ -4917,6 +4917,7 @@ function repondreAssistant(q) {
 
 /* ---------- interface de discussion ---------- */
 let COACH_IA = null; // module coachIA.js chargé à la demande (null tant qu'inactif)
+let COACH_CLOUD = null; // module coachCloud.js chargé à la demande (clé utilisateur)
 
 function fermerCoach() { document.getElementById("coach")?.remove(); }
 
@@ -4944,10 +4945,31 @@ async function envoyerQuestionCoach(question) {
   const { intent } = detecterIntention(q);
   bulleCoach("coach", repondreAssistant(q));
 
-  // 2) Mode IA facultatif : complète uniquement si l'utilisateur l'a activé.
-  //    Utile surtout quand la réponse déterministe ne sait pas répondre.
+  // Les trois étages se complètent sans se doubler : le déterministe répond
+  // toujours ; un étage IA n'ajoute une bulle que si la question sort de ce que
+  // le moteur de règles sait traiter (question libre, demande d'explication).
+  const questionLibre = intent === "inconnu" || intent === "aide";
+
+  // 2) Étage CLOUD (OpenAI/Gemini), si l'utilisateur a saisi sa clé. Il prime
+  //    sur le local : c'est le plus capable, et c'est un choix explicite.
+  const cfgCloud = Etat.data.reglages.coachCloud;
+  if (questionLibre && cfgCloud && cfgCloud.cle) {
+    const bulle = bulleCoach("coach ia", `<span class="coach-ia-tag">Coach IA</span><span class="coach-ia-txt">…</span>`);
+    const cible = bulle.querySelector(".coach-ia-txt");
+    try {
+      if (!COACH_CLOUD) COACH_CLOUD = await import("../integrations/coachCloud.js");
+      let acc = "";
+      await COACH_CLOUD.demander(q, contexteUtilisateur(), cfgCloud, (t) => { acc += t; cible.textContent = acc; });
+      cible.textContent = acc.trim() || "(pas de réponse)";
+    } catch (e) {
+      cible.textContent = `Le coach cloud n'a pas pu répondre (${e.message}). La réponse ci-dessus reste valable.`;
+    }
+    return;
+  }
+
+  // 3) Étage LOCAL (Transformers.js), si activé et prêt.
   if (!Etat.data.reglages.coachIA || !COACH_IA || !COACH_IA.estPret()) return;
-  if (intent !== "inconnu" && intent !== "aide") return; // pas de doublon inutile
+  if (!questionLibre) return; // pas de doublon inutile
 
   const bulle = bulleCoach("coach ia", `<span class="coach-ia-tag">Coach IA</span><span class="coach-ia-txt">…</span>`);
   const cible = bulle.querySelector(".coach-ia-txt");
@@ -5006,12 +5028,79 @@ function carteCoachIA() {
   return c;
 }
 
+/**
+ * Carte de réglage du « Coach cloud » (Profil).
+ *
+ * Permet de brancher OpenAI ou Gemini avec SA PROPRE clé. La clé est rangée dans
+ * les réglages (localStorage) et ne quitte jamais l'appareil, sinon vers le
+ * fournisseur choisi au moment d'une question. Aucune clé n'est dans le code.
+ */
+function carteCoachCloud() {
+  const cfg = Etat.data.reglages.coachCloud || {};
+  const actif = !!cfg.cle;
+  const fournisseur = cfg.fournisseur === "gemini" ? "gemini" : "openai";
+  const FOURN = { openai: { nom: "OpenAI", aide: "platform.openai.com → API keys (clé « sk-… »)" },
+                  gemini: { nom: "Google Gemini", aide: "aistudio.google.com → Get API key" } };
+
+  const c = h(`<div class="card stack" style="margin-top:12px"></div>`);
+  c.append(h(`<div class="spread"><h2 style="margin:0;font-size:1.05rem"><span class="cic">${IC.spark}</span>Coach cloud (ta clé)</h2>${actif ? `<span class="pill">${esc(FOURN[fournisseur].nom)}</span>` : ""}</div>`));
+  c.append(h(`<div class="muted small">Branche un vrai modèle (OpenAI ou Gemini) avec <b>ta propre clé</b>, pour les questions ouvertes. La clé reste sur cet appareil ; elle n'est jamais envoyée ailleurs qu'au fournisseur que tu choisis, et n'est pas dans le code de l'app.</div>`));
+
+  // Choix du fournisseur.
+  const selF = h(`<div class="row"></div>`);
+  [["openai", "OpenAI"], ["gemini", "Google Gemini"]].forEach(([id, lab]) => {
+    const b = h(`<button class="chip ${fournisseur === id ? "on" : ""}" type="button">${esc(lab)}</button>`);
+    b.addEventListener("click", () => {
+      Etat.data.reglages.coachCloud = { ...(Etat.data.reglages.coachCloud || {}), fournisseur: id };
+      Etat.sauver(); render();
+    });
+    selF.append(b);
+  });
+  c.append(selF);
+  c.append(h(`<div class="hint">Clé : ${esc(FOURN[fournisseur].aide)}</div>`));
+
+  // Saisie de la clé (type password, non pré-rempli pour ne pas l'exposer).
+  const champ = h(`<label class="out-field"><span>Clé d'API ${esc(FOURN[fournisseur].nom)}</span>
+    <input type="password" autocomplete="off" placeholder="${actif ? "•••••••• (enregistrée)" : "colle ta clé ici"}" aria-label="Clé d'API"></label>`);
+  c.append(champ);
+
+  const barre = h(`<div class="row"></div>`);
+  const bSave = h(`<button class="primary">${actif ? "Mettre à jour la clé" : "Enregistrer la clé"}</button>`);
+  bSave.addEventListener("click", () => {
+    const val = champ.querySelector("input").value.trim();
+    if (!val) { toast("Colle d'abord ta clé."); return; }
+    Etat.data.reglages.coachCloud = { fournisseur, cle: val, modele: cfg.modele || "" };
+    Etat.sauver();
+    toast("Clé enregistrée — ouvre le Coach pour l'utiliser.");
+    render();
+  });
+  barre.append(bSave);
+  if (actif) {
+    const bDel = h(`<button class="danger">Retirer la clé</button>`);
+    bDel.addEventListener("click", () => {
+      delete Etat.data.reglages.coachCloud;
+      Etat.sauver(); toast("Clé retirée — retour au coach local/déterministe."); render();
+    });
+    barre.append(bDel);
+  }
+  c.append(barre);
+  return c;
+}
+
 /** Ouvre la feuille « Coach ». */
 function ouvrirCoach() {
   fermerCoach();
   const sheet = h(`<div class="sheet coach" id="coach"><div class="inner"></div></div>`);
   const inner = sheet.querySelector(".inner");
-  inner.append(h(`<div class="sheet-top"><h2 style="margin:0">Coach</h2><button class="chip" id="coachX">✕ Fermer</button></div>`));
+
+  // En-tête de marque, façon FitAI : pastille à étincelles en dégradé bleu→violet
+  // et une étiquette qui dit quel moteur répond (déterministe, local ou cloud).
+  const moteur = Etat.data.reglages.coachCloud && Etat.data.reglages.coachCloud.cle
+    ? "IA cloud" : Etat.data.reglages.coachIA ? "IA locale" : "Déterministe";
+  inner.append(h(`<div class="coach-top">
+    <span class="coach-spark">${IC.spark}</span>
+    <span class="coach-id"><b>Coach</b><em>${esc(moteur)}</em></span>
+    <button class="chip" id="coachX" aria-label="Fermer le coach">✕</button></div>`));
 
   const fil = h(`<div class="coach-fil"></div>`);
   inner.append(fil);
@@ -5023,11 +5112,49 @@ function ouvrirCoach() {
   sheet.querySelector("#coachX").addEventListener("click", fermerCoach);
   document.body.append(sheet);
 
-  // Message d'accueil + suggestions
+  // Message d'accueil + puces de réponse rapide, construites depuis le contexte
+  // réel : si une séance est en cours, on propose d'agir dessus.
   bulleCoach("coach", repondreAssistant("aide"));
-  // Si le mode IA est activé, on le prépare en tâche de fond.
+  ajouterSuggestionsCoach();
+  // Si le mode IA local est activé, on le prépare en tâche de fond.
   if (Etat.data.reglages.coachIA) activerCoachIA(true);
   $("#coachInput")?.focus();
+}
+
+/**
+ * Puces de réponse rapide, UNIQUEMENT pendant une séance active.
+ *
+ * Hors séance, le message d'accueil du coach (`repondreAssistant("aide")`)
+ * affiche déjà ses propres suggestions : en rajouter ferait doublon. Pendant une
+ * séance, en revanche, l'action la plus utile — remplacer l'exercice en cours,
+ * alléger la séance — n'est pas dans ces suggestions génériques ; c'est elle
+ * qu'on propose ici, construite depuis le contexte réel.
+ */
+function ajouterSuggestionsCoach() {
+  if (!LIVE) return;
+  const sugg = [];
+  const ex = exoLiveCourantNom();
+  if (ex) sugg.push([`Gêne — remplace ${ex}`, `Par quoi remplacer ${ex} ?`]);
+  sugg.push(["Allège ma séance", "Comment rendre ma séance plus facile aujourd'hui ?"]);
+  sugg.push(["Surcharge progressive", "Comment appliquer la surcharge progressive ?"]);
+  const box = h(`<div class="coach-sugg"></div>`);
+  sugg.forEach(([lab, q]) => {
+    const b = h(`<button class="chip" type="button">${esc(lab)}</button>`);
+    b.addEventListener("click", () => envoyerQuestionCoach(q));
+    box.append(b);
+  });
+  const bulle = bulleCoach("coach", "");
+  if (bulle) { bulle.innerHTML = ""; bulle.append(box); }
+}
+
+/** Nom de l'exercice courant d'une séance active, ou null hors séance. */
+function exoLiveCourantNom() {
+  if (!LIVE) return null;
+  const seance = trouverSeance(LIVE.seanceId);
+  if (!seance) return null;
+  const e = seance.exercices[exoCourant(seance) - 1];
+  const exo = e && getExercise(e.exerciceId);
+  return exo ? exo.nom : null;
 }
 
 /**
@@ -6617,6 +6744,7 @@ function vSet(v) {
 
   // Coach IA (facultatif) — désactivé par défaut, l'app reste déterministe.
   v.append(carteCoachIA());
+  v.append(carteCoachCloud());
 
   const prof = h(`<div class="card stack"></div>`);
   const bReg = h(`<button>Régénérer le programme avec le profil actuel</button>`);
