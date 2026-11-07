@@ -113,10 +113,16 @@ export function routineDepuisProposition(prop, getExercise, maintenant = new Dat
   if (!prop || prop.type !== "routine" || !Array.isArray(prop.seances)) {
     return { routine: null, ignores: [], corrections: 0, raison: "Proposition sans séance." };
   }
-  const nom = String(prop.nom || "").trim().slice(0, 60) || "Routine du coach";
+  // Modification d'une routine existante : enregistrée comme NOUVELLE version,
+  // l'originale n'est jamais écrasée (« base » = nom de la routine d'origine).
+  const base = String(prop.base || "").trim().slice(0, 60);
+  const nom = String(prop.nom || "").trim().slice(0, 60) || (base ? `${base} (version coach)` : "Routine du coach");
   const routine = creerRoutine(nom, maintenant);
-  routine.justificationGlobale = "Routine proposée par le coach IA et validée par toi.";
+  routine.justificationGlobale = base
+    ? `Version de « ${base} » modifiée par le coach IA et validée par toi. L'originale est conservée.`
+    : "Routine proposée par le coach IA et validée par toi.";
   routine.source = "coach-ia";
+  if (base) routine.baseNom = base;
   /** @type {string[]} */
   const ignores = [];
   let corrections = 0;
@@ -155,6 +161,38 @@ export function routineDepuisProposition(prop, getExercise, maintenant = new Dat
     return { routine: null, ignores, corrections, raison: "Aucun exercice de la proposition n'existe dans ton catalogue." };
   }
   return { routine, ignores, corrections, raison: null };
+}
+
+/**
+ * Différences entre une routine existante et sa version proposée : exercices
+ * ajoutés, retirés, et ceux dont le volume prévu change (séries × reps).
+ * Sert à montrer CE QUI CHANGE avant que l'utilisateur valide.
+ * @param {any} base
+ * @param {any} nouvelle
+ * @param {(id:string)=>string} [nomDe]
+ * @returns {{ajoutes:string[], retires:string[], modifies:{nom:string, avant:string, apres:string}[]}}
+ */
+export function differenceRoutines(base, nouvelle, nomDe = (id) => id) {
+  const resume = (r) => {
+    /** @type {Map<string, string>} */
+    const m = new Map();
+    for (const s of (r && r.seances) || []) {
+      for (const e of s.exercices || []) {
+        const t = (e.series || []).filter((x) => x.type !== "echauffement");
+        const p = t[0] || {};
+        const vol = p.repsCible ? `${t.length} × ${p.repsCible[0]}-${p.repsCible[1]}` : p.dureeSec ? `${t.length} × ${p.dureeSec} s` : `${t.length} séries`;
+        if (!m.has(e.exerciceId)) m.set(e.exerciceId, vol);
+      }
+    }
+    return m;
+  };
+  const a = resume(base), b = resume(nouvelle);
+  return {
+    ajoutes: [...b.keys()].filter((k) => !a.has(k)).map(nomDe),
+    retires: [...a.keys()].filter((k) => !b.has(k)).map(nomDe),
+    modifies: [...b.keys()].filter((k) => a.has(k) && a.get(k) !== b.get(k))
+      .map((k) => ({ nom: nomDe(k), avant: /** @type {string} */ (a.get(k)), apres: /** @type {string} */ (b.get(k)) })),
+  };
 }
 
 /** Échappement HTML minimal (même règle que src/ui/dom.js, sans dépendance DOM). */

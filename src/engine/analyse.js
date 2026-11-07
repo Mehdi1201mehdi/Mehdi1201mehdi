@@ -256,3 +256,41 @@ export function seriesDe(log, exerciceId = null) {
     .filter((e) => !exerciceId || e.exerciceId === exerciceId)
     .flatMap((e) => e.series || []);
 }
+
+/**
+ * Exercices en STAGNATION : le meilleur 1RM estimé (séries de 1 à 12 reps)
+ * n'a pas été battu depuis au moins `joursMin` jours ET au moins `seancesMin`
+ * séances. Deux conditions, pour ne pas crier au plateau après une semaine
+ * chargée ou une seule séance moyenne.
+ * @param {any[]} logs
+ * @param {{seancesMin?:number, joursMin?:number, ref?:number}} [o]
+ * @returns {{exerciceId:string, meilleur:number, dateRecord:string, depuisJours:number, seancesDepuis:number}[]}
+ */
+export function plateaux(logs, o = {}) {
+  const { seancesMin = 3, joursMin = 21, ref = Date.now() } = o;
+  /** @type {Map<string, {iso:string, v:number}[]>} */
+  const par = new Map();
+  for (const l of logs || []) {
+    if (!l || !l.date) continue;
+    for (const e of l.exercices || []) {
+      let v = 0;
+      for (const s of e.series || []) if (estSerieTravail(s)) v = Math.max(v, e1rmFiable(s.chargeKg, s.reps));
+      if (v <= 0) continue;
+      const arr = par.get(e.exerciceId) || [];
+      arr.push({ iso: l.date, v });
+      par.set(e.exerciceId, arr);
+    }
+  }
+  const out = [];
+  for (const [id, pts] of par) {
+    pts.sort((a, b) => (a.iso < b.iso ? -1 : 1));
+    let meilleur = 0, iRec = -1;
+    pts.forEach((p, i) => { if (p.v > meilleur + 0.01) { meilleur = p.v; iRec = i; } });
+    const seancesDepuis = pts.length - 1 - iRec;
+    const depuisJours = Math.floor((ref - Date.parse(pts[iRec].iso)) / 864e5);
+    if (seancesDepuis >= seancesMin && depuisJours >= joursMin) {
+      out.push({ exerciceId: id, meilleur: Math.round(meilleur * 10) / 10, dateRecord: pts[iRec].iso, depuisJours, seancesDepuis });
+    }
+  }
+  return out.sort((a, b) => b.depuisJours - a.depuisJours);
+}

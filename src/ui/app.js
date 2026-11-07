@@ -37,7 +37,7 @@ import { estNatif, partagerFichier, notifsNativesDispo, autoriserNotifs, program
 import { bilanSemaine, formatDuree, MET_MUSCULATION } from "../engine/activite.js";
 import { caloriesLog } from "../engine/calories.js";
 import { PRESETS_INTERVALLES, normaliserIntervalle, etatIntervalle, dureeTotaleIntervalle } from "../engine/intervalles.js";
-import { catalogueCompact, extraireProposition, routineDepuisProposition, htmlLeger, demandeDePlan } from "../engine/coachRoutine.js";
+import { catalogueCompact, extraireProposition, routineDepuisProposition, htmlLeger, demandeDePlan, differenceRoutines } from "../engine/coachRoutine.js";
 import { $, esc, h } from "./dom.js";
 import { urlDemo, vignetteExo, vignetteHTML, REDUIRE_MOTION } from "./vignettes.js";
 import { anneauSVG, anneauSignature, svgLine, categorieIMC, gaugeIMC, svgBars, sparkAire } from "./graphes.js";
@@ -83,7 +83,7 @@ import {
   METRIQUES_EXO, serieExercice, serieCorps, filtrerDepuis, metriquesPour,
 } from "../engine/stats.js";
 import { chargeParPeriode, progressionMensuelle, DEFINITIONS_CHARGE, variationPct, comparaisonMemeStade,
-  effortMoyen, seriesDe } from "../engine/analyse.js";
+  effortMoyen, seriesDe, plateaux } from "../engine/analyse.js";
 
 /** Nom lisible d'un exercice (pour records/stats). */
 const nomExo = (id) => (getExercise(id) ? getExercise(id).nom : id);
@@ -5259,12 +5259,47 @@ function contexteUtilisateur(opts = {}) {
       const a = pesees[Math.max(0, pesees.length - 6)], z = pesees[pesees.length - 1];
       l.push(`Poids : ${a.poidsKg} kg le ${a.date} → ${z.poidsKg} kg le ${z.date}.`);
     }
+    // Stagnations (moteur déterministe, analyse.js) : le coach ne les devine pas.
+    const pl = plateaux(logs).slice(0, 5);
+    if (pl.length) l.push(`Stagnation détectée (1RM estimé non battu) : ${pl.map((x) => `${nomExo(x.exerciceId)} — meilleur ~${x.meilleur} kg il y a ${x.depuisJours} j, ${x.seancesDepuis} séances depuis`).join(" ; ")}.`);
+    else if (logs.length >= 6) l.push("Aucune stagnation détectée : les 1RM estimés progressent ou sont récents.");
+    // Effort perçu des 5 dernières séances (RPE saisi, ou déduit du RIR).
+    const eff5 = effortMoyen(logs.slice().sort((a, c) => (a.date < c.date ? 1 : -1)).slice(0, 5).flatMap((lg) => seriesDe(lg)));
+    if (eff5.n) l.push(`Effort moyen des 5 dernières séances : RPE ${eff5.rpe} (${eff5.n} séries notées${eff5.deduites ? `, dont ${eff5.deduites} déduites du RIR` : ""}).`);
+    // Records cardio et gainage (jamais mélangés aux charges).
+    const bpc = meilleuresPerfs(logs);
+    const rc = Object.entries(bpc).filter(([, b]) => b.distanceMax || (b.dureeMax && !b.chargeMax)).slice(0, 5)
+      .map(([id, b]) => `${nomExo(id)} ${b.distanceMax ? `${(b.distanceMax / 1000).toFixed(1)} km max${b.vitesseMax ? `, ${b.vitesseMax.toFixed(1)} km/h max` : ""}` : `maintien ${b.dureeMax} s max`}`);
+    if (rc.length) l.push(`Cardio / gainage : ${rc.join(" ; ")}.`);
+    // Mensurations : dernier état connu, en cm / kg / %.
+    const jm = joursDeMesure(Etat.data.metrics || []);
+    if (jm.length) {
+      const e = etatAu(Etat.data.metrics || [], jm[0]);
+      const champs = ["masseGrassePct", "taille", "poitrine", "hanches", "brasD", "brasG", "cuisseD", "cuisseG"].filter((k) => e[k]);
+      if (champs.length) l.push(`Mensurations (au ${jm[0]}) : ${champs.map((k) => `${champMesure(k).label} ${e[k].v}${champMesure(k).type === "pct" ? " %" : " cm"}`).join(", ")}.`);
+    }
   } else {
     l.push("(L'utilisateur n'a pas autorisé le partage de son historique détaillé : ne cite pas de charges passées.)");
   }
 
   // Catalogue : uniquement pour une demande de programme ou de modification.
   if (opts.catalogue) {
+    // Routines actuelles, avec identifiants : nécessaires pour proposer une
+    // version modifiée (« base »). Ce sont des plans, pas de l'historique.
+    const persoD = (Etat.data.programmesPerso || []).slice(0, 4);
+    if (persoD.length) {
+      l.push("\nROUTINES ACTUELLES (nom → séances : id séries×reps) :");
+      persoD.forEach((r) => {
+        l.push(`« ${r.nom} » :`);
+        (r.seances || []).slice(0, 7).forEach((se) => {
+          l.push(`- ${se.nom} : ${(se.exercices || []).map((e) => {
+            const t = (e.series || []).filter((x) => x.type !== "echauffement");
+            const p0 = t[0] || {};
+            return `${e.exerciceId} ${t.length}×${p0.repsCible ? `${p0.repsCible[0]}-${p0.repsCible[1]}` : p0.dureeSec ? `${p0.dureeSec}s` : "?"}`;
+          }).join(" ; ")}`);
+        });
+      });
+    }
     l.push("\nEXERCICES DISPONIBLES (id | nom | muscles | matériel) — réalisables avec son matériel :");
     l.push(catalogueCompact(CATALOGUE, { realisable: estRealisable, labelsMuscle: MUSCLE_LABELS, labelsEquip: EQUIPMENT_LABELS }));
   }
@@ -5457,8 +5492,22 @@ function carteRoutineProposee(res) {
   const r = res.routine;
   const c = h(`<div class="coach-prop"></div>`);
   const nbExos = r.seances.reduce((n, se) => n + se.exercices.length, 0);
-  c.append(h(`<div class="coach-prop-top"><span class="eyebrow accent">Routine proposée</span><b>${esc(r.nom)}</b>
+  const base = r.baseNom ? (Etat.data.programmesPerso || []).find((x) => x.nom === r.baseNom) : null;
+  c.append(h(`<div class="coach-prop-top"><span class="eyebrow accent">${base ? "Modification proposée" : "Routine proposée"}</span><b>${esc(r.nom)}</b>
     <span class="muted small">${r.seances.length} séance${r.seances.length > 1 ? "s" : ""} · ${nbExos} exercices</span></div>`));
+  // Modification : on montre CE QUI CHANGE par rapport à la routine d'origine,
+  // qui reste intacte (la version est ajoutée à côté).
+  if (base) {
+    const d = differenceRoutines(base, r, nomExo);
+    const lignesD = [
+      ...d.ajoutes.map((n) => `<li class="diff-plus">+ ${esc(n)}</li>`),
+      ...d.retires.map((n) => `<li class="diff-moins">− ${esc(n)}</li>`),
+      ...d.modifies.map((m) => `<li class="diff-mod">${esc(m.nom)} : ${esc(m.avant)} → ${esc(m.apres)}</li>`),
+    ];
+    c.append(h(`<div class="coach-diff"><div class="small"><b>Par rapport à « ${esc(base.nom)} »</b> (conservée telle quelle)</div>${lignesD.length ? `<ul>${lignesD.join("")}</ul>` : `<div class="muted small">Aucun changement d'exercice ni de volume.</div>`}</div>`));
+  } else if (r.baseNom) {
+    c.append(h(`<div class="hint">Routine d'origine « ${esc(r.baseNom)} » introuvable : la proposition sera ajoutée comme nouvelle routine.</div>`));
+  }
   const liste = h(`<div class="coach-prop-liste"></div>`);
   r.seances.forEach((se) => {
     const lignes = se.exercices.map((e) => {
@@ -5473,7 +5522,7 @@ function carteRoutineProposee(res) {
     c.append(h(`<div class="hint">${res.ignores.length} exercice${res.ignores.length > 1 ? "s" : ""} inconnu${res.ignores.length > 1 ? "s" : ""} du catalogue ${res.ignores.length > 1 ? "ont été écartés" : "a été écarté"} — rien n'a été inventé.</div>`));
   }
   const barre = h(`<div class="row coach-prop-actions"></div>`);
-  const bAdd = h(`<button class="primary" type="button"><span class="btn-ico">${IC.plus}</span>Ajouter à mes routines</button>`);
+  const bAdd = h(`<button class="primary" type="button"><span class="btn-ico">${IC.plus}</span>${base ? "Ajouter cette version" : "Ajouter à mes routines"}</button>`);
   const bNon = h(`<button class="secondary" type="button">Ignorer</button>`);
   bAdd.addEventListener("click", () => {
     (Etat.data.programmesPerso ||= []).push(r);

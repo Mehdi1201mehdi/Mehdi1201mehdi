@@ -114,3 +114,23 @@ test("demandeDePlan : reconnaît les demandes de programme, pas les questions si
   assert.ok(!demandeDePlan("Combien d'eau boire par jour ?"));
   assert.ok(!demandeDePlan("Bonjour"));
 });
+
+import { differenceRoutines } from "../src/engine/coachRoutine.js";
+test("modification : enregistrée comme nouvelle version (« base »), différences calculées", async () => {
+  const { getExercise } = await import("../src/data/exercises.js");
+  const prop = { type: "routine", base: "Haut / bas", seances: [{ nom: "Haut", exercices: [
+    { id: "developpe-couche-barre", series: 4, reps: "6-8", repos: 120 },
+    { id: "rowing-barre", series: 3, reps: "8-10", repos: 90 },
+  ] }] };
+  const res = routineDepuisProposition(prop, getExercise, "2026-11-07T10:00:00.000Z");
+  assert.equal(res.routine.nom, "Haut / bas (version coach)");
+  assert.equal(res.routine.baseNom, "Haut / bas");
+  const base = { nom: "Haut / bas", seances: [{ exercices: [
+    { exerciceId: "developpe-couche-barre", series: [{ type: "travail", repsCible: [8, 12] }, { type: "travail", repsCible: [8, 12] }, { type: "travail", repsCible: [8, 12] }] },
+    { exerciceId: "curl-barre", series: [{ type: "travail", repsCible: [10, 12] }] },
+  ] }] };
+  const d = differenceRoutines(base, res.routine);
+  assert.deepEqual(d.ajoutes, ["rowing-barre"]);
+  assert.deepEqual(d.retires, ["curl-barre"]);
+  assert.deepEqual(d.modifies, [{ nom: "developpe-couche-barre", avant: "3 × 8-12", apres: "4 × 6-8" }]);
+});

@@ -64,7 +64,12 @@ export const SYSTEM_PROMPT =
   + "1 à 7 séances ; 3 à 8 exercices par séance ; series de 1 à 6 ; reps « min-max » (ou un "
   + "nombre de secondes avec \"secondes\": 40 pour le gainage) ; repos en secondes. Respecte le "
   + "matériel, le niveau, la durée de séance et les limitations de l'utilisateur. Ne dis jamais "
-  + "que la routine est enregistrée : c'est l'utilisateur qui la valide.";
+  + "que la routine est enregistrée : c'est l'utilisateur qui la valide.\n"
+  + "MODIFIER UNE ROUTINE EXISTANTE : renvoie la routine COMPLÈTE modifiée, avec en plus "
+  + "\"base\":\"nom exact de la routine d'origine\" (voir « ROUTINES ACTUELLES »). L'application "
+  + "l'enregistre comme nouvelle version, après validation, sans toucher à l'originale.\n"
+  + "STAGNATION : si un exercice est signalé en stagnation, propose une seule action concrète "
+  + "(deload de 10 %, changement de plage de reps, variante proche, ou repos), jamais plusieurs à la fois.";
 
 /** Fournisseurs reconnus. Les modèles par défaut sont rapides et économiques. */
 export const FOURNISSEURS = {
