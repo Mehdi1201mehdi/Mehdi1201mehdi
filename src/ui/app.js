@@ -13,7 +13,7 @@ import { GIFS } from "../data/gifs.js";
 import { ANATOLY_INFO, ANATOLY_SEMAINES } from "../data/anatoly.js";
 import { genererProgramme } from "../engine/generator.js";
 import { recommander } from "../engine/progression.js";
-import { alternatives } from "../engine/replacement.js";
+import { alternatives, variantes } from "../engine/replacement.js";
 import { chercherDemonstration, lienYouTube } from "../integrations/exercisedb.js";
 import { muscleDiagram, muscleHeatmap, miniSilhouette } from "./anatomy.js";
 import { jouer, amorcerSon } from "./son.js";
@@ -1740,8 +1740,29 @@ function ouvrirDetail(exo) {
       return f;
     },
     Alternatives: () => {
+      // Variantes du même mouvement (répertoire, sans filtre de matériel) :
+      // plus facile, plus difficile, à un bras / une jambe, à deux.
+      const v = variantes(exo.id);
+      const blocVariantes = () => {
+        const groupes = [["plusFacile", "Plus facile"], ["plusDifficile", "Plus difficile"], ["unilaterale", "À un bras / une jambe"], ["bilaterale", "À deux bras / deux jambes"]]
+          .filter(([k]) => v[k].length);
+        if (!groupes.length) return null;
+        const box = h(`<div class="stack var-bloc"><div class="eyebrow">Variantes du mouvement</div></div>`);
+        groupes.forEach(([k, lab]) => {
+          const ligne = h(`<div class="var-ligne"><span class="small muted">${lab}</span><div class="row"></div></div>`);
+          v[k].forEach((e) => {
+            const b = h(`<button class="chip var-chip">${esc(e.nom)}</button>`);
+            b.addEventListener("click", () => { fermer(); ouvrirDetail(getExercise(e.id)); });
+            ligne.querySelector(".row").append(b);
+          });
+          box.append(ligne);
+        });
+        return box;
+      };
       if (!alts.length) {
-        return h(`<div class="empty-state"><div class="es-ic">${IC.swap}</div><b>Aucune alternative compatible</b><div class="muted small">Avec le matériel et les limitations déclarés dans ton profil, cet exercice n'a pas d'équivalent proche.</div></div>`);
+        const vide = h(`<div class="stack"><div class="empty-state"><div class="es-ic">${IC.swap}</div><b>Aucune alternative compatible</b><div class="muted small">Avec le matériel et les limitations déclarés dans ton profil, cet exercice n'a pas d'équivalent proche.</div></div></div>`);
+        const bv = blocVariantes(); if (bv) vide.append(bv);
+        return vide;
       }
       const s = h(`<div class="stack"></div>`);
       alts.forEach((a) => {
@@ -1751,6 +1772,7 @@ function ouvrirDetail(exo) {
         card.querySelector("[data-alt]").addEventListener("click", () => { fermer(); ouvrirDetail(getExercise(a.exercice.id)); });
         s.append(card);
       });
+      const bv = blocVariantes(); if (bv) s.append(bv);
       return s;
     },
     Progression: () => {

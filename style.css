@@ -2787,3 +2787,9 @@ button.sem-bilan{display:flex;flex-direction:column;align-items:stretch;gap:10px
 .itv-ecran[data-phase="travail"] .itv-phase{color:var(--accent-ink)}
 .itv-ecran[data-phase="repos"] .itv-phase{color:var(--ok)}
 @media (prefers-reduced-motion:reduce){.itv-ecran{transition:none}}
+
+/* Variantes du mouvement (fiche exercice). */
+.var-bloc{margin-top:var(--space-3);gap:var(--space-2)}
+.var-ligne{display:flex;flex-direction:column;gap:var(--space-1)}
+.var-ligne .row{gap:var(--space-2)}
+.var-chip{min-height:var(--tap);text-align:left;white-space:normal}
