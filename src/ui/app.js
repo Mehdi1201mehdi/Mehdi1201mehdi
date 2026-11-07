@@ -1930,7 +1930,7 @@ let CAT_TRI = "pertinence";
 let CAT_FAVORIS_SEUL = false;
 function vCatalogue(v) {
   if (!catalogueEtenduCharge()) chargerCatalogueEtendu().then(() => render());
-  v.append(h(`<div class="spread"><h1>Exercices</h1><span class="pill">${CATALOGUE.length} au total</span></div>`));
+  v.append(h(`<div class="spread"><h1>Exercices</h1><span class="pill">${CATALOGUE.length.toLocaleString("fr-FR")} au total</span></div>`));
   const inp = h(`<input id="catQ" placeholder="Rechercher (ex : rowing, squat, gainage…)" value="${esc(CAT_FILTRE.q)}">`);
   v.append(inp);
 

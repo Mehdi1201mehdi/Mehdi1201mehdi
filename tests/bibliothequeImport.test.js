@@ -1,7 +1,7 @@
 // @ts-check
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CATALOGUE, chargerCatalogueEtendu, chercherCatalogue, getExercise } from "../src/data/exercises.js";
+import { CATALOGUE, DOUBLONS_MASQUES, chargerCatalogueEtendu, chercherCatalogue, getExercise } from "../src/data/exercises.js";
 import { FEDB_EXERCISES } from "../src/data/exercises-fedb.js";
 import * as M from "../src/models.js";
 
@@ -39,7 +39,42 @@ test("catalogue complet : identifiants et noms uniques, pas de doublon déguisé
     assert.ok(!noms.has(n), `nom en double : ${e.nom}`);
     noms.add(n);
   }
-  assert.ok(CATALOGUE.length >= 343 + 800, `catalogue : ${CATALOGUE.length} exercices`);
+  assert.ok(CATALOGUE.length >= 1100, `catalogue : ${CATALOGUE.length} exercices`);
+});
+
+test("pas de doublon à un article près (« Squat à la barre » / « Squat (barre) »)", async () => {
+  await chargerCatalogueEtendu();
+  const VIDES = new Set(["a", "la", "le", "les", "de", "du", "des", "au", "aux", "avec", "en", "sur", "l", "d", "et"]);
+  const cle = (s) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim()
+    .split(" ").filter((w) => w && !VIDES.has(w)).map((w) => w.replace(/s$/, "")).sort().join(" ");
+  const vus = new Map();
+  for (const e of CATALOGUE) {
+    const k = cle(e.nom);
+    assert.ok(!vus.has(k), `doublon probable : « ${e.nom} » (${e.id}) et « ${vus.get(k)} »`);
+    vus.set(k, `${e.nom} » (${e.id})`);
+  }
+});
+
+test("doublons masqués : absents du catalogue, toujours résolus, cible visible", async () => {
+  await chargerCatalogueEtendu();
+  const visibles = new Set(CATALOGUE.map((e) => e.id));
+  for (const [masque, cible] of Object.entries(DOUBLONS_MASQUES)) {
+    assert.ok(!visibles.has(masque), `${masque} ne doit plus être proposé`);
+    assert.ok(getExercise(masque), `${masque} reste résolu pour l'historique`);
+    assert.ok(visibles.has(cible), `${masque} → ${cible} : la fiche gardée est visible`);
+  }
+});
+
+test("noms français : au moins 90 % des fiches free-exercise-db affichées", async () => {
+  await chargerCatalogueEtendu();
+  const fedb = CATALOGUE.filter((e) => e.source === "free-exercise-db");
+  const enAnglais = fedb.filter((e) => !(e.nomsAlternatifs || []).length);
+  assert.ok(enAnglais.length / fedb.length < 0.1, `${enAnglais.length} noms anglais sur ${fedb.length}`);
+  // Le nom anglais d'origine reste cherchable quand un nom français a été donné.
+  for (const e of fedb) if (e.nomsAlternatifs.length) assert.notEqual(e.nom, e.nomsAlternatifs[0]);
+  // Les corrections vérifiées à la main sont bien appliquées.
+  assert.equal(getExercise("fedb-cable-incline-pushdown").nom, "Pull-down bras tendus sur banc incliné (poulie)");
+  assert.equal(getExercise("fedb-dips-chest-version").nom, "Dips (version pectoraux)");
 });
 
 test("recherche bilingue : nom français ou nom anglais d'origine", async () => {

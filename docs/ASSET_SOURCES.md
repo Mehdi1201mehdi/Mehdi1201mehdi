@@ -102,14 +102,14 @@ trop léger pour l'usage.
 |---|---|---|---|
 | Coach Perso (rédaction maison) | 93 | — | Fiches complètes en français (consignes, erreurs, sécurité, respiration). |
 | wger.de | 240 (250 importés, 10 doublons masqués) | CC-BY-SA 4.0 — attribution affichée sur chaque fiche | Nom, muscles, matériel, description d'origine (souvent en anglais). |
-| free-exercise-db (github.com/yuhonas/free-exercise-db) | 835 | Unlicense (domaine public) | **Métadonnées seules** : nom anglais, muscles, matériel, niveau, mécanique, catégorie. |
-| **Total** | **1 168 exercices distincts** | | |
+| free-exercise-db (github.com/yuhonas/free-exercise-db) | 793 (835 importés, 42 doublons masqués) | Unlicense (domaine public) | **Métadonnées seules** : nom anglais, muscles, matériel, niveau, mécanique, catégorie. |
+| **Total** | **1 126 exercices distincts** | | |
 
 **Pourquoi pas 3 000 ?** Les autres jeux de données « ouverts » trouvés soit
 reprennent ces mêmes mouvements (doublons), soit n'ont pas de provenance claire
 pour leurs textes et images (fiches recopiées de sites commerciaux). Gonfler le
-compteur en renommant des variantes est exclu : 1 168 est le nombre réel de
-mouvements distincts.
+compteur en renommant des variantes est exclu : 1 126 est le nombre réel de
+mouvements distincts (aucun nom affiché deux fois, vérifié par test).
 
 **free-exercise-db : ce qui n'est PAS repris.** Le jeu de données dérive de
 wrkout/exercises.json, qui ne documente pas l'origine de ses textes
@@ -117,15 +117,18 @@ d'instructions ni de ses photos. Tant que cette origine n'est pas établie, ni l
 textes ni les images ne sont redistribués : les fiches importées affichent
 muscles, matériel et niveau, le schéma anatomique, et le disent.
 
-**Noms français** : construits par règles (scripts/importer-free-exercise-db.mjs) —
-mouvement + qualificatifs accordés + matériel. Quand un mot anglais n'est pas
-reconnu, le nom anglais est conservé plutôt qu'une traduction approximative
-(460 noms traduits, 375 conservés en anglais). Le nom anglais reste toujours
+**Noms français** (scripts/importer-free-exercise-db.mjs) : table
+`NOMS_VERIFIES` relue à la main (292 noms), sinon règles — mouvement +
+qualificatifs accordés + matériel. Quand ni l'une ni les autres ne savent,
+le nom anglais est conservé plutôt qu'une traduction approximative : 750 noms
+français sur 835, **60 noms anglais parmi les 793 fiches affichées** (strongman,
+gammes d'athlétisme, variantes très spécialisées). Le nom anglais reste toujours
 cherchable. Écartés à l'import : 33 doublons du catalogue existant, 8 exercices
 de cou (aucun muscle équivalent dans l'app).
 
-**Doublons wger masqués** (`DOUBLONS_MASQUES`, src/data/exercises.js) : 10
-entrées wger qui répétaient un exercice maison restent résolubles par leur
+**Doublons masqués** (`DOUBLONS_MASQUES`, src/data/exercises.js) : 10 entrées
+wger et 42 fiches free-exercise-db qui répétaient un exercice existant (même
+mouvement, même matériel ; vérifiées une par une) restent résolubles par leur
 identifiant (un historique qui les cite s'affiche toujours) mais ne sont plus
 proposées dans le catalogue.
 

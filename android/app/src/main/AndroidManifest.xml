@@ -46,7 +46,7 @@
     <uses-permission android:name="android.permission.CAMERA" />
 
     <!-- Santé Connect : LECTURE SEULE de 6 types (poids, taille, masse grasse, distance,
-         calories actives, séances). Le plugin @capgo/capacitor-health en déclare 39 autres
+         calories actives, séances). Le plugin @capgo/capacitor-health en déclare 41 autres
          permissions de santé : elles sont retirées ici, au moment de la fusion des manifestes. -->
     <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
     <uses-permission android:name="android.permission.health.READ_BODY_FAT" />
@@ -55,6 +55,8 @@
     <uses-permission android:name="android.permission.health.READ_HEIGHT" />
     <uses-permission android:name="android.permission.health.READ_WEIGHT" />
     <uses-permission android:name="android.permission.health.READ_STEPS" tools:node="remove" />
+    <uses-permission android:name="android.permission.health.READ_VO2_MAX" tools:node="remove" />
+    <uses-permission android:name="android.permission.health.WRITE_VO2_MAX" tools:node="remove" />
     <uses-permission android:name="android.permission.health.WRITE_STEPS" tools:node="remove" />
     <uses-permission android:name="android.permission.health.WRITE_DISTANCE" tools:node="remove" />
     <uses-permission android:name="android.permission.health.WRITE_ACTIVE_CALORIES_BURNED" tools:node="remove" />

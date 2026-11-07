@@ -89,3 +89,19 @@ test("dans l'APK : autorisation en lecture seule, lectures via le plugin", async
     delete /** @type {any} */ (globalThis).window;
   }
 });
+
+test("manifeste Android : 6 lectures de santé gardées, aucune écriture, tout le reste retiré", async () => {
+  const fs = await import("node:fs");
+  const xml = fs.readFileSync(new URL("../android/app/src/main/AndroidManifest.xml", import.meta.url), "utf8");
+  const declarees = [...xml.matchAll(/<uses-permission android:name="android\.permission\.health\.([A-Z_0-9]+)"( tools:node="remove")?/g)];
+  const gardees = declarees.filter((m) => !m[2]).map((m) => m[1]).sort();
+  assert.deepEqual(gardees, ["READ_ACTIVE_CALORIES_BURNED", "READ_BODY_FAT", "READ_DISTANCE", "READ_EXERCISE", "READ_HEIGHT", "READ_WEIGHT"]);
+  // Si le plugin est installé (poste de dev, CI Android), chacune de ses
+  // permissions doit être soit gardée ci-dessus, soit explicitement retirée.
+  const plugin = new URL("../node_modules/@capgo/capacitor-health/android/src/main/AndroidManifest.xml", import.meta.url);
+  if (!fs.existsSync(plugin)) return;
+  const retirees = new Set(declarees.filter((m) => m[2]).map((m) => m[1]));
+  for (const [, p] of fs.readFileSync(plugin, "utf8").matchAll(/android\.permission\.health\.([A-Z_0-9]+)/g)) {
+    assert.ok(gardees.includes(p) || retirees.has(p), `permission du plugin ni gardée ni retirée : ${p}`);
+  }
+});
