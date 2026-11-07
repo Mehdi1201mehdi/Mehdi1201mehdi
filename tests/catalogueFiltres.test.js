@@ -18,3 +18,22 @@ test("chercherCatalogue : filtre par type, et cumul avec muscle / recherche", ()
   assert.equal(chercherCatalogue({ type: "inexistant" }).length, 0);
   assert.equal(chercherCatalogue({ niveau: "", type: "" }).length, CATALOGUE.length, "filtres vides = tout le catalogue");
 });
+
+import { idsReferencesInconnus } from "../src/data/exercises.js";
+test("idsReferencesInconnus : repère les exercices de l'extension cités par les données", async () => {
+  const data = {
+    programme: { seances: [{ exercices: [{ exerciceId: "developpe-couche-barre" }] }] },
+    programmesPerso: [{ seances: [{ exercices: [{ exerciceId: "wger-a48295d8-run" }] }] }],
+    logs: [{ exercices: [{ exerciceId: "wger-89c3d614-zone-2-running" }] }],
+    sessionEnCours: { data: { "wger-95a300de-elliptical": {} } },
+    recentsExo: ["developpe-couche-barre"],
+  };
+  const avant = idsReferencesInconnus(data);
+  const { catalogueEtenduCharge, chargerCatalogueEtendu } = await import("../src/data/exercises.js");
+  if (!catalogueEtenduCharge()) {
+    assert.deepEqual(avant.sort(), ["wger-89c3d614-zone-2-running", "wger-95a300de-elliptical", "wger-a48295d8-run"]);
+  }
+  await chargerCatalogueEtendu();
+  assert.deepEqual(idsReferencesInconnus(data), [], "une fois l'extension chargée, plus rien d'inconnu");
+  assert.deepEqual(idsReferencesInconnus(null), []);
+});

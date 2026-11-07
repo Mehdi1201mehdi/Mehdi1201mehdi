@@ -8,7 +8,7 @@ import {
   GOALS, GOAL_LABELS, LEVELS, LEVEL_LABELS, EQUIPMENTS, EQUIPMENT_LABELS,
   MUSCLES, MUSCLE_LABELS,
 } from "../models.js";
-import { getExercise, chercherCatalogue, CATALOGUE, catalogueEtenduCharge, chargerCatalogueEtendu } from "../data/exercises.js";
+import { getExercise, chercherCatalogue, CATALOGUE, catalogueEtenduCharge, chargerCatalogueEtendu, idsReferencesInconnus } from "../data/exercises.js";
 import { GIFS } from "../data/gifs.js";
 import { ANATOLY_INFO, ANATOLY_SEMAINES } from "../data/anatoly.js";
 import { genererProgramme } from "../engine/generator.js";
@@ -52,9 +52,15 @@ import { Etat, seanceDuJour, planningJours } from "../store/state.js";
 import {
   nouvelleSession, ajouterSerie, retirerDerniereSerie,
   serialiser, restaurer, estReprenable, dureeSecondes,
-  reconcilier, TYPES_SERIE, GROUPES_SUPERSET, cyclerType, rirDepuisRpe, valeurSerie, completerSerie,
+  reconcilier, TYPES_SERIE, GROUPES_SUPERSET, cyclerType, valeurSerie, completerSerie,
   exercicesDuSuperset, groupeSupersetLibre, reposApresSerie, estEnCours,
+  serieAEnregistrer, serieLogDepuisLive,
 } from "../engine/liveSession.js";
+import {
+  mesuresExercice, modeSaisie, meilleuresPerfs, detecterRecordsMesures, texteSerieLog,
+  texteDistance, texteVitesse, texteAllure, texteDuree, totauxDistance, lireDistanceKm,
+  lireDureeMinutes, kmSaisie, minutesSaisie,
+} from "../engine/mesures.js";
 import {
   creerRoutine, renommer, ajouterSeance, supprimerSeance, ajouterExercice,
   supprimerExerciceIndex, deplacerExercice, definirSeries, dupliquerRoutine,
@@ -1725,19 +1731,35 @@ function ouvrirDetail(exo) {
     Progression: () => {
       const hh = historiqueExercice(exo.id);
       if (!hh.nbSeances) {
-        return h(`<div class="empty-state"><div class="es-ic">${IC.activity}</div><b>Pas encore de données</b><div class="muted small">Réalise cet exercice en séance : charge max, 1RM estimé et historique apparaîtront ici.</div></div>`);
+        return h(`<div class="empty-state"><div class="es-ic">${IC.activity}</div><b>Pas encore de données</b><div class="muted small">Réalise cet exercice en séance : tes meilleures performances et ton historique apparaîtront ici.</div></div>`);
       }
       const f = h(`<div class="stack"></div>`);
       const g = h(`<div class="statgrid"></div>`);
-      g.append(statCard(IC.dumbbell, uCharge(hh.maxCharge), "Charge max"));
-      g.append(statCard(IC.activity, uCharge(hh.best1rm), "1RM estimé"));
-      g.append(statCard(IC.repeat, `${hh.totalSeries}`, "Séries totales"));
+      // Les tuiles suivent ce que l'exercice MESURE : une course n'a ni charge
+      // maximale ni 1RM, une planche se juge à sa durée de maintien.
+      const mes = mesuresExercice(exo);
+      const bp = meilleuresPerfs(Etat.data.logs)[exo.id] || {};
+      if (mes.distance) {
+        g.append(statCard(IC.activity, bp.distanceMax ? texteDistance(bp.distanceMax) : "—", "Distance max"));
+        // L'unité passe dans le libellé : « 13,3 km/h » ne tient pas dans une
+        // demi-tuile à 320 px, « 13,3 » si.
+        g.append(statCard(IC.wind, bp.vitesseMax ? (Math.round(bp.vitesseMax * 10) / 10).toLocaleString("fr-FR", { minimumFractionDigits: 1 }) : "—", "Vitesse max km/h"));
+        g.append(statCard(IC.clock, bp.dureeMax ? texteDuree(bp.dureeMax) : "—", "Plus longue"));
+      } else if (mes.isometrique && bp.dureeMax) {
+        g.append(statCard(IC.clock, texteDuree(bp.dureeMax), "Maintien max"));
+        g.append(statCard(IC.dumbbell, bp.chargeMax ? uCharge(bp.chargeMax) : "—", "Lest max"));
+        g.append(statCard(IC.repeat, `${hh.totalSeries}`, "Séries totales"));
+      } else {
+        g.append(statCard(IC.dumbbell, uCharge(hh.maxCharge), "Charge max"));
+        g.append(statCard(IC.activity, uCharge(hh.best1rm), "1RM estimé"));
+        g.append(statCard(IC.repeat, `${hh.totalSeries}`, "Séries totales"));
+      }
       g.append(statCard(IC.calendar, `${hh.nbSeances}`, "Séances"));
       f.append(g);
       f.append(h(`<div class="eyebrow" style="margin-top:10px">Dernières séances</div>`));
       hh.seances.slice(0, 8).forEach((s) => {
         const d = new Date(s.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
-        const detail = s.series.map((x) => `${uAff(x.chargeKg) || 0}${uUnite()}×${x.reps || x.dureeSec || 0}`).join(" · ");
+        const detail = s.series.map((x) => texteSerieLog(x, (kg) => uCharge(kg))).join(" · ");
         f.append(h(`<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="eyebrow" style="color:var(--ink-soft)">${d}</div><div class="num small" style="margin-top:2px">${esc(detail)}</div></div>`));
       });
       return f;
@@ -2595,8 +2617,13 @@ function carteExoLive(e, seance) {
   const plage = t?.repsCible || exo.repsPertinent;
   const [derniere, avant] = Etat.perfs(st.exId);
   const sug = recommander(st.exId, plage, derniere || null, avant || null);
-  const enTemps = !!st.series[0]?.dureeSec;
-  const c = h(`<div class="card stack exocard"></div>`);
+  // Ce qui se MESURE sur cet exercice décide des colonnes : charge × reps,
+  // maintien chronométré (planche) ou distance + durée (course, rameur…).
+  const mode = modeSaisie(exo, st.series[0]);
+  const enTemps = mode === "temps";
+  const enDistance = mode === "distance";
+  const dureePrevue = Number(t?.dureeSec) || 0;
+  const c = h(`<div class="card stack exocard${enDistance ? " exo-distance" : ""}"></div>`);
 
   // En-tête : vignette 52 px + nom + badges musculaires. La vignette ouvre la
   // fiche (démonstration, technique) sans occuper la moitié de l'écran.
@@ -2606,11 +2633,13 @@ function carteExoLive(e, seance) {
   const titre = h(`<div class="exo-titre"><h3>${esc(exo.nom)}</h3></div>`);
   if (st.supersetGroupe) titre.append(h(`<span class="ss-tag">Superset ${esc(st.supersetGroupe)}</span>`));
   titre.append(badgesMuscles(exo));
-  tete.append(vign, titre, h(`<span class="pill exo-vol">${st.series.length} × ${enTemps ? (st.series[0].dureeSec + " s") : (plage[0] + "–" + plage[1])}</span>`));
+  const volTxt = enDistance ? (dureePrevue >= 60 ? `${Math.round(dureePrevue / 60)} min` : "km · min")
+    : enTemps ? `${st.series[0].dureeSec} s` : `${plage[0]}–${plage[1]}`;
+  tete.append(vign, titre, h(`<span class="pill exo-vol">${st.series.length} × ${volTxt}</span>`));
   c.append(tete);
 
   // Ligne de contexte unique, dépliable : repos, charge conseillée, objectif.
-  const objectif = !enTemps && sug.chargeKg
+  const objectif = mode === "reps" && sug.chargeKg
     ? `${texteCharge(sug.chargeKg, uLive())} × ${plage[0]}–${plage[1]}` : null;
   const tempo = modeAvance() && (t?.tempo || exo.tempoDefaut) ? (t?.tempo || exo.tempoDefaut) : null;
   const metaTxt = `<span class="cic">${IC.clock}</span>repos ${formatRepos(t?.reposSec || 60)}`
@@ -2631,13 +2660,32 @@ function carteExoLive(e, seance) {
   if (avance) c.classList.add("adv");
   const showEffort = st.showRir != null ? st.showRir : avance;
   const col2 = showEffort ? metriqueEffort() : "Préc.";
-  c.append(h(`<div class="setrow"><span class="head">Série</span><span class="head">${col2}</span><span class="head">${enTemps ? "Sec" : (uLive() ? "Lb" : "Kg")}</span><span class="head">${enTemps ? "Durée" : "Reps"}</span><span class="head">✓</span></div>`));
+  // En maintien, la colonne de charge est un LEST facultatif (planche lestée) ;
+  // elle était titrée « Sec » alors qu'elle recevait des kilos.
+  const col3 = enDistance ? "Km" : enTemps ? `Lest ${uLive() ? "lb" : "kg"}` : (uLive() ? "Lb" : "Kg");
+  const col4 = enDistance ? "Min" : enTemps ? "Sec" : "Reps";
+  c.append(h(`<div class="setrow"><span class="head">Série</span><span class="head">${col2}</span><span class="head">${col3}</span><span class="head">${col4}</span><span class="head">✓</span></div>`));
   // Les suggestions des séries suivantes dépendent de ce qui vient d'être
   // saisi : elles doivent être recalculées à chaque frappe, sinon l'écran
   // promet une valeur et la validation en enregistre une autre.
   const lignes = [];
+  // Mode distance : la valeur proposée est celle de la série précédente de la
+  // séance, sinon la dernière séance, sinon la durée prévue au programme.
+  const proposeDistance = (i, champ) => {
+    for (let k = i - 1; k >= 0; k--) { const v = st.series[k][champ]; if (v !== "" && v != null) return String(v); }
+    const dpi = derniere && derniere.series[i];
+    if (champ === "distanceKm") return dpi ? kmSaisie(dpi.distanceM) : "";
+    return (dpi && minutesSaisie(dpi.dureeSec)) || (dureePrevue >= 60 ? minutesSaisie(dureePrevue) : "");
+  };
   const majSuggestions = () => {
     for (const { row, i } of lignes) {
+      if (enDistance) {
+        for (const champ of ["distanceKm", "dureeMin"]) {
+          const inp = row.querySelector(`input[data-f="${champ}"]`);
+          if (inp) inp.placeholder = proposeDistance(i, champ) || "—";
+        }
+        continue;
+      }
       const dpi = derniere && derniere.series[i];
       const cc = valeurSerie(st.series, i, "charge", uAffLive(dpi && dpi.chargeKg), uAffLive(sug.chargeKg));
       const rr = valeurSerie(st.series, i, "reps", dpi && dpi.reps, plage && plage[0]);
@@ -2647,9 +2695,27 @@ function carteExoLive(e, seance) {
       if (ir) ir.placeholder = rr == null ? "—" : String(rr);
     }
   };
+  // Synthèse du cardio sous le tableau : total, vitesse moyenne et allure,
+  // recalculés à chaque frappe. Rien n'est demandé deux fois à l'utilisateur.
+  const synth = h(`<div class="cardio-synth small" aria-live="polite"></div>`);
+  const majSynthese = () => {
+    if (!enDistance) return;
+    const tot = totauxDistance(st.series.map((x) => ({ distanceM: lireDistanceKm(x.distanceKm), dureeSec: lireDureeMinutes(x.dureeMin) })));
+    if (!tot.distanceM && !tot.dureeSec) {
+      synth.innerHTML = `<span class="muted">Distance en km, durée en minutes (« 25,5 » ou « 25:30 ») : vitesse et allure se calculent seules.</span>`;
+      return;
+    }
+    const parts = [];
+    if (tot.distanceM) parts.push(`<b class="num">${texteDistance(tot.distanceM)}</b>`);
+    if (tot.dureeSec) parts.push(`<b class="num">${texteDuree(tot.dureeSec)}</b>`);
+    if (tot.vitesseKmh) parts.push(`<span class="num">${texteVitesse(tot.vitesseKmh)}</span>`, `<span class="num">${texteAllure(tot.allureSecParKm)}</span>`);
+    synth.innerHTML = parts.join(`<span class="cs-sep" aria-hidden="true">·</span>`);
+  };
   st.series.forEach((s, i) => {
     const dp = derniere && derniere.series[i];
-    const prev = dp ? (enTemps ? `${dp.dureeSec || 0}s` : `${uAffLive(dp.chargeKg) || 0}×${dp.reps || 0}`) : "—";
+    const prev = !dp ? "—"
+      : enDistance ? (dp.distanceM ? texteDistance(dp.distanceM) : dp.dureeSec ? texteDuree(dp.dureeSec) : "—")
+      : enTemps ? `${dp.dureeSec || 0}s` : `${uAffLive(dp.chargeKg) || 0}×${dp.reps || 0}`;
     const col2El = showEffort
       ? `<input inputmode="decimal" placeholder="${metriqueEffort() === "RPE" ? "8" : "2"}" value="${s.rir}" data-f="rir" aria-label="${metriqueEffort()} série ${i + 1}">`
       : `<span class="prev muted">${prev}</span>`;
@@ -2674,10 +2740,20 @@ function carteExoLive(e, seance) {
     const row = h(`<div class="setrow donnee${i % 2 ? " alt" : ""}${s.done ? " vdone" : ""}${estEnCours(st.series, i) ? " encours" : ""}${s.type !== "normale" ? " serie-" + s.type : ""}">
       ${numEl}
       ${col2El}
-      <input inputmode="decimal" placeholder="${chargeAff == null ? "—" : chargeAff}" value="${s.charge}" data-f="charge" aria-label="Charge série ${i + 1}">
-      <input inputmode="numeric" placeholder="${enTemps ? s.dureeSec : (repsAff == null ? "—" : repsAff)}" value="${enTemps ? s.dureeSec : s.reps}" data-f="${enTemps ? "dureeSec" : "reps"}" aria-label="${enTemps ? "Durée" : "Répétitions"} série ${i + 1}">
+      ${enDistance
+        ? `<input inputmode="decimal" placeholder="—" value="${esc(s.distanceKm ?? "")}" data-f="distanceKm" aria-label="Distance en kilomètres, série ${i + 1}">
+      <input inputmode="decimal" placeholder="—" value="${esc(s.dureeMin ?? "")}" data-f="dureeMin" aria-label="Durée en minutes, série ${i + 1}">`
+        : `<input inputmode="decimal" placeholder="${chargeAff == null ? "—" : chargeAff}" value="${esc(s.charge)}" data-f="charge" aria-label="${enTemps ? "Lest" : "Charge"} série ${i + 1}">
+      <input inputmode="numeric" placeholder="${enTemps ? s.dureeSec : (repsAff == null ? "—" : repsAff)}" value="${esc(enTemps ? s.dureeSec : s.reps)}" data-f="${enTemps ? "dureeSec" : "reps"}" aria-label="${enTemps ? "Durée en secondes" : "Répétitions"} série ${i + 1}">`}
       <button class="done ${s.done ? "on" : ""}" aria-label="Valider la série ${i + 1}">✓</button></div>`);
-    on(row, "input", "input", (ev) => { const f = ev.target.dataset.f; s[f] = ev.target.value; persistLive(); majSuggestions(); });
+    on(row, "input", "input", (ev) => {
+      const f = ev.target.dataset.f;
+      // La durée d'un maintien reste un NOMBRE : effacer le champ ne doit ni
+      // enregistrer « » ni faire basculer l'exercice en mode répétitions.
+      if (f === "dureeSec") { const n = parseInt(ev.target.value, 10); if (n > 0) s.dureeSec = n; }
+      else s[f] = ev.target.value;
+      persistLive(); majSuggestions(); majSynthese();
+    });
     const bType = row.querySelector(".sertype");
     if (bType) bType.addEventListener("click", () => {
       s.type = cyclerType(s.type);
@@ -2690,14 +2766,20 @@ function carteExoLive(e, seance) {
       // Valider sans avoir saisi enregistre ce que la ligne affichait. C'est le
       // geste le plus courant en salle : on répète la série précédente.
       if (s.done) {
-        completerSerie(st.series, i, {
+        completerSerie(st.series, i, enDistance ? {
+          mode: "distance",
+          distancePrecedente: dp ? kmSaisie(dp.distanceM) : null,
+          dureePrecedente: dp ? minutesSaisie(dp.dureeSec) : null,
+          dureeConseil: dureePrevue >= 60 ? minutesSaisie(dureePrevue) : null,
+        } : {
           chargePrecedente: uAffLive(dp && dp.chargeKg), chargeConseil: uAffLive(sug.chargeKg),
           repsPrecedentes: dp && dp.reps, repsConseil: plage && plage[0],
         });
         row.querySelectorAll("input[data-f]").forEach((inp) => {
           const f = inp.dataset.f;
-          if (f === "charge" || f === "reps") inp.value = s[f] ?? "";
+          if (f === "charge" || f === "reps" || f === "distanceKm" || f === "dureeMin") inp.value = s[f] ?? "";
         });
+        majSynthese();
       }
       const btn = ev.currentTarget;
       btn.classList.toggle("on", s.done);
@@ -2720,6 +2802,7 @@ function carteExoLive(e, seance) {
     c.append(row);
   });
   majSuggestions();
+  if (enDistance) { majSynthese(); c.append(synth); }
   // Ajouter / retirer une série pendant la séance.
   const serieActs = h(`<div class="row"></div>`);
   const bPlus = h(`<button class="chip">+ série</button>`);
@@ -2732,13 +2815,20 @@ function carteExoLive(e, seance) {
   }
   // Remplissage rapide : un tap pré-remplit les séries vides avec la dernière
   // fois (ou la charge conseillée) → beaucoup moins de saisie à la salle.
-  const peutRemplir = !enTemps && (derniere || sug.chargeKg) && st.series.some((s) => !s.charge || !s.reps);
+  const peutRemplir = enDistance
+    ? !!derniere && derniere.series.some((x) => x.distanceM) && st.series.some((s) => !s.distanceKm || !s.dureeMin)
+    : !enTemps && (derniere || sug.chargeKg) && st.series.some((s) => !s.charge || !s.reps);
   if (peutRemplir) {
     const bFill = h(`<button class="chip"><span class="cic">${IC.cornerDown}</span>Reprendre</button>`);
     bFill.title = "Pré-remplir avec la dernière fois / le conseil";
     bFill.addEventListener("click", () => {
       st.series.forEach((s, i) => {
         const dp = derniere && derniere.series[i];
+        if (enDistance) {
+          if (!s.distanceKm && dp?.distanceM) s.distanceKm = kmSaisie(dp.distanceM);
+          if (!s.dureeMin && dp?.dureeSec) s.dureeMin = minutesSaisie(dp.dureeSec);
+          return;
+        }
         if (!s.charge && (dp?.chargeKg != null || sug.chargeKg != null)) s.charge = String(uAffLive(dp?.chargeKg ?? sug.chargeKg));
         if (!s.reps && (dp?.reps != null || plage?.[0] != null)) s.reps = String(dp?.reps ?? plage[0]);
       });
@@ -2941,16 +3031,11 @@ async function terminer() {
     // ne stocke que du RIR (RIR = 10 − RPE) pour que le moteur de fatigue et
     // les statistiques restent comparables d'une séance à l'autre.
     const enRpe = metriqueEffort() === "RPE";
-    const series = st.series.filter((s) => s.done || s.reps || s.charge || s.dureeSec)
-      .map((s) => ({
-        // Saisie → kg, dans l'unité de la séance. Accepte aussi la virgule du
-        // clavier français : « 62,5 » donnait NaN, enregistré comme vide.
-        chargeKg: depuisSaisie(s.charge, LIVE.unite === "lb"),
-        reps: s.reps === "" ? null : +s.reps,
-        rir: s.rir === "" ? null : (enRpe ? rirDepuisRpe(s.rir) : +s.rir),
-        dureeSec: s.dureeSec || null,
-        type: s.type && s.type !== "normale" ? s.type : undefined,
-      }));
+    // Conversion pure et testée (liveSession.js) : kg depuis l'unité de saisie,
+    // virgule française acceptée, km/min → m/s en mode distance, RPE conservé.
+    const mode = modeSaisie(getExercise(st.exId), st.series[0]);
+    const series = st.series.filter((s) => serieAEnregistrer(s, mode))
+      .map((s) => serieLogDepuisLive(s, { lb: LIVE.unite === "lb", enRpe, mode }));
     if (series.length || st.douleur) {
       exercices.push({
         exerciceId: exId, series, douleur: st.douleur,
@@ -2980,7 +3065,7 @@ async function terminer() {
     seanceId: seance.id, seanceNom: seance.nom, exercices,
   };
   // Détecte les nouveaux records AVANT d'ajouter la séance à l'historique.
-  const prs = detecterRecords(Etat.data.logs, nouveauLog, nomExo);
+  const prs = recordsDeSeance(Etat.data.logs, nouveauLog);
   Etat.data.logs.push(nouveauLog);
   LIVE = null;
   Etat.data.sessionEnCours = null; // séance terminée : plus rien à reprendre
@@ -3072,10 +3157,31 @@ function ecranFinSeance(log, prs) {
   inner.append(acts);
   document.body.append(sheet);
 }
-/** Libellé court d'un record (poids, reps ou 1RM estimé). */
+/**
+ * Records d'une séance, tous types confondus mais jamais mélangés : charge,
+ * 1RM estimé et répétitions (records.js) ; distance, vitesse, durée de maintien
+ * et volume (mesures.js). Le volume n'est signalé que si l'exercice n'a pas
+ * déjà un autre record dans la séance : sinon la liste devient du bruit.
+ */
+function recordsDeSeance(logsAnterieurs, log) {
+  const base = detecterRecords(logsAnterieurs, log, nomExo);
+  const autres = detecterRecordsMesures(logsAnterieurs, log, nomExo)
+    .filter((r) => r.type !== "volume" || !base.some((b) => b.exerciceId === r.exerciceId));
+  return [...base, ...autres];
+}
+/** Libellé court d'un record, dans l'unité qui lui est propre. */
 function etiquettePR(r) {
-  if (r.type === "poids") return `${uCharge(r.valeur)} (avant ${uCharge(r.ancien)})`;
+  if (r.type === "poids") {
+    // Sur un maintien (planche), la charge est un lest : on le dit.
+    const lest = mesuresExercice(getExercise(r.exerciceId)).isometrique;
+    const avant = r.ancien ? uCharge(r.ancien) : (lest ? "sans lest" : uCharge(0));
+    return `${lest ? "lest " : ""}${uCharge(r.valeur)} (avant ${avant})`;
+  }
   if (r.type === "reps") return `${r.valeur} reps (avant ${r.ancien})`;
+  if (r.type === "distance") return `${texteDistance(r.valeur)} (avant ${texteDistance(r.ancien)})`;
+  if (r.type === "vitesse") return `${texteVitesse(r.valeur)} de moyenne (avant ${texteVitesse(r.ancien)})`;
+  if (r.type === "duree") return `${texteDuree(r.valeur)} de maintien (avant ${texteDuree(r.ancien)})`;
+  if (r.type === "volume") return `volume ${uVolume(r.valeur)} (avant ${uVolume(r.ancien)})`;
   return `1RM estimé ${uCharge(r.valeur)} (avant ${uCharge(r.ancien)})`;
 }
 
@@ -3408,13 +3514,19 @@ function guideAvancer() {
   return false;
 }
 /** Enregistre la série courante, puis enchaîne repos → suivant (ou fin). */
-function guideValider(charge, valeur, enTemps) {
+function guideValider(charge, valeur, mode) {
   const exos = guideExos();
   const cur = exos[GUIDE.ei];
   if (!cur) return;
   const s = cur.st.series[GUIDE.si];
-  if (charge !== "") s.charge = String(charge);
-  if (valeur !== "") { if (enTemps) s.dureeSec = +valeur; else s.reps = String(valeur); }
+  if (mode === "distance") {
+    // Premier champ = kilomètres, second = minutes (texte gardé tel quel).
+    if (charge !== "") s.distanceKm = String(charge);
+    if (valeur !== "") s.dureeMin = String(valeur);
+  } else {
+    if (charge !== "") s.charge = String(charge);
+    if (valeur !== "") { if (mode === "temps") { const n = parseInt(valeur, 10); if (n > 0) s.dureeSec = n; } else s.reps = String(valeur); }
+  }
   s.done = true;
   persistLive(); majProgressionSeance();
   try { if (Etat.data.reglages.vibrations !== false) navigator.vibrate?.(20); } catch (e) {}
@@ -3523,25 +3635,34 @@ function guideRenderWork(g, cur) {
   const { e, st, exo } = cur;
   const nom = exo ? exo.nom : e.exerciceId;
   const muscles = (exo && exo.musclesPrincipaux) || [];
-  const enTemps = !!st.series[GUIDE.si]?.dureeSec || !!st.series[0]?.dureeSec;
+  const mode = modeSaisie(exo, st.series[GUIDE.si]?.dureeSec ? st.series[GUIDE.si] : st.series[0]);
+  const enTemps = mode === "temps";
+  const enDistance = mode === "distance";
   const t = e.series.find((x) => x.type === "travail") || e.series[0];
   const plage = (t && t.repsCible) || (exo && exo.repsPertinent) || [8, 12];
   const [derniere, avant] = exo ? Etat.perfs(st.exId) : [null, null];
   const sug = exo ? recommander(st.exId, plage, derniere || null, avant || null) : { message: "", chargeKg: null };
   const s = st.series[GUIDE.si];
-  const cibleTxt = enTemps ? `${s.dureeSec || t?.dureeSec || 40} s` : `${plage[0]}–${plage[1]} reps`;
+  const dureePrevue = Number(t?.dureeSec) || 0;
+  const cibleTxt = enDistance ? (dureePrevue >= 60 ? `${Math.round(dureePrevue / 60)} min` : "Distance · durée")
+    : enTemps ? `${s.dureeSec || t?.dureeSec || 40} s` : `${plage[0]}–${plage[1]} reps`;
 
   const body = h(`<div class="guide-body"></div>`);
   if (exo && exo.patron) body.append(h(`<div class="guide-demo">${animDemo(exo)}</div>`));
   else body.append(h(`<div class="guide-sil">${muscles.length ? miniSilhouette(muscles) : ""}</div>`));
   body.append(h(`<h1 class="guide-nom">${esc(nom)}</h1>`));
   if (muscles.length) body.append(h(`<div class="guide-mus">${muscles.map((m) => esc(MUSCLE_LABELS[m] || m)).join(" · ")}</div>`));
-  body.append(h(`<div class="guide-cible"><span class="num">${esc(cibleTxt)}</span>${sug.chargeKg ? ` · conseil ~${texteCharge(sug.chargeKg, uLive())}` : ""}</div>`));
+  body.append(h(`<div class="guide-cible"><span class="num">${esc(cibleTxt)}</span>${sug.chargeKg && !enDistance ? ` · conseil ~${texteCharge(sug.chargeKg, uLive())}` : ""}</div>`));
   if (sug.message) body.append(h(`<div class="notice small guide-conseil">${esc(sug.message)}</div>`));
 
   const inp = h(`<div class="guide-inputs"></div>`);
-  const champCharge = h(`<label class="guide-field"><span>Charge (${uLive() ? "lb" : "kg"})</span><input inputmode="decimal" value="${s.charge || ""}" placeholder="${uAffLive(sug.chargeKg) ?? "—"}" aria-label="Charge"></label>`);
-  const champVal = h(`<label class="guide-field"><span>${enTemps ? "Durée (s)" : "Répétitions"}</span><input inputmode="numeric" value="${enTemps ? (s.dureeSec || "") : (s.reps || "")}" placeholder="${enTemps ? (t?.dureeSec || 40) : plage[0]}" aria-label="${enTemps ? "Durée" : "Répétitions"}"></label>`);
+  const dpG = derniere && derniere.series[GUIDE.si];
+  const champCharge = enDistance
+    ? h(`<label class="guide-field"><span>Distance (km)</span><input inputmode="decimal" value="${esc(s.distanceKm || "")}" placeholder="${esc((dpG && kmSaisie(dpG.distanceM)) || "—")}" aria-label="Distance en kilomètres"></label>`)
+    : h(`<label class="guide-field"><span>${enTemps ? "Lest" : "Charge"} (${uLive() ? "lb" : "kg"})</span><input inputmode="decimal" value="${esc(s.charge || "")}" placeholder="${uAffLive(sug.chargeKg) ?? "—"}" aria-label="${enTemps ? "Lest" : "Charge"}"></label>`);
+  const champVal = enDistance
+    ? h(`<label class="guide-field"><span>Durée (min)</span><input inputmode="decimal" value="${esc(s.dureeMin || "")}" placeholder="${esc((dpG && minutesSaisie(dpG.dureeSec)) || (dureePrevue >= 60 ? minutesSaisie(dureePrevue) : "—"))}" aria-label="Durée en minutes"></label>`)
+    : h(`<label class="guide-field"><span>${enTemps ? "Durée (s)" : "Répétitions"}</span><input inputmode="numeric" value="${esc(enTemps ? (s.dureeSec || "") : (s.reps || ""))}" placeholder="${enTemps ? (t?.dureeSec || 40) : plage[0]}" aria-label="${enTemps ? "Durée" : "Répétitions"}"></label>`);
   inp.append(champCharge, champVal);
   body.append(inp);
   g.append(body);
@@ -3563,7 +3684,7 @@ function guideRenderWork(g, cur) {
   bOk.addEventListener("click", () => {
     const c = champCharge.querySelector("input").value.trim();
     const val = champVal.querySelector("input").value.trim();
-    guideValider(c, val, enTemps);
+    guideValider(c, val, mode);
   });
   const bSkip = h(`<button class="chip guide-nav" aria-label="Passer"><span class="cic">${IC.forward}</span></button>`);
   bSkip.addEventListener("click", () => { if (!guideAvancer()) { guideFin(); return; } GUIDE.phase = "work"; guideRender(); });
@@ -4910,9 +5031,13 @@ function contexteUtilisateur(opts = {}) {
       l.push("Dernières séances (meilleure série par exercice) :");
       recents.forEach((lg) => {
         const ex = (lg.exercices || []).map((e) => {
-          const best = (e.series || []).reduce((m, x) => (!m || (x.chargeKg || 0) * (x.reps || 0) > (m.chargeKg || 0) * (m.reps || 0) ? x : m), null);
-          const txt = best ? (best.chargeKg ? `${best.chargeKg} kg × ${best.reps || "?"}` : best.reps ? `${best.reps} reps` : best.dureeSec ? `${best.dureeSec} s` : "") : "";
-          return `${nomExo(e.exerciceId)} ${(e.series || []).length} séries${txt ? ` (max ${txt}${best && best.rir != null ? `, RIR ${best.rir}` : ""})` : ""}${e.douleur ? " [douleur signalée]" : ""}`;
+          // Meilleure série selon ce qu'elle mesure : tonnage, sinon distance,
+          // sinon durée, sinon répétitions (le texte s'adapte de même).
+          const score = (x) => (x.chargeKg || 0) * (x.reps || 0) || (x.distanceM || 0) || (x.dureeSec || 0) || (x.reps || 0);
+          const best = (e.series || []).reduce((m, x) => (!m || score(x) > score(m) ? x : m), null);
+          const txt = best ? texteSerieLog(best, (kg) => `${kg} kg`) : "";
+          const effort = best && best.rpe != null ? `, RPE ${best.rpe}` : best && best.rir != null ? `, RIR ${best.rir}` : "";
+          return `${nomExo(e.exerciceId)} ${(e.series || []).length} séries${txt && txt !== "—" ? ` (max ${txt}${effort})` : ""}${e.douleur ? " [douleur signalée]" : ""}`;
         }).join(" ; ");
         l.push(`- ${String(lg.date).slice(0, 10)} ${lg.seanceNom || "séance"} (${Math.round((lg.dureeSec || 0) / 60)} min) : ${ex}`);
       });
@@ -7225,6 +7350,17 @@ async function amorcerApp() {
     await Etat.init();
     appliquerIdentite();
     appliquerTheme();
+    // Exercices de l'extension (wger) présents dans les données : on charge
+    // l'extension AVANT le premier rendu (fichier local, mis en cache par le
+    // service worker). Sans cela, une séance reprise affichait « Exercice
+    // indisponible » et l'historique des identifiants bruts, tant que l'onglet
+    // Exercices n'avait pas été ouvert. Plafonné à 1,5 s : au-delà, on rend et
+    // on rafraîchit dès que l'extension arrive.
+    if (!catalogueEtenduCharge() && idsReferencesInconnus(Etat.data).length) {
+      const charge = chargerCatalogueEtendu().catch(() => {});
+      const aTemps = await Promise.race([charge.then(() => true), new Promise((r) => setTimeout(() => r(false), 1500))]);
+      if (!aTemps) charge.then(() => render());
+    }
     // Séance interrompue : on la restaure MAINTENANT, pas à l'ouverture de
     // l'onglet Séance. Tant que `LIVE` restait nul, l'accueil ignorait qu'une
     // séance tournait et proposait « Commencer la séance » — un tap effaçait le

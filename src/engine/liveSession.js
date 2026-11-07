@@ -14,8 +14,16 @@
  *     data: { [exId]: { exId, series: SerieLive[], douleur: boolean } }
  *   }
  * SerieLive : { charge:string|number, reps:string|number, rir:string|number,
- *               dureeSec:number|null, done:boolean }
+ *               dureeSec:number|null, done:boolean,
+ *               distanceKm?:string, dureeMin?:string }   ← mode « distance »
+ *
+ * Trois modes de saisie (cf. engine/mesures.js#modeSaisie) : « reps »
+ * (charge × répétitions), « temps » (maintien en secondes, `dureeSec` porte la
+ * durée PRÉVUE puis faite) et « distance » (km + minutes, texte saisi tel quel
+ * dans `distanceKm` / `dureeMin`, converti en mètres / secondes à la fin).
  */
+import { depuisSaisie } from "./unites.js";
+import { lireDistanceKm, lireDureeMinutes } from "./mesures.js";
 
 /**
  * TYPES DE SÉRIE avancés.
@@ -182,6 +190,7 @@ export function estEnCours(series, i) {
 export function completerSerie(series, i, opts = {}) {
   const s = (series || [])[i];
   if (!s) return { charge: null, reps: null };
+  if (opts.mode === "distance") return completerSerieDistance(series, i, opts);
   const pose = { charge: null, reps: null };
   if (s.charge === "" || s.charge == null) {
     const v = valeurSerie(series, i, "charge", opts.chargePrecedente, opts.chargeConseil);
@@ -193,6 +202,101 @@ export function completerSerie(series, i, opts = {}) {
     if (v != null) { s.reps = String(v); pose.reps = v; }
   }
   return pose;
+}
+
+/**
+ * Mode distance : complète km et minutes avec, dans l'ordre, la série
+ * précédente de la séance, la dernière séance, puis la durée prévue. Les
+ * textes sont recopiés tels quels (« 25:30 » ne doit pas devenir « 25 »).
+ * @returns {{distanceKm:string|null, dureeMin:string|null}}
+ */
+function completerSerieDistance(series, i, opts) {
+  const s = series[i];
+  const pose = { distanceKm: null, dureeMin: null };
+  const vide = (v) => v === "" || v == null;
+  const brutAvant = (champ) => {
+    for (let k = i - 1; k >= 0; k--) {
+      const v = series[k] && series[k][champ];
+      if (!vide(v)) return String(v);
+    }
+    return null;
+  };
+  /** @type {["distanceKm"|"dureeMin", any, any][]} */
+  const champs = [
+    ["distanceKm", opts.distancePrecedente, null],
+    ["dureeMin", opts.dureePrecedente, opts.dureeConseil],
+  ];
+  for (const [champ, precedent, conseil] of champs) {
+    if (!vide(s[champ])) continue;
+    const v = brutAvant(champ) ?? (vide(precedent) ? null : String(precedent)) ?? (vide(conseil) ? null : String(conseil));
+    if (v != null) { s[champ] = v; pose[champ] = v; }
+  }
+  return pose;
+}
+
+/** Nombre saisi (virgule acceptée), ou null. */
+function lireNombre(v) {
+  if (v === "" || v == null) return null;
+  const n = typeof v === "string" ? parseFloat(v.replace(",", ".")) : Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** RPE saisi, borné à l'échelle 0–10, au demi-point près ; null si illisible. */
+export function lireRpe(v) {
+  const n = lireNombre(v);
+  if (n == null) return null;
+  return Math.max(0, Math.min(10, Math.round(n * 2) / 2));
+}
+
+/**
+ * Une série live doit-elle entrer dans l'historique ?
+ * Validée, ou porteuse d'une saisie. Une durée simplement PRÉVUE (gabarit) ne
+ * suffit pas : une planche non faite ne doit pas compter comme réalisée.
+ * @param {any} s
+ * @param {"reps"|"temps"|"distance"} [mode]
+ */
+export function serieAEnregistrer(s, mode = "reps") {
+  if (!s) return false;
+  if (s.done) return true;
+  const rempli = (v) => v !== "" && v != null;
+  if (mode === "distance") return rempli(s.distanceKm) || rempli(s.dureeMin);
+  return rempli(s.reps) || rempli(s.charge);
+}
+
+/**
+ * Série live → série d'historique, en unités SI (kg, m, s).
+ * - la charge est convertie depuis l'unité de SAISIE de la séance (kg/lb) ;
+ * - la colonne d'effort est un RPE ou un RIR selon le réglage : le RIR est
+ *   toujours stocké (comparabilité, moteur de fatigue) et, en mode RPE, le RPE
+ *   saisi est conservé tel quel à côté — on ne le reconstruit pas après coup ;
+ * - en mode distance : `distanceM` et `dureeSec` (minutes saisies), sans charge.
+ * @param {any} s
+ * @param {{lb?:boolean, enRpe?:boolean, mode?:"reps"|"temps"|"distance"}} [o]
+ */
+export function serieLogDepuisLive(s, o = {}) {
+  const { lb = false, enRpe = false, mode = "reps" } = o;
+  const effort = s.rir === "" || s.rir == null ? null : s.rir;
+  const rpe = enRpe && effort != null ? lireRpe(effort) : null;
+  const rir = effort == null ? null : (enRpe ? rirDepuisRpe(effort) : lireNombre(effort));
+  const type = s.type && s.type !== "normale" ? s.type : undefined;
+  const effortChamps = rpe != null ? { rir, rpe } : { rir };
+  if (mode === "distance") {
+    return {
+      chargeKg: null, reps: null,
+      distanceM: lireDistanceKm(s.distanceKm),
+      dureeSec: lireDureeMinutes(s.dureeMin),
+      ...effortChamps, type,
+    };
+  }
+  const reps = lireNombre(s.reps);
+  const duree = Number(s.dureeSec);
+  return {
+    chargeKg: depuisSaisie(s.charge, lb),
+    reps: reps == null ? null : Math.round(reps),
+    ...effortChamps,
+    dureeSec: mode === "temps" && duree > 0 ? Math.round(duree) : null,
+    type,
+  };
 }
 
 /** Crée l'état live d'une séance à partir d'un gabarit de séance. */
@@ -273,6 +377,10 @@ export function restaurer(brut) {
         dureeSec: s && typeof s.dureeSec === "number" ? s.dureeSec : null,
         done: !!(s && s.done),
         type: typeValide(s && s.type),
+        // Mode distance : textes saisis (km, minutes), présents seulement s'ils
+        // existent — une séance d'avant leur apparition garde sa forme.
+        ...(s && s.distanceKm != null && s.distanceKm !== "" ? { distanceKm: String(s.distanceKm) } : {}),
+        ...(s && s.dureeMin != null && s.dureeMin !== "" ? { dureeMin: String(s.dureeMin) } : {}),
       })),
     };
   }
@@ -336,7 +444,7 @@ export function estReprenable(sessionEnCours, trouverSeance) {
   if (!seance) return false;
   for (const exId of Object.keys(live.data)) {
     for (const s of live.data[exId].series) {
-      if (s.done || s.charge !== "" || s.reps !== "" || (s.dureeSec && s.done)) return true;
+      if (s.done || s.charge !== "" || s.reps !== "" || s.distanceKm || s.dureeMin) return true;
     }
     if (live.data[exId].douleur) return true;
   }

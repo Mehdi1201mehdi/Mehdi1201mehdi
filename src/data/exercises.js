@@ -504,6 +504,29 @@ export function chargerCatalogueEtendu() {
   return extraCataloguePromise;
 }
 
+/**
+ * Identifiants d'exercices RÉFÉRENCÉS par les données de l'utilisateur
+ * (programme, routines perso, historique, séance en cours, récents) mais
+ * absents du catalogue actuellement chargé. Non vide → il faut charger
+ * l'extension avant d'afficher, sinon une séance reprise montre « Exercice
+ * indisponible » et les statistiques affichent des identifiants bruts.
+ * @param {any} data  état de l'application (Etat.data)
+ * @returns {string[]}
+ */
+export function idsReferencesInconnus(data) {
+  const ids = new Set();
+  const seances = (prog) => ((prog && prog.seances) || []).forEach((s) => (s.exercices || []).forEach((e) => e && ids.add(e.exerciceId)));
+  if (data) {
+    seances(data.programme);
+    (data.programmesPerso || []).forEach(seances);
+    (data.logs || []).forEach((l) => ((l && l.exercices) || []).forEach((e) => e && ids.add(e.exerciceId)));
+    const live = data.sessionEnCours && data.sessionEnCours.data;
+    if (live && typeof live === "object") Object.keys(live).forEach((k) => ids.add(k));
+    (data.recentsExo || []).forEach((id) => ids.add(id));
+  }
+  return [...ids].filter((id) => typeof id === "string" && id && !EXERCISES_BY_ID[id]);
+}
+
 /** Renvoie un exercice par id (ou undefined). */
 export function getExercise(id) {
   return EXERCISES_BY_ID[id];
