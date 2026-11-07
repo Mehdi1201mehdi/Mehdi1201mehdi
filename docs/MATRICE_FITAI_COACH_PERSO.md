@@ -5,89 +5,90 @@ Statut = état de **Coach Perso** au regard de la fonction observée dans FitAI.
 établir côté FitAI depuis l'environnement d'analyse).
 
 Sources FitAI : analyse statique du XAPK (`ANALYSE_FITAI_APK_2.0.6.md`,
-`CRAFT_ANYTHING.md`). Aucun écran FitAI n'a été vu. État Coach Perso : branche
-`fitai-premium`, commit `39d45c2`.
+`CRAFT_ANYTHING.md`). Aucun écran FitAI n'a été vu. Colonne « Avant » : branche
+`fitai-premium` au commit `39d45c2` ; colonne « Après » : commit en tête de
+`fitai-premium` (nov. 2026). Rien de ceci n'est publié sur `main`.
 
 ## Bibliothèque d'exercices
 
-| Fonction | FitAI (observé) | Coach Perso aujourd'hui | Manque / développement | Test de validation | Statut |
+| Fonction | FitAI (observé) | Coach Perso maintenant | Validation | Avant | Après |
 |---|---|---|---|---|---|
-| Taille de la base | base chiffrée, effectif inconnu ; 160 vidéos | **343** exercices : 93 rédigés pour l'app + 250 wger (CC-BY-SA) | importer des bases ouvertes **réellement libres**, dédoublonnées, attributions conservées | test d'unicité des identifiants et des mouvements ; comptage par source | INCOMPLET |
-| Muscles cibles / secondaires | `isTarget` | principaux, secondaires, stabilisateurs | — | — | COMPLET |
-| % de contribution musculaire | `musclePercentage` | coefficients explicites pour une partie, dérivés pour le reste | signaler explicite / dérivé ; n'afficher que l'explicite comme « justifié » | test : chaque coefficient porte sa provenance | INCOMPLET |
-| Équipement principal / secondaire | `equipment`, `secondaryEquipment` | `equipement[]`, `equipementsAlternatifs` | — | — | COMPLET |
-| Variantes plus facile / plus difficile | `easierVariationId`, `harderVariationId` | aucune | lien vers un exercice **existant** du catalogue, sinon vide | test : tout lien pointe vers un id réel, pas de cycle | ABSENT |
-| Même mouvement, autre matériel | `sameMoveOtherEquipmentIds` | partiellement via le moteur de remplacement | champ explicite | idem | INCOMPLET |
-| Latéralité | `laterality` (texte) | booléen `unilateral` | bilatéral / unilatéral / alterné | test de valeurs autorisées | INCOMPLET |
-| Isométrique | `isometricHold` | implicite (type gainage, durée) | drapeau explicite → saisie en durée de maintien | séance avec planche : champ durée seul | INCOMPLET |
-| Domicile + substitut | `householdOk`, `householdSubstitute` | via matériel seulement | drapeau + substitut, filtre « à domicile » | filtre : 0 exercice à machine | ABSENT |
-| Sécurité / précautions | `cautionFlags` | `securite`, `contreIndications` | — | — | COMPLET |
-| Facteurs de difficulté | `difficultyFactors` | niveau 1–4 | facultatif | — | INCOMPLET |
-| MET par exercice | `metValue`, `metSpeedValue` | aucun | MET du Compendium 2024 (source publique, citée) | test : MET présent ⇒ source citée | ABSENT |
-| Nom FR / EN | noms en ~45 langues | FR ; `nomsAlternatifs` souvent vides | nom anglais | test : nom EN non vide pour les exercices importés | INCOMPLET |
-| Vidéo / animation | 160 MP4 embarqués | GIF Gym Visual par URL (permission documentée) | couverture à mesurer ; pas de copie FitAI | comptage exercices avec média | INCOMPLET |
-| Filtres | muscle, matériel, favoris (requêtes SQL observées) | muscle, matériel, niveau, type, favoris, récents | filtre domicile | test de filtre | INCOMPLET |
+| Taille de la base | base chiffrée, effectif inconnu ; 160 vidéos | **1 126 exercices distincts** : 93 maison + 240 wger (CC-BY-SA) + 793 free-exercise-db (domaine public) ; 52 doublons masqués | tests : identifiants uniques, aucun nom répété même à un article près | INCOMPLET | INCOMPLET (volontairement : pas de 3 000 gonflés) |
+| Muscles cibles / secondaires | `isTarget` | principaux, secondaires, stabilisateurs | tests catalogue | COMPLET | COMPLET |
+| % de contribution musculaire | `musclePercentage` | coefficients explicites pour une partie, dérivés pour le reste ; provenance non affichée | — | INCOMPLET | INCOMPLET |
+| Équipement principal / secondaire | `equipment`, `secondaryEquipment` | `equipement[]`, `equipementsAlternatifs` | — | COMPLET | COMPLET |
+| Variantes plus facile / plus difficile | liens explicites | **calculées** : même patron, même muscle principal, difficulté inférieure / supérieure, version uni- ou bilatérale ; bloc « Variantes du mouvement » sur la fiche | tests `replacement` | ABSENT | COMPLET |
+| Même mouvement, autre matériel | `sameMoveOtherEquipmentIds` | moteur de remplacement pondéré sur tout le catalogue | tests `replacement` | INCOMPLET | COMPLET |
+| Latéralité | `laterality` (texte) | booléen `unilateral` | — | INCOMPLET | INCOMPLET |
+| Isométrique | `isometricHold` | mode « temps » : saisie de la durée de maintien, records de maintien, lest | test séance planche | INCOMPLET | COMPLET |
+| Domicile + substitut | `householdOk`, `householdSubstitute` | via matériel seulement | — | ABSENT | ABSENT |
+| Sécurité / précautions | `cautionFlags` | `securite`, `contreIndications` | — | COMPLET | COMPLET |
+| MET par exercice | `metValue`, `metSpeedValue` | MET par **type** d'activité et vitesse (Compendium 2024, codes cités), pas par exercice | tests `calories` | ABSENT | INCOMPLET |
+| Nom FR / EN | ~45 langues | nom français pour 1 066 fiches sur 1 126 ; nom anglais d'origine cherchable | test ≥ 90 % de noms français | INCOMPLET | INCOMPLET (60 noms anglais) |
+| Vidéo / animation | 160 MP4 embarqués | GIF Gym Visual par URL (permission documentée) ; aucune copie FitAI | — | INCOMPLET | INCOMPLET |
+| Filtres | muscle, matériel, favoris | muscle, matériel, niveau, type, favoris, récents | tests filtres | INCOMPLET | INCOMPLET (pas de filtre « domicile ») |
 
 ## Mesure des exercices
 
-| Fonction | FitAI | Coach Perso | Manque | Test | Statut |
+| Fonction | FitAI | Coach Perso maintenant | Validation | Avant | Après |
 |---|---|---|---|---|---|
-| Indicateurs par exercice | poids, reps (ou pas), distance (m/km), durée (s/min) | charge + reps **ou** durée | **distance, vitesse**, lest pour poids du corps | séance cardio : distance + durée, vitesse calculée, pas de champ charge | INCOMPLET |
-| Pas | `RepType.STEPS` | aucun | facultatif | — | ABSENT |
+| Indicateurs par exercice | poids, reps, distance, durée | charge + reps, **ou** distance + durée (vitesse et allure calculées), **ou** durée de maintien ; lest au poids du corps | tests `mesures`, smoke séance cardio + gainage | INCOMPLET | COMPLET |
+| Pas | `RepType.STEPS` | aucun | — | ABSENT | ABSENT |
 
 ## Calculs
 
-| Fonction | FitAI | Coach Perso | Manque | Test | Statut |
+| Fonction | FitAI | Coach Perso maintenant | Validation | Avant | Après |
 |---|---|---|---|---|---|
-| 1RM estimé | Epley, sans plafond | Epley (`records.js`) + 7 formules dont Brzycki, Lombardi (`force.js`) | plafond de fiabilité affiché (> 12 reps) | valeurs de référence par formule | COMPLET |
-| % du 1RM, charges recommandées | — (non trouvé) | calculateurs + table | — | tests `force` existants | COMPLET |
-| Records charge et 1RM | e1RM SQL par période | détectés en fin de séance | — | tests `records` existants | COMPLET |
-| Records reps, volume, distance, durée, vitesse | données par série (`distMeter`, `timeSecond`) | aucun | records par type, jamais mélangés | séance cardio ⇒ record distance, pas de record de charge | ABSENT |
-| Volume série / exercice / séance / muscle / semaine | Σ kg × reps (SQL) | oui | volume **mensuel** ; distinction tonnage / séries / intensité dans les libellés | tests stats | INCOMPLET |
-| RPE 0–10 par série | oui (validé 0–10) | RIR saisi (mode avancé), affichage RPE possible | RPE natif, moyenne, comparaison | saisie RPE 8,5 ⇒ RIR 1,5 et moyenne correcte | INCOMPLET |
-| RIR | **absent** de FitAI | présent, pilote la fatigue | — | — | COMPLET |
-| Calories | MET exercice / type (9,0 · 3,8 · 2,5), facteur vitesse, 7 s / rep, par série | MET 5 fixe × poids × durée de séance | MET par exercice et type, vitesse, par série ; toujours « estimation » | valeurs attendues course / marche / vélo / musculation | INCOMPLET |
+| 1RM estimé | Epley, sans plafond | Epley limité à 1–12 reps pour les records ; 7 formules au calculateur | tests `records`, `force` | COMPLET | COMPLET |
+| % du 1RM, charges recommandées | non trouvé | calculateurs + table | tests `force` | COMPLET | COMPLET |
+| Records charge et 1RM | e1RM SQL | détectés en fin de séance | tests `records` | COMPLET | COMPLET |
+| Records reps, volume, distance, durée, vitesse | données par série | records par type, jamais mélangés, seulement s'il existe une référence | tests `mesures` | ABSENT | COMPLET |
+| Volume série → mois | Σ kg × reps | tonnage, volume et intensité distingués ; vue semaine / mois ; comparaison au même stade | tests `analyse` | INCOMPLET | COMPLET |
+| RPE 0–10 par série | oui | RPE saisi (RIR conservé), RPE déduit du RIR, moyenne par séance et par exercice | tests `liveSession`, `analyse` | INCOMPLET | COMPLET |
+| RIR | absent | présent, pilote la fatigue | — | COMPLET | COMPLET |
+| Calories | MET par exercice / type | MET par type et vitesse, série par série, musculation au temps restant ; libellé « estimation » | tests `calories` | INCOMPLET | COMPLET |
+| Formules documentées | — | `docs/FORMULES.md` | — | INCOMPLET | COMPLET |
 
 ## Mesures corporelles
 
-| Fonction | FitAI | Coach Perso | Manque | Test | Statut |
+| Fonction | FitAI | Coach Perso maintenant | Validation | Avant | Après |
 |---|---|---|---|---|---|
-| Mesures | 16 (poids, % graisse, poitrine, taille, hanches, cuisses / mollets / biceps / avant-bras G et D, épaules, cou, poignet) | poids + 4 tours | 11 mesures, gauche / droite, % graisse saisi | saisie puis graphique de chaque mesure | INCOMPLET |
-| Comparaison de dates | — (non vérifiable) | graphique par période | comparaison A ↔ B | test d'écart | INCOMPLET |
-| Unités | kg / lb | kg / lb fait ; **cm / in absent** | cm / in | conversion aller-retour sans dérive | INCOMPLET |
-| Export | — | sauvegarde JSON + CSV | inclure les nouvelles mesures | sauvegarde puis restauration | COMPLET |
+| Mesures | 16 | les 16 mêmes (dont gauche / droite) + anciennes mesures conservées | tests `corps` | INCOMPLET | COMPLET |
+| Comparaison de dates | non vérifiable | comparaison A ↔ B, valeurs anciennes signalées, asymétries > 5 % | tests `corps`, smoke 320 px | INCOMPLET | COMPLET |
+| Unités | kg / lb | kg / lb et cm / in | tests `unites` | INCOMPLET | COMPLET |
+| Export | — | JSON + CSV 18 colonnes | tests `export` | COMPLET | COMPLET |
 
 ## Entraînement et programmes
 
-| Fonction | FitAI | Coach Perso | Manque | Test | Statut |
+| Fonction | FitAI | Coach Perso maintenant | Validation | Avant | Après |
 |---|---|---|---|---|---|
-| Programme → jours → routine, repos explicites | `UserPlanRoutineEntity(dayIndex, routineId?)` | programme généré + routines perso | organisation par jour avec repos | programme 7 jours dont 3 repos | INCOMPLET |
-| Prévu ≠ effectué | tables séparées | programme / routines ≠ logs | — | — | COMPLET |
-| Supersets | `superSetId` | jusqu'à 4 groupes | — | test liveSession | COMPLET |
-| Repos par exercice | `restTime` | par série | — | — | COMPLET |
-| Notes par exercice et par séance | `note` | **aucune** | notes persistantes | note écrite, retrouvée à la séance suivante | ABSENT |
-| Échauffement, drop set, rest-pause, tempo | — | oui (mode avancé) | — | tests liveSession | COMPLET |
-| AMRAP, EMOM | non trouvés | absents | séries AMRAP / EMOM | séance EMOM 10 min | ABSENT |
-| Chrono de repos, notifications, records, sauvegarde auto, reprise, résumé | service de premier plan | oui (APK : notification native) | — | tests repos / liveSession | COMPLET |
+| Programme → jours → routine, repos explicites | `UserPlanRoutineEntity` | programme généré + routines perso | — | INCOMPLET | INCOMPLET |
+| Prévu ≠ effectué | tables séparées | programme / routines ≠ historique | — | COMPLET | COMPLET |
+| Supersets | `superSetId` | jusqu'à 4 groupes | tests `liveSession` | COMPLET | COMPLET |
+| Repos par exercice | `restTime` | par série | — | COMPLET | COMPLET |
+| Notes par exercice et par séance | `note` | note par exercice (rappelée « la dernière fois ») et note de fin de séance | smoke séance | ABSENT | COMPLET |
+| Échauffement, drop set, rest-pause, tempo | — | oui ; échauffement exclu des stats | tests `liveSession`, `records` | COMPLET | COMPLET |
+| AMRAP, EMOM | non trouvés | série AMRAP ; EMOM / Tabata par minuteur d'intervalles (pas un type de série) | tests `intervalles` | ABSENT | COMPLET |
+| Chrono, notifications, records, sauvegarde auto, reprise, résumé | service de premier plan | oui (APK : notification native) | tests | COMPLET | COMPLET |
 
 ## Remplacement, récupération, coach
 
-| Fonction | FitAI | Coach Perso | Manque | Test | Statut |
+| Fonction | FitAI | Coach Perso maintenant | Validation | Avant | Après |
 |---|---|---|---|---|---|
-| Remplacement | **LLM côté serveur** + liens de variantes | moteur local déterministe (muscles, matériel, limitations) | pondération par coefficients, variantes, latéralité | alternative ⇒ mêmes muscles, matériel dispo | INCOMPLET |
-| Carte musculaire, fatigue | seuils `restFatiguePct`, `readyPct` | carte % fraîcheur, demi-vies 18–40 h | — | tests fatigue | COMPLET |
-| Temps restant avant récupération | courbe 0–132 h × `recoveryWindowHours` | absent | heures restantes par muscle | test de la courbe | ABSENT |
-| Seuils personnalisables | config serveur | absents | réglage utilisateur | test | ABSENT |
-| Coach IA conversationnel, création de routine validée | sessions GPT avec contexte | oui (clé ou relais) | — | test de bout en bout existant | COMPLET |
-| Coach : modifier un programme, plateaux, RPE / mesures dans le contexte | non vérifiable (serveur) | partiel | contexte enrichi, modification validée | proposition appliquée après validation | INCOMPLET |
+| Remplacement | LLM serveur + liens | moteur local pondéré (muscles × coefficients, patron, matériel, difficulté), prudence en cas de limitation | tests `replacement` | INCOMPLET | COMPLET |
+| Carte musculaire, fatigue | seuils serveur | carte de fraîcheur, demi-vies 18–40 h | tests `fatigue` | COMPLET | COMPLET |
+| Temps restant avant récupération | courbe 0–132 h | « prêt dans … h » par muscle | tests `fatigue` | ABSENT | COMPLET |
+| Seuils personnalisables | config serveur | 60 / 75 / 90 % | tests `fatigue` | ABSENT | COMPLET |
+| Coach IA conversationnel, routine validée | sessions GPT | oui (clé ou relais, désactivé par défaut) | tests `coachCloud`, `coachRelais` | COMPLET | COMPLET |
+| Coach : modifier une routine, stagnations, effort, mesures | non vérifiable | contexte enrichi ; modification proposée en **nouvelle version** avec différences, appliquée seulement après validation | tests `coachRoutine` (fournisseur simulé) | INCOMPLET | COMPLET |
 
 ## Dictionnaire, Android
 
-| Fonction | FitAI | Coach Perso | Manque | Test | Statut |
+| Fonction | FitAI | Coach Perso maintenant | Validation | Avant | Après |
 |---|---|---|---|---|---|
-| Dictionnaire | site (analyse antérieure) | 146 termes, 9 catégories, recherche, favoris, synonymes EN | biomécanique, cardio | tests dictionnaire | INCOMPLET |
-| APK Android | — | compilé (Capacitor), signature stable, vérifié statiquement ; **pas testé sur appareil** | test sur téléphone | installation réelle | INCOMPLET |
-| Health Connect | permissions poids, taille, graisse, exercices, distance, calories | absent | plugin Capacitor + permissions minimales | lecture du poids | ABSENT |
+| Dictionnaire | site | 164 termes, 11 catégories dont biomécanique et cardio | tests dictionnaire | INCOMPLET | COMPLET |
+| APK Android | — | compilé par GitHub Actions, signature de test stable, permissions vérifiées dans l'APK ; **pas testé sur un téléphone** | installation réelle à faire | INCOMPLET | INCOMPLET |
+| Health Connect | lecture poids, taille, graisse, exercices, distance, calories | **lecture seule** de ces 6 types, import d'une mesure seulement sur geste explicite ; aucune écriture (le plugin ne sait pas écrire une séance) ; testé sur maquette du plugin, **pas sur un téléphone** | tests `santeConnect`, garde-fou CI sur les permissions de l'APK | ABSENT | INCOMPLET |
 
 ## Non vérifiable côté FitAI
 
