@@ -1,0 +1,16 @@
+# Relais sécurisé du coach IA — configuration Cloudflare Workers.
+# Déploiement : voir README.md dans ce dossier.
+name = "coach-perso-relais"
+main = "worker.js"
+compatibility_date = "2026-11-01"
+
+[vars]
+# Origines autorisées à appeler le relais : le site GitHub Pages et l'application
+# Android (Capacitor sert l'app depuis https://localhost).
+ORIGINES = "https://mehdi1201mehdi.github.io,https://localhost"
+MODELE = "claude-haiku-5-5"
+MAX_TOKENS = "1600"
+
+# Les SECRETS ne s'écrivent JAMAIS ici. Ils se définissent en ligne de commande :
+#   npx wrangler secret put ANTHROPIC_API_KEY
+#   npx wrangler secret put JETON_ACCES

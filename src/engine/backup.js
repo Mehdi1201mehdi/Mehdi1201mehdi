@@ -22,12 +22,34 @@ import { IDENTITE } from "../config/identite.js";
 const CLES_EXPORT = [
   "profil", "programme", "programmesPerso", "exercicesPerso",
   "logs", "metrics", "foodlog", "waterlog", "reviews", "photos", "favoris", "recentsExo", "reglages",
+  // Ajoutées ensuite : l'historique du test vélo n'était pas sauvegardé (perdu
+  // à la restauration), et les favoris du dictionnaire sont un choix explicite.
+  "testsVelo", "dicoFavoris",
 ];
+
+/**
+ * Réglages SANS secret. Une sauvegarde est un fichier qu'on envoie par mail,
+ * qu'on dépose dans un cloud ou qu'on partage pour obtenir de l'aide : la clé
+ * d'API du coach n'a rien à y faire. Le fournisseur et le modèle restent (ils
+ * ne valent rien seuls) ; la clé et le jeton du serveur relais sont retirés et
+ * se ressaisissent après une restauration.
+ * @param {any} reglages
+ */
+export function reglagesSansSecret(reglages) {
+  if (!reglages || typeof reglages !== "object") return reglages;
+  const out = { ...reglages };
+  if (out.coachCloud && typeof out.coachCloud === "object") {
+    const { cle, jeton, ...reste } = out.coachCloud;
+    out.coachCloud = reste;
+  }
+  return out;
+}
 
 /** Construit l'objet d'export (sérialisable en JSON). */
 export function construireExport(data, maintenant = new Date().toISOString()) {
   const out = {};
   for (const k of CLES_EXPORT) out[k] = data ? data[k] : undefined;
+  out.reglages = reglagesSansSecret(out.reglages);
   return { app: IDENTITE.idSauvegarde, schema: SCHEMA_VERSION, exportedAt: maintenant, data: out };
 }
 
@@ -79,7 +101,15 @@ export function appliquerImport(actuel, src, mode = "fusionner") {
     // dans IndexedDB : des orphelines invisibles, et un historique de prises de
     // vue perdu sans que personne ne l'ait demandé.
     const photos = Array.isArray(src.photos) ? src.photos : (actuel && actuel.photos) || [];
-    return normaliserEtat({ ...src, photos });
+    // La clé du coach appartient à CET appareil et n'est jamais dans un fichier
+    // de sauvegarde : « remplacer les données » ne doit pas la faire disparaître.
+    const coachLocal = actuel && actuel.reglages && actuel.reglages.coachCloud;
+    let reglages = src.reglages;
+    if (coachLocal && (coachLocal.cle || coachLocal.jeton)) {
+      const cs = (src.reglages && src.reglages.coachCloud) || {};
+      reglages = { ...(src.reglages || {}), coachCloud: { ...coachLocal, ...cs, cle: coachLocal.cle, jeton: coachLocal.jeton } };
+    }
+    return normaliserEtat({ ...src, photos, reglages });
   }
   const base = normaliserEtat(actuel);
   const out = { ...base };
@@ -92,6 +122,8 @@ export function appliquerImport(actuel, src, mode = "fusionner") {
   // Listes d'identifiants : union sans doublon, l'actuel d'abord.
   out.favoris = [...new Set([...(base.favoris || []), ...(src.favoris || [])])];
   out.recentsExo = [...new Set([...(base.recentsExo || []), ...(src.recentsExo || [])])].slice(0, 12);
+  out.dicoFavoris = [...new Set([...(base.dicoFavoris || []), ...(src.dicoFavoris || [])])];
+  out.testsVelo = fusionListe(base.testsVelo, src.testsVelo);
   // foodlog / waterlog : union des jours, priorité aux données actuelles.
   out.foodlog = { ...(src.foodlog || {}), ...(base.foodlog || {}) };
   out.waterlog = { ...(src.waterlog || {}), ...(base.waterlog || {}) };
@@ -99,6 +131,11 @@ export function appliquerImport(actuel, src, mode = "fusionner") {
   out.profil = base.profil || src.profil || null;
   out.programme = base.programme || src.programme || null;
   out.reglages = { ...base.reglages, ...(src.reglages || {}) };
+  // La sauvegarde ne contient plus de clé (cf. reglagesSansSecret) : fusionner
+  // le bloc coach champ par champ garde celle déjà saisie sur cet appareil.
+  if (base.reglages && base.reglages.coachCloud) {
+    out.reglages.coachCloud = { ...base.reglages.coachCloud, ...((src.reglages && src.reglages.coachCloud) || {}) };
+  }
   return normaliserEtat(out);
 }
 

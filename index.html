@@ -6,7 +6,11 @@
      mode « Coach IA » facultatif (Transformers.js), désactivé par défaut : rien
      n'est chargé depuis ces domaines tant que l'utilisateur ne l'active pas.
      'wasm-unsafe-eval' + worker blob: sont requis par le moteur ONNX. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; font-src 'self'; manifest-src 'self'; worker-src 'self' blob:; img-src 'self' data: blob: https://raw.githubusercontent.com https://wger.de https://*.cloudfront.net https://oss.exercisedb.dev; media-src 'self' https://raw.githubusercontent.com https://wger.de https://*.cloudfront.net; connect-src 'self' https://world.openfoodfacts.org https://oss.exercisedb.dev https://exercisedb.p.rapidapi.com https://cdn.jsdelivr.net https://huggingface.co https://*.hf.co https://cdn-lfs.huggingface.co https://cdn-lfs-us-1.hf.co">
+<!-- connect-src : les trois fournisseurs du coach IA (appel direct avec la clé de
+     l'utilisateur) et les relais Cloudflare Workers (*.workers.dev, + le relais
+     local de développement). Un relais sur un domaine personnalisé doit être
+     ajouté ici, sinon le navigateur bloque la connexion. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; font-src 'self'; manifest-src 'self'; worker-src 'self' blob:; img-src 'self' data: blob: https://raw.githubusercontent.com https://wger.de https://*.cloudfront.net https://oss.exercisedb.dev; media-src 'self' https://raw.githubusercontent.com https://wger.de https://*.cloudfront.net; connect-src 'self' https://world.openfoodfacts.org https://oss.exercisedb.dev https://exercisedb.p.rapidapi.com https://cdn.jsdelivr.net https://huggingface.co https://*.hf.co https://cdn-lfs.huggingface.co https://cdn-lfs-us-1.hf.co https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com https://*.workers.dev http://localhost:8787">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#07090B">
 <meta name="apple-mobile-web-app-capable" content="yes">

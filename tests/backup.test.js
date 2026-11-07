@@ -131,3 +131,30 @@ test("import « fusionner » : les fiches des deux côtés sont réunies, sans d
   const out = appliquerImport(actuel, src, "fusionner");
   assert.deepEqual(out.photos.map((p) => p.id).sort(), ["ph_a", "ph_b"]);
 });
+
+test("export : la clé d'API du coach et le jeton du relais ne sortent jamais dans le fichier", () => {
+  const data = { profil: { prenom: "A" }, reglages: { theme: "dark", coachCloud: { fournisseur: "anthropic", cle: "sk-ant-SECRET", jeton: "tok-SECRET", modele: "m" } } };
+  const exp = construireExport(data, "2026-11-07T00:00:00.000Z");
+  const json = JSON.stringify(exp);
+  assert.ok(!json.includes("SECRET"), "aucun secret dans l'export");
+  assert.equal(exp.data.reglages.coachCloud.fournisseur, "anthropic", "le fournisseur reste");
+  assert.equal(data.reglages.coachCloud.cle, "sk-ant-SECRET", "l'état en mémoire n'est pas modifié");
+});
+
+test("export : l'historique du test vélo et les favoris du dictionnaire sont sauvegardés", () => {
+  const exp = construireExport({ testsVelo: [{ id: "v1", cle: "x", pouls: 120 }], dicoFavoris: ["rir"] });
+  assert.deepEqual(exp.data.testsVelo, [{ id: "v1", cle: "x", pouls: 120 }]);
+  assert.deepEqual(exp.data.dicoFavoris, ["rir"]);
+});
+
+test("import : restaurer une sauvegarde garde la clé du coach déjà saisie sur l'appareil", () => {
+  const actuel = { profil: { prenom: "A" }, reglages: { coachCloud: { fournisseur: "openai", cle: "sk-LOCAL" } } };
+  const src = { profil: { prenom: "B" }, reglages: { theme: "light", coachCloud: { fournisseur: "openai" } }, dicoFavoris: ["rpe"], testsVelo: [{ id: "v2" }] };
+  const rempl = appliquerImport(actuel, src, "remplacer");
+  assert.equal(rempl.reglages.coachCloud.cle, "sk-LOCAL");
+  assert.equal(rempl.reglages.theme, "light");
+  const fus = appliquerImport({ ...actuel, dicoFavoris: ["rir"] }, src, "fusionner");
+  assert.equal(fus.reglages.coachCloud.cle, "sk-LOCAL");
+  assert.deepEqual(fus.dicoFavoris.sort(), ["rir", "rpe"]);
+  assert.equal(fus.testsVelo.length, 1);
+});

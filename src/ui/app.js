@@ -28,6 +28,8 @@ import { bilan } from "../engine/review.js";
 import { chercherFoods, portion } from "../data/foods.js";
 import { rechercher as offRechercher, parCodeBarres } from "../integrations/openfoodfacts.js";
 import { scannerDisponible, demarrerScan, normaliserCode } from "./scanner.js";
+import { vueDico } from "./dico.js";
+import { catalogueCompact, extraireProposition, routineDepuisProposition, htmlLeger, demandeDePlan } from "../engine/coachRoutine.js";
 import { $, esc, h } from "./dom.js";
 import { urlDemo, vignetteExo, vignetteHTML, REDUIRE_MOTION } from "./vignettes.js";
 import { anneauSVG, anneauSignature, svgLine, categorieIMC, gaugeIMC, svgBars, sparkAire } from "./graphes.js";
@@ -150,15 +152,15 @@ $("#themeBtn").addEventListener("click", () => {
 
 /* ---------- navigation ---------- */
 let TAB = "dash";
-const TABS = { dash: vDash, prog: vProg, cat: vCatalogue, recup: vRecup, train: vTrain, food: vNutrition, stats: vStats, set: vSet, anatoly: vAnatoly };
+const TABS = { dash: vDash, prog: vProg, cat: vCatalogue, recup: vRecup, train: vTrain, food: vNutrition, stats: vStats, set: vSet, anatoly: vAnatoly, dico: vDico };
 // Sous-écrans hors barre. Depuis le passage aux 5 onglets de FitAI
 // (Routines · Exercices · Séance · Récupération · Compte), « Progrès » et la
 // séance active ne sont plus dans la barre : ils restent atteignables, l'un
 // depuis le Compte (comme la carte « Stats » de FitAI), l'autre au démarrage
 // d'une séance. Aucune vue n'a été supprimée.
-const TABS_PLUS = ["food", "anatoly", "stats", "train"];
+const TABS_PLUS = ["food", "anatoly", "stats", "train", "dico"];
 /** Titre affiché dans l'en-tête compact des écrans autres que l'Accueil. */
-const TITRES_ECRAN = { prog: "Programme", train: "Séance", stats: "Progrès", food: "Nutrition", cat: "Catalogue", anatoly: "Anatoly", set: "Profil" };
+const TITRES_ECRAN = { prog: "Programme", train: "Séance", stats: "Progrès", food: "Nutrition", cat: "Catalogue", anatoly: "Anatoly", set: "Profil", dico: "Dictionnaire" };
 /**
  * En-tête : la marque, et rien d'autre.
  *
@@ -226,6 +228,7 @@ function ouvrirPlus() {
     { tab: "food", icone: IC.apple, tint: "mi-green", label: "Nutrition", desc: "Calories, macros, hydratation" },
     { tab: "anatoly", icone: IC.dumbbell, tint: "mi-blue", label: "Programme Anatoly", desc: "Powerbuilding · 8 semaines" },
     { tab: "cat", icone: IC.search, tint: "mi-indigo", label: "Catalogue d'exercices", desc: "Rechercher et filtrer" },
+    { tab: "dico", icone: IC.livre, tint: "mi-blue", label: "Dictionnaire fitness", desc: "Termes, techniques, nutrition" },
     { tab: "set", icone: IC.user, tint: "mi-orange", label: "Profil & réglages", desc: "Compte, thème, sauvegarde" },
   ];
   const sheet = h(`<div class="sheet plusmenu"><div class="inner"></div></div>`);
@@ -4782,18 +4785,73 @@ const COACH_EXEMPLES = [
  * contient que des données déjà présentes dans l'app (jamais envoyées ailleurs :
  * l'inférence est locale).
  */
-function contexteUtilisateur() {
+function contexteUtilisateur(opts = {}) {
   const p = Etat.data.profil || {};
   const b = calculerBesoins(p);
   const sj = seanceDuJour(Etat.data.programme);
   const logs = Etat.data.logs || [];
   const l = [];
-  l.push(`Prénom : ${p.prenom || "—"}, niveau : ${LEVEL_LABELS[p.niveau] || p.niveau}, objectif : ${GOAL_LABELS[p.objectif] || p.objectif}.`);
-  l.push(`Entraînement : ${p.joursParSemaine} jours/semaine, ${p.dureeSeanceMin} min par séance.`);
+  l.push(`Prénom : ${p.prenom || "—"}${p.age ? `, ${p.age} ans` : ""}${p.sexe ? `, ${p.sexe === "F" ? "femme" : "homme"}` : ""}${p.tailleCm ? `, ${p.tailleCm} cm` : ""}${p.poidsKg ? `, ${p.poidsKg} kg` : ""}.`);
+  l.push(`Niveau : ${LEVEL_LABELS[p.niveau] || p.niveau || "—"}. Objectif : ${GOAL_LABELS[p.objectif] || p.objectif || "—"}.`);
+  l.push(`Entraînement : ${p.joursParSemaine || "?"} jours/semaine, ${p.dureeSeanceMin || "?"} min par séance, lieu : ${({ maison: "maison", salle: "salle de sport", exterieur: "extérieur" })[p.lieu] || p.lieu || "—"}.`);
   l.push(`Matériel disponible : ${(p.equipements || []).map((e) => EQUIPMENT_LABELS[e] || e).join(", ") || "aucun"}.`);
+  if ((p.limitations || []).length) l.push(`Zones sensibles déclarées : ${p.limitations.join(", ")}.`);
+  if ((p.musclesPrioritaires || []).length) l.push(`Muscles prioritaires : ${p.musclesPrioritaires.map((m) => MUSCLE_LABELS[m] || m).join(", ")}.`);
   if (b) l.push(`Besoins quotidiens calculés : ${b.kcal} kcal, ${b.prot} g de protéines, ${b.lip} g de lipides, ${b.gluc} g de glucides, ${b.eau} L d'eau.`);
-  l.push(sj ? `Séance prévue aujourd'hui : ${sj.nom} (${sj.exercices.length} exercices).` : "Aujourd'hui : jour de repos.");
-  l.push(`Séances enregistrées au total : ${logs.length}. Série en cours : ${serieActuelle(logs)} jour(s).`);
+  const prog = Etat.data.programme;
+  if (prog && Array.isArray(prog.seances) && prog.seances.length) {
+    l.push(`Programme actif « ${prog.nom || "programme"} » :`);
+    prog.seances.slice(0, 7).forEach((se) => {
+      const ex = (se.exercices || []).map((e) => {
+        const n = (e.series || []).filter((x) => x.type !== "echauffement");
+        const r = n[0] && n[0].repsCible ? `${n[0].repsCible[0]}-${n[0].repsCible[1]}` : n[0] && n[0].dureeSec ? `${n[0].dureeSec}s` : "";
+        return `${nomExo(e.exerciceId)} ${n.length}×${r}`;
+      }).join(" ; ");
+      l.push(`- ${se.nom} : ${ex}`);
+    });
+  }
+  const perso = (Etat.data.programmesPerso || []).map((r) => r.nom).filter(Boolean);
+  if (perso.length) l.push(`Routines personnelles : ${perso.slice(0, 8).join(", ")}.`);
+  l.push(sj ? `Séance prévue aujourd'hui : ${sj.nom} (${sj.exercices.length} exercices).` : "Aujourd'hui : jour de repos dans le programme.");
+  l.push(`Séances enregistrées au total : ${logs.length}. Série en cours : ${serieActuelle(logs)} jour(s). Charges exprimées en kg.`);
+
+  // Historique détaillé : SEULEMENT si l'utilisateur l'a autorisé (Compte → Coach).
+  if (opts.historique) {
+    const recents = logs.slice().sort((a, c) => (a.date < c.date ? 1 : -1)).slice(0, 8);
+    if (recents.length) {
+      l.push("Dernières séances (meilleure série par exercice) :");
+      recents.forEach((lg) => {
+        const ex = (lg.exercices || []).map((e) => {
+          const best = (e.series || []).reduce((m, x) => (!m || (x.chargeKg || 0) * (x.reps || 0) > (m.chargeKg || 0) * (m.reps || 0) ? x : m), null);
+          const txt = best ? (best.chargeKg ? `${best.chargeKg} kg × ${best.reps || "?"}` : best.reps ? `${best.reps} reps` : best.dureeSec ? `${best.dureeSec} s` : "") : "";
+          return `${nomExo(e.exerciceId)} ${(e.series || []).length} séries${txt ? ` (max ${txt}${best && best.rir != null ? `, RIR ${best.rir}` : ""})` : ""}${e.douleur ? " [douleur signalée]" : ""}`;
+        }).join(" ; ");
+        l.push(`- ${String(lg.date).slice(0, 10)} ${lg.seanceNom || "séance"} (${Math.round((lg.dureeSec || 0) / 60)} min) : ${ex}`);
+      });
+    }
+    const recs = classementRecords(logs, nomExo, 8);
+    if (recs.length) l.push(`Records : ${recs.map((r) => `${r.nom} ${r.poidsMax} kg (1RM estimé ~${r.e1rm} kg)`).join(" ; ")}.`);
+    try {
+      const etat = (AUTO || calculerAuto()).etat || {};
+      const fat = Object.entries(etat).filter(([, v]) => v && typeof v.readiness === "number")
+        .sort((a, c) => a[1].readiness - c[1].readiness).slice(0, 6)
+        .map(([k, v]) => `${LABELS_MOTEUR[k] || k} ${Math.round(v.readiness)} %`);
+      if (fat.length) l.push(`Fraîcheur estimée des muscles les plus sollicités (estimation, pas une mesure) : ${fat.join(", ")}.`);
+    } catch (e) { /* récupération indisponible : on n'invente rien */ }
+    const pesees = (Etat.data.metrics || []).filter((m) => m.poidsKg).sort((a, c) => (a.date < c.date ? -1 : 1));
+    if (pesees.length >= 2) {
+      const a = pesees[Math.max(0, pesees.length - 6)], z = pesees[pesees.length - 1];
+      l.push(`Poids : ${a.poidsKg} kg le ${a.date} → ${z.poidsKg} kg le ${z.date}.`);
+    }
+  } else {
+    l.push("(L'utilisateur n'a pas autorisé le partage de son historique détaillé : ne cite pas de charges passées.)");
+  }
+
+  // Catalogue : uniquement pour une demande de programme ou de modification.
+  if (opts.catalogue) {
+    l.push("\nEXERCICES DISPONIBLES (id | nom | muscles | matériel) — réalisables avec son matériel :");
+    l.push(catalogueCompact(CATALOGUE, { realisable: estRealisable, labelsMuscle: MUSCLE_LABELS, labelsEquip: EQUIPMENT_LABELS }));
+  }
   return l.join("\n");
 }
 
@@ -4929,45 +4987,171 @@ function bulleCoach(role, contenu) {
   if (typeof contenu === "string") b.innerHTML = `<div class="small">${contenu}</div>`;
   else b.append(contenu);
   fil.append(b);
-  fil.scrollTop = fil.scrollHeight;
+  defilerCoach(true);
   return b;
 }
+/**
+ * Fait défiler la conversation vers le bas. C'est la FEUILLE qui défile (le fil
+ * grandit avec son contenu), pas le fil lui-même : régler `fil.scrollTop` ne
+ * faisait rien et les nouvelles réponses restaient sous le clavier.
+ * @param {boolean} [force]  sinon, seulement si l'on était déjà près du bas
+ *   (ne pas arracher la lecture de quelqu'un qui est remonté)
+ */
+function defilerCoach(force = false) {
+  const sh = document.getElementById("coach");
+  if (!sh) return;
+  if (force || sh.scrollHeight - sh.scrollTop - sh.clientHeight < 160) sh.scrollTop = sh.scrollHeight;
+}
 
-/** Traite une question : réponse déterministe, puis complément IA si activé. */
+/* ---------- conversation avec l'IA cloud ---------- */
+// Historique de la conversation en cours ({role, content}). En mémoire
+// seulement : une conversation n'a pas à survivre à la fermeture de l'app, et
+// rien de ce qui a été dit n'est écrit sur le disque.
+let COACH_HISTO = [];
+let COACH_ABORT = null; // AbortController de la réponse en cours
+// Intentions où le moteur déterministe apporte une ACTION que l'IA ne peut pas
+// donner seule (boutons calculés sur le vrai matériel, démarrage de séance) :
+// on les garde en tête de réponse même quand l'IA est branchée.
+const INTENTS_ACTIONNABLES = new Set(["remplacer", "seance_jour", "records"]);
+
+/** L'IA cloud est-elle branchée (clé saisie, ou relais configuré) ? */
+function coachCloudPret() {
+  const c = Etat.data.reglages.coachCloud;
+  if (!c) return false;
+  if (c.fournisseur === "relais") return /^https:\/\/|^http:\/\/(localhost|127\.0\.0\.1)/.test(c.url || "");
+  return !!(c.cle && String(c.cle).trim());
+}
+/** Nom affiché du moteur cloud. */
+function nomMoteurCloud() {
+  const f = (Etat.data.reglages.coachCloud || {}).fournisseur;
+  return ({ anthropic: "Claude", openai: "OpenAI", gemini: "Gemini", relais: "Relais sécurisé" })[f] || "IA";
+}
+
+/** Bascule le bouton d'envoi en bouton « stop » pendant une réponse. */
+function etatEnvoiCoach(enCours) {
+  const btn = document.querySelector("#coach .coach-barre button[type=submit]");
+  if (!btn) return;
+  btn.innerHTML = enCours ? `<span class="coach-stop" aria-hidden="true"></span>` : IC.send;
+  btn.setAttribute("aria-label", enCours ? "Arrêter la réponse" : "Envoyer");
+  btn.classList.toggle("en-cours", enCours);
+}
+
+/** Carte « routine proposée » : rien n'est ajouté sans un geste explicite. */
+function carteRoutineProposee(res) {
+  const r = res.routine;
+  const c = h(`<div class="coach-prop"></div>`);
+  const nbExos = r.seances.reduce((n, se) => n + se.exercices.length, 0);
+  c.append(h(`<div class="coach-prop-top"><span class="eyebrow accent">Routine proposée</span><b>${esc(r.nom)}</b>
+    <span class="muted small">${r.seances.length} séance${r.seances.length > 1 ? "s" : ""} · ${nbExos} exercices</span></div>`));
+  const liste = h(`<div class="coach-prop-liste"></div>`);
+  r.seances.forEach((se) => {
+    const lignes = se.exercices.map((e) => {
+      const t = e.series[0] || {};
+      const vol = t.repsCible ? `${e.series.length} × ${t.repsCible[0]}-${t.repsCible[1]}` : `${e.series.length} × ${t.dureeSec || "?"} s`;
+      return `<li><span>${esc(nomExo(e.exerciceId))}</span><span class="muted">${vol} · ${Math.round((t.reposSec || 90) / 15) * 15} s</span></li>`;
+    }).join("");
+    liste.append(h(`<details class="coach-prop-seance"><summary><b>${esc(se.nom)}</b><span class="muted small">${se.exercices.length} exos · ~${se.dureeEstimeeMin} min</span></summary><ul>${lignes}</ul></details>`));
+  });
+  c.append(liste);
+  if (res.ignores.length) {
+    c.append(h(`<div class="hint">${res.ignores.length} exercice${res.ignores.length > 1 ? "s" : ""} inconnu${res.ignores.length > 1 ? "s" : ""} du catalogue ${res.ignores.length > 1 ? "ont été écartés" : "a été écarté"} — rien n'a été inventé.</div>`));
+  }
+  const barre = h(`<div class="row coach-prop-actions"></div>`);
+  const bAdd = h(`<button class="primary" type="button"><span class="btn-ico">${IC.plus}</span>Ajouter à mes routines</button>`);
+  const bNon = h(`<button class="secondary" type="button">Ignorer</button>`);
+  bAdd.addEventListener("click", () => {
+    (Etat.data.programmesPerso ||= []).push(r);
+    Etat.sauver();
+    barre.replaceWith(h(`<div class="coach-prop-ok small"><span class="cic">${IC.check}</span>Ajoutée à tes routines — modifiable à tout moment.</div>`));
+    const voir = h(`<button class="linklike" type="button">Ouvrir mes routines ›</button>`);
+    voir.addEventListener("click", () => { fermerCoach(); nav("prog"); });
+    c.append(voir);
+    toast("Routine ajoutée");
+  });
+  bNon.addEventListener("click", () => { c.classList.add("ignoree"); barre.remove(); c.append(h(`<div class="muted small">Proposition ignorée.</div>`)); });
+  barre.append(bAdd, bNon);
+  c.append(barre);
+  return c;
+}
+
+/** Interroge l'IA cloud avec l'historique de la conversation. */
+async function repondreCloud(q) {
+  const cfg = Etat.data.reglages.coachCloud;
+  const bulle = bulleCoach("coach ia", `<span class="coach-ia-tag">${esc(nomMoteurCloud())}</span><div class="coach-ia-txt coach-md"><span class="coach-attente" aria-label="Le coach écrit"><i></i><i></i><i></i></span></div>`);
+  if (!bulle) return;
+  const cible = bulle.querySelector(".coach-ia-txt");
+  const plan = demandeDePlan(q);
+  const contexte = contexteUtilisateur({ historique: !!Etat.data.reglages.coachPartageHisto, catalogue: plan });
+  COACH_ABORT = new AbortController();
+  etatEnvoiCoach(true);
+  let acc = "";
+  try {
+    if (!COACH_CLOUD) COACH_CLOUD = await import("../integrations/coachCloud.js");
+    // Pendant le flux, le bloc JSON éventuel est masqué dès son ouverture.
+    await COACH_CLOUD.demander(q, contexte, cfg, (t) => {
+      acc += t;
+      const visible = acc.split("```")[0];
+      cible.innerHTML = htmlLeger(visible) || `<span class="coach-attente"><i></i><i></i><i></i></span>`;
+      if (acc.includes("```")) cible.insertAdjacentHTML("beforeend", `<p class="muted small coach-prepa">Préparation de la routine…</p>`);
+      defilerCoach();
+    }, { historique: COACH_HISTO, signal: COACH_ABORT.signal });
+  } catch (e) {
+    if (e && e.name === "AbortError") {
+      cible.insertAdjacentHTML("beforeend", `<p class="muted small">Réponse interrompue.</p>`);
+    } else {
+      cible.innerHTML = `<p>Le coach ${esc(nomMoteurCloud())} n'a pas pu répondre : ${esc(e.message || "erreur inconnue")}</p>`;
+      const repli = h(`<div class="coach-repli"></div>`);
+      repli.append(h(`<div class="muted small">Réponse du moteur hors ligne :</div>`));
+      repli.append(repondreAssistant(q));
+      bulle.append(repli);
+      COACH_ABORT = null; etatEnvoiCoach(false);
+      return;
+    }
+  }
+  COACH_ABORT = null;
+  etatEnvoiCoach(false);
+  const ext = extraireProposition(acc);
+  cible.innerHTML = htmlLeger(ext.texte) || (ext.proposition ? "" : "<p>(pas de réponse)</p>");
+  let resume = ext.texte;
+  if (ext.proposition) {
+    const res = routineDepuisProposition(ext.proposition, getExercise);
+    if (res.routine) {
+      bulle.append(carteRoutineProposee(res));
+      resume += `\n\n[Routine proposée dans l'app : « ${res.routine.nom} », ${res.routine.seances.map((se) => `${se.nom} (${se.exercices.map((e) => nomExo(e.exerciceId)).join(", ")})`).join(" ; ")}]`;
+    } else {
+      bulle.append(h(`<div class="warn small">${esc(res.raison || "Proposition inutilisable.")}</div>`));
+    }
+  } else if (ext.erreur) {
+    bulle.append(h(`<div class="warn small">${esc(ext.erreur)}</div>`));
+  }
+  if (acc.trim()) COACH_HISTO.push({ role: "user", content: q }, { role: "assistant", content: resume.trim() || acc.trim() });
+  defilerCoach();
+}
+
+/** Traite une question : IA cloud si branchée (conversation), sinon moteur déterministe + IA locale. */
 async function envoyerQuestionCoach(question) {
   const q = (question || "").trim();
   if (!q) return;
+  if (COACH_ABORT) return; // une réponse est déjà en cours
   const champ = $("#coachInput");
   if (champ) champ.value = "";
   bulleCoach("moi", esc(q));
-
-  // 1) Réponse déterministe — instantanée, exacte, toujours affichée.
   const { intent } = detecterIntention(q);
-  bulleCoach("coach", repondreAssistant(q));
 
-  // Les trois étages se complètent sans se doubler : le déterministe répond
-  // toujours ; un étage IA n'ajoute une bulle que si la question sort de ce que
-  // le moteur de règles sait traiter (question libre, demande d'explication).
-  const questionLibre = intent === "inconnu" || intent === "aide";
-
-  // 2) Étage CLOUD (OpenAI/Gemini), si l'utilisateur a saisi sa clé. Il prime
-  //    sur le local : c'est le plus capable, et c'est un choix explicite.
-  const cfgCloud = Etat.data.reglages.coachCloud;
-  if (questionLibre && cfgCloud && cfgCloud.cle) {
-    const bulle = bulleCoach("coach ia", `<span class="coach-ia-tag">Coach IA</span><span class="coach-ia-txt">…</span>`);
-    const cible = bulle.querySelector(".coach-ia-txt");
-    try {
-      if (!COACH_CLOUD) COACH_CLOUD = await import("../integrations/coachCloud.js");
-      let acc = "";
-      await COACH_CLOUD.demander(q, contexteUtilisateur(), cfgCloud, (t) => { acc += t; cible.textContent = acc; });
-      cible.textContent = acc.trim() || "(pas de réponse)";
-    } catch (e) {
-      cible.textContent = `Le coach cloud n'a pas pu répondre (${e.message}). La réponse ci-dessus reste valable.`;
-    }
+  // IA CLOUD : une vraie conversation, avec mémoire des échanges précédents.
+  // Le moteur déterministe ne s'affiche en tête que lorsqu'il apporte une action
+  // calculée (remplacements compatibles, démarrage de séance, records exacts).
+  if (coachCloudPret()) {
+    if (INTENTS_ACTIONNABLES.has(intent)) bulleCoach("coach", repondreAssistant(q));
+    await repondreCloud(q);
     return;
   }
 
-  // 3) Étage LOCAL (Transformers.js), si activé et prêt.
+  // 1) Réponse déterministe — instantanée, exacte, toujours affichée.
+  bulleCoach("coach", repondreAssistant(q));
+  const questionLibre = intent === "inconnu" || intent === "aide";
+
+  // 2) Étage LOCAL (Transformers.js), si activé et prêt.
   if (!Etat.data.reglages.coachIA || !COACH_IA || !COACH_IA.estPret()) return;
   if (!questionLibre) return; // pas de doublon inutile
 
@@ -5029,95 +5213,180 @@ function carteCoachIA() {
 }
 
 /**
- * Carte de réglage du « Coach cloud » (Profil).
+ * Carte de réglage du « Coach IA » branché (Compte).
  *
- * Permet de brancher OpenAI ou Gemini avec SA PROPRE clé. La clé est rangée dans
- * les réglages (localStorage) et ne quitte jamais l'appareil, sinon vers le
- * fournisseur choisi au moment d'une question. Aucune clé n'est dans le code.
+ * Deux façons de brancher une vraie IA, sans jamais mettre de clé dans le code :
+ *  - « ta clé » (Claude, OpenAI, Gemini) : rangée sur CET appareil, envoyée
+ *    uniquement au fournisseur choisi, jamais incluse dans une sauvegarde ;
+ *  - « relais sécurisé » : ton serveur (server/coach-relais/) garde la clé.
+ * Le partage de l'historique détaillé est un consentement séparé, éteint par défaut.
  */
+let COACH_FOURN_EDIT = null; // fournisseur affiché dans le formulaire (avant enregistrement)
 function carteCoachCloud() {
   const cfg = Etat.data.reglages.coachCloud || {};
-  const actif = !!cfg.cle;
-  const fournisseur = cfg.fournisseur === "gemini" ? "gemini" : "openai";
-  const FOURN = { openai: { nom: "OpenAI", aide: "platform.openai.com → API keys (clé « sk-… »)" },
-                  gemini: { nom: "Google Gemini", aide: "aistudio.google.com → Get API key" } };
+  const actif = coachCloudPret();
+  const FOURN = {
+    anthropic: { nom: "Claude", aide: "console.anthropic.com → API Keys (clé « sk-ant-… »).", modele: "claude-haiku-5-5" },
+    openai: { nom: "OpenAI", aide: "platform.openai.com → API keys (clé « sk-… »).", modele: "gpt-4o-mini" },
+    gemini: { nom: "Gemini", aide: "aistudio.google.com → Get API key.", modele: "gemini-2.0-flash" },
+    relais: { nom: "Relais sécurisé", aide: "Ton serveur garde la clé : déploie server/coach-relais/ (Cloudflare, gratuit), puis colle son adresse et ton jeton d'accès.", modele: "" },
+  };
+  const fournisseur = COACH_FOURN_EDIT || (FOURN[cfg.fournisseur] ? cfg.fournisseur : "anthropic");
+  const memeFourn = cfg.fournisseur === fournisseur;
+  const F = FOURN[fournisseur];
 
-  const c = h(`<div class="card stack" style="margin-top:12px"></div>`);
-  c.append(h(`<div class="spread"><h2 style="margin:0;font-size:1.05rem"><span class="cic">${IC.spark}</span>Coach cloud (ta clé)</h2>${actif ? `<span class="pill">${esc(FOURN[fournisseur].nom)}</span>` : ""}</div>`));
-  c.append(h(`<div class="muted small">Branche un vrai modèle (OpenAI ou Gemini) avec <b>ta propre clé</b>, pour les questions ouvertes. La clé reste sur cet appareil ; elle n'est jamais envoyée ailleurs qu'au fournisseur que tu choisis, et n'est pas dans le code de l'app.</div>`));
+  const c = h(`<div class="card stack coach-cfg" style="margin-top:12px"></div>`);
+  c.append(h(`<div class="spread"><h2 style="margin:0;font-size:1.05rem"><span class="cic">${IC.spark}</span>Coach IA connecté</h2>${actif ? `<span class="pill on">${esc(nomMoteurCloud())} · actif</span>` : `<span class="pill">Désactivé</span>`}</div>`));
+  c.append(h(`<div class="muted small">Branche un vrai modèle d'IA pour <b>converser</b>, analyser tes séances et te <b>proposer des routines complètes</b> que tu valides avant qu'elles soient ajoutées. Sans IA branchée, le coach répond quand même, hors ligne, à partir de tes données.</div>`));
 
-  // Choix du fournisseur.
-  const selF = h(`<div class="row"></div>`);
-  [["openai", "OpenAI"], ["gemini", "Google Gemini"]].forEach(([id, lab]) => {
-    const b = h(`<button class="chip ${fournisseur === id ? "on" : ""}" type="button">${esc(lab)}</button>`);
-    b.addEventListener("click", () => {
-      Etat.data.reglages.coachCloud = { ...(Etat.data.reglages.coachCloud || {}), fournisseur: id };
-      Etat.sauver(); render();
-    });
+  const selF = h(`<div class="row coach-cfg-fourn" role="radiogroup" aria-label="Fournisseur"></div>`);
+  Object.entries(FOURN).forEach(([id, f]) => {
+    const on = fournisseur === id;
+    const b = h(`<button class="chip ${on ? "on" : ""}" type="button" role="radio" aria-checked="${on}">${esc(f.nom)}</button>`);
+    b.addEventListener("click", () => { COACH_FOURN_EDIT = id; render(); });
     selF.append(b);
   });
   c.append(selF);
-  c.append(h(`<div class="hint">Clé : ${esc(FOURN[fournisseur].aide)}</div>`));
+  c.append(h(`<div class="hint">${esc(F.aide)}</div>`));
 
-  // Saisie de la clé (type password, non pré-rempli pour ne pas l'exposer).
-  const champ = h(`<label class="out-field"><span>Clé d'API ${esc(FOURN[fournisseur].nom)}</span>
-    <input type="password" autocomplete="off" placeholder="${actif ? "•••••••• (enregistrée)" : "colle ta clé ici"}" aria-label="Clé d'API"></label>`);
-  c.append(champ);
-
+  const form = h(`<form class="stack coach-cfg-form" autocomplete="off"></form>`);
+  if (fournisseur === "relais") {
+    form.append(h(`<label class="out-field"><span>Adresse du relais</span><input name="url" type="url" inputmode="url" placeholder="https://coach-perso-relais.….workers.dev" value="${esc(memeFourn ? cfg.url || "" : "")}"></label>`));
+    form.append(h(`<label class="out-field"><span>Jeton d'accès</span><input name="jeton" type="password" placeholder="${memeFourn && cfg.jeton ? "•••••••• (enregistré)" : "le JETON_ACCES de ton relais"}"></label>`));
+  } else {
+    form.append(h(`<label class="out-field"><span>Clé d'API ${esc(F.nom)}</span><input name="cle" type="password" placeholder="${memeFourn && cfg.cle ? "•••••••• (enregistrée)" : "colle ta clé ici"}"></label>`));
+    form.append(h(`<label class="out-field"><span>Modèle (facultatif)</span><input name="modele" type="text" spellcheck="false" placeholder="${esc(F.modele)}" value="${esc(memeFourn ? cfg.modele || "" : "")}"></label>`));
+  }
   const barre = h(`<div class="row"></div>`);
-  const bSave = h(`<button class="primary">${actif ? "Mettre à jour la clé" : "Enregistrer la clé"}</button>`);
-  bSave.addEventListener("click", () => {
-    const val = champ.querySelector("input").value.trim();
-    if (!val) { toast("Colle d'abord ta clé."); return; }
-    Etat.data.reglages.coachCloud = { fournisseur, cle: val, modele: cfg.modele || "" };
-    Etat.sauver();
-    toast("Clé enregistrée — ouvre le Coach pour l'utiliser.");
-    render();
-  });
-  barre.append(bSave);
+  barre.append(h(`<button class="primary" type="submit">${actif && memeFourn ? "Mettre à jour" : "Enregistrer"}</button>`));
   if (actif) {
-    const bDel = h(`<button class="danger">Retirer la clé</button>`);
+    const bTest = h(`<button class="secondary" type="button">Tester</button>`);
+    bTest.addEventListener("click", async () => {
+      bTest.disabled = true; bTest.textContent = "Test…";
+      try {
+        if (!COACH_CLOUD) COACH_CLOUD = await import("../integrations/coachCloud.js");
+        const rep = await COACH_CLOUD.demander("Réponds seulement : « Connexion réussie ».", "(test de connexion)", Etat.data.reglages.coachCloud);
+        toast(rep ? `${nomMoteurCloud()} répond : ${rep.slice(0, 60)}` : "Connexion établie, réponse vide.");
+      } catch (e) { toast(`Échec : ${e.message}`); }
+      bTest.disabled = false; bTest.textContent = "Tester";
+    });
+    barre.append(bTest);
+    const bDel = h(`<button class="danger" type="button">Débrancher</button>`);
     bDel.addEventListener("click", () => {
-      delete Etat.data.reglages.coachCloud;
-      Etat.sauver(); toast("Clé retirée — retour au coach local/déterministe."); render();
+      delete Etat.data.reglages.coachCloud; COACH_FOURN_EDIT = null; COACH_HISTO = [];
+      Etat.sauver(); toast("Coach IA débranché — la clé a été effacée de cet appareil."); render();
     });
     barre.append(bDel);
   }
-  c.append(barre);
+  form.append(barre);
+  form.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const fd = new FormData(form);
+    const val = (k) => String(fd.get(k) || "").trim();
+    const prec = memeFourn ? cfg : {};
+    let nouv;
+    if (fournisseur === "relais") {
+      const url = val("url");
+      if (!/^https:\/\/|^http:\/\/(localhost|127\.0\.0\.1)/.test(url)) { toast("Adresse invalide : elle doit commencer par https://"); return; }
+      nouv = { fournisseur, url, jeton: val("jeton") || prec.jeton || "" };
+    } else {
+      const cle = val("cle") || prec.cle || "";
+      if (!cle) { toast("Colle d'abord ta clé."); return; }
+      nouv = { fournisseur, cle, modele: val("modele") };
+    }
+    Etat.data.reglages.coachCloud = nouv;
+    COACH_FOURN_EDIT = null; COACH_HISTO = [];
+    Etat.sauver();
+    toast(`${FOURN[fournisseur].nom} branché — ouvre le coach pour converser.`);
+    render();
+  });
+  c.append(form);
+
+  // Consentement au partage de l'historique détaillé.
+  const partage = !!Etat.data.reglages.coachPartageHisto;
+  const sw = h(`<label class="coach-cfg-consent"><input type="checkbox" ${partage ? "checked" : ""}>
+    <span><b>Partager mon historique d'entraînement</b><br><span class="muted small">Dernières séances, records, fraîcheur musculaire et poids, pour des analyses précises. Sinon, le coach ne reçoit que ton profil et ton programme.</span></span></label>`);
+  sw.querySelector("input").addEventListener("change", (ev) => {
+    Etat.data.reglages.coachPartageHisto = ev.target.checked; Etat.sauver();
+    toast(ev.target.checked ? "Historique partagé avec le coach IA" : "Historique non partagé");
+  });
+  c.append(sw);
+  c.append(h(`<div class="hint">Confidentialité : tes questions et ce résumé partent chez ${fournisseur === "relais" ? "ton relais puis chez Anthropic" : esc(F.nom)} au moment où tu écris, jamais ailleurs. La clé reste sur cet appareil et n'est jamais incluse dans une sauvegarde. Les réponses d'une IA peuvent contenir des erreurs : vérifie avant d'appliquer.</div>`));
   return c;
 }
 
 /** Ouvre la feuille « Coach ». */
 function ouvrirCoach() {
   fermerCoach();
-  const sheet = h(`<div class="sheet coach" id="coach"><div class="inner"></div></div>`);
+  // Le catalogue complet sert aux propositions de routine : on le charge en
+  // tâche de fond dès l'ouverture (sans effet s'il l'est déjà).
+  if (!catalogueEtenduCharge()) chargerCatalogueEtendu().catch(() => {});
+  const sheet = h(`<div class="sheet coach" id="coach" role="dialog" aria-modal="true" aria-label="Coach"><div class="inner"></div></div>`);
   const inner = sheet.querySelector(".inner");
+  const cloud = coachCloudPret();
 
   // En-tête de marque, façon FitAI : pastille à étincelles en dégradé bleu→violet
-  // et une étiquette qui dit quel moteur répond (déterministe, local ou cloud).
-  const moteur = Etat.data.reglages.coachCloud && Etat.data.reglages.coachCloud.cle
-    ? "IA cloud" : Etat.data.reglages.coachIA ? "IA locale" : "Déterministe";
-  inner.append(h(`<div class="coach-top">
+  // et une étiquette qui dit quel moteur répond (hors ligne, local ou connecté).
+  const moteur = cloud ? nomMoteurCloud() : Etat.data.reglages.coachIA ? "IA locale" : "Hors ligne · tes données";
+  const top = h(`<div class="coach-top">
     <span class="coach-spark">${IC.spark}</span>
     <span class="coach-id"><b>Coach</b><em>${esc(moteur)}</em></span>
-    <button class="chip" id="coachX" aria-label="Fermer le coach">✕</button></div>`));
+    ${cloud ? `<button class="chip" id="coachNew" type="button" aria-label="Nouvelle conversation">${IC.plus}</button>` : ""}
+    <button class="chip" id="coachX" type="button" aria-label="Fermer le coach">✕</button></div>`);
+  inner.append(top);
 
-  const fil = h(`<div class="coach-fil"></div>`);
+  const fil = h(`<div class="coach-fil" aria-live="polite"></div>`);
   inner.append(fil);
 
-  const barre = h(`<form class="coach-barre"><input id="coachInput" type="text" autocomplete="off" placeholder="Pose ta question…" aria-label="Ta question"><button class="primary" type="submit" aria-label="Envoyer">${IC.send}</button></form>`);
-  barre.addEventListener("submit", (e) => { e.preventDefault(); envoyerQuestionCoach($("#coachInput").value); });
+  const barre = h(`<form class="coach-barre"><input id="coachInput" type="text" autocomplete="off" enterkeyhint="send" placeholder="${cloud ? "Écris au coach… (ex : crée-moi une routine)" : "Pose ta question…"}" aria-label="Ta question"><button class="primary" type="submit" aria-label="Envoyer">${IC.send}</button></form>`);
+  barre.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (COACH_ABORT) { COACH_ABORT.abort(); return; }   // le bouton sert de « stop »
+    envoyerQuestionCoach($("#coachInput").value);
+  });
   inner.append(barre);
 
   sheet.querySelector("#coachX").addEventListener("click", fermerCoach);
+  sheet.querySelector("#coachNew")?.addEventListener("click", () => {
+    COACH_ABORT?.abort(); COACH_HISTO = []; ouvrirCoach(); toast("Nouvelle conversation");
+  });
   document.body.append(sheet);
 
-  // Message d'accueil + puces de réponse rapide, construites depuis le contexte
-  // réel : si une séance est en cours, on propose d'agir dessus.
-  bulleCoach("coach", repondreAssistant("aide"));
+  if (cloud) {
+    // Conversation en cours : on la réaffiche, le coach s'en souvient.
+    if (COACH_HISTO.length) {
+      COACH_HISTO.forEach((m) => {
+        if (m.role === "user") bulleCoach("moi", esc(m.content));
+        else bulleCoach("coach ia", `<span class="coach-ia-tag">${esc(nomMoteurCloud())}</span><div class="coach-ia-txt coach-md">${htmlLeger(m.content.replace(/\n\n\[Routine proposée[\s\S]*$/, ""))}</div>`);
+      });
+    } else {
+      const accueil = h(`<div class="stack"><div class="small">Je connais ton profil, ton programme${Etat.data.reglages.coachPartageHisto ? " et ton historique" : ""}. Demande-moi une explication, une analyse ou une routine complète — tu valides avant que quoi que ce soit change.</div><div class="coach-sugg"></div></div>`);
+      const sugg = accueil.querySelector(".coach-sugg");
+      [
+        `Crée-moi une routine de ${(Etat.data.profil || {}).joursParSemaine || 3} jours adaptée à mon matériel`,
+        "Analyse mes dernières séances",
+        "Explique-moi la surcharge progressive",
+        "Je stagne au développé couché, que faire ?",
+      ].forEach((ex) => {
+        const b = h(`<button class="chip" type="button">${esc(ex)}</button>`);
+        b.addEventListener("click", () => envoyerQuestionCoach(ex));
+        sugg.append(b);
+      });
+      bulleCoach("coach", accueil);
+    }
+  } else {
+    // Message d'accueil + puces de réponse rapide, construites depuis le contexte
+    // réel : si une séance est en cours, on propose d'agir dessus.
+    bulleCoach("coach", repondreAssistant("aide"));
+    const pub = h(`<div class="coach-brancher"><span class="small">Pour une vraie conversation et des routines sur mesure, branche une IA (Claude, OpenAI, Gemini ou ton relais).</span></div>`);
+    const go = h(`<button class="linklike" type="button">Brancher une IA ›</button>`);
+    go.addEventListener("click", () => { fermerCoach(); nav("set"); setTimeout(() => document.querySelector(".coach-cfg")?.scrollIntoView({ behavior: "smooth", block: "start" }), 120); });
+    pub.append(go);
+    bulleCoach("coach", pub);
+  }
   ajouterSuggestionsCoach();
   // Si le mode IA local est activé, on le prépare en tâche de fond.
-  if (Etat.data.reglages.coachIA) activerCoachIA(true);
+  if (!cloud && Etat.data.reglages.coachIA) activerCoachIA(true);
   $("#coachInput")?.focus();
 }
 
@@ -6535,6 +6804,11 @@ function telechargerCSV(contenu, nomFichier) {
   a.href = URL.createObjectURL(blob); a.download = nomFichier; a.click();
   URL.revokeObjectURL(a.href);
 }
+/** Dictionnaire fitness — la vue vit dans src/ui/dico.js. */
+function vDico(v) {
+  vueDico(v, { Etat, nav, render, ouvrirCoach, ouvrirOutils, IC });
+}
+
 function vSet(v) {
   const p = Etat.data.profil;
   v.append(h(`<div class="eyebrow">Ton compte</div>`));
@@ -6591,6 +6865,7 @@ function vSet(v) {
   outil(IC.bars, "mi-blue", "Progrès — stats, records, mensurations", "stats");
   outil(IC.apple, "mi-green", "Nutrition", "food");
   outil(IC.dumbbell, "mi-indigo", "Programme Anatoly", "anatoly");
+  outil(IC.livre, "mi-blue", "Dictionnaire fitness", "dico");
   const bCoach = h(`<button class="plusitem"><span class="pm-ic mi-blue">${IC.message}</span><span class="pm-main"><b>Coach — poser une question</b></span><span class="chev">›</span></button>`);
   bCoach.addEventListener("click", () => ouvrirCoach());
   outils.append(bCoach);
