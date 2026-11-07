@@ -21,7 +21,20 @@ android {
     // l'environnement (secrets GitHub). Aucun mot de passe dans le dépôt.
     def ksFichier = System.getenv("ANDROID_KEYSTORE_PATH")
     def signer = ksFichier && file(ksFichier).exists()
+    // Clé de TEST stable fournie par la CI (cache GitHub, mot de passe aléatoire) :
+    // les APK de test successifs s'installent par-dessus sans désinstaller.
+    // En local (Android Studio), sans ces variables, la clé de debug habituelle.
+    def cheminCleTest = System.getenv("CP_TEST_KEYSTORE")
+    def signerTest = cheminCleTest && file(cheminCleTest).exists()
     signingConfigs {
+        if (signerTest) {
+            cleTest {
+                storeFile file(cheminCleTest)
+                storePassword System.getenv("CP_TEST_PASSWORD")
+                keyAlias "coachperso-test"
+                keyPassword System.getenv("CP_TEST_PASSWORD")
+            }
+        }
         if (signer) {
             release {
                 storeFile file(ksFichier)
@@ -32,6 +45,9 @@ android {
         }
     }
     buildTypes {
+        debug {
+            if (signerTest) signingConfig signingConfigs.cleTest
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'

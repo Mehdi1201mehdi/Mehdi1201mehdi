@@ -6,7 +6,8 @@ name: APK Android
 # étiquette v*.
 #
 # Résultat : un APK téléchargeable dans les « Artifacts » du run.
-#  - coach-perso-debug.apk   : installable directement (signé avec la clé de debug)
+#  - coach-perso-debug.apk   : installable directement (signé avec une clé de test
+#                              stable : les mises à jour s'installent par-dessus)
 #  - coach-perso-release.apk : seulement si les secrets de signature existent
 #
 # Secrets facultatifs (Settings → Secrets and variables → Actions) pour un APK
@@ -72,15 +73,34 @@ jobs:
         run: npx cap sync android
 
       # Clé de signature de TEST stable d'un build à l'autre. Sans elle, chaque
-      # run génère une nouvelle clé de debug et Android refuse d'installer la
-      # mise à jour par-dessus (il faudrait désinstaller, donc perdre les
-      # données de l'app). Gradle la crée au premier build ; le cache la garde.
-      # Aucun mot de passe dans le dépôt. (Pour la production : secrets plus bas.)
-      - name: Clé de signature de test stable
+      # run signe avec une nouvelle clé de debug et Android refuse d'installer la
+      # mise à jour par-dessus (il faudrait désinstaller, donc perdre les données
+      # de l'app). Créée au premier build avec un mot de passe ALÉATOIRE ; clé et
+      # mot de passe vivent dans le cache GitHub, jamais dans le dépôt.
+      # (Pour une version de production : les secrets ANDROID_* plus bas.)
+      - name: Clé de signature de test stable (cache)
         uses: actions/cache@v4
         with:
-          path: ~/.android/debug.keystore
-          key: coach-perso-debug-keystore-v1
+          path: ~/cle-test-coach-perso
+          key: coach-perso-cle-test-v1
+
+      - name: Créer la clé de test au premier build
+        run: |
+          D="$HOME/cle-test-coach-perso"
+          if [ ! -f "$D/test.jks" ]; then
+            mkdir -p "$D"
+            openssl rand -hex 24 > "$D/mdp"
+            echo "::add-mask::$(cat "$D/mdp")"
+            keytool -genkeypair -noprompt -keystore "$D/test.jks" -alias coachperso-test \
+              -storepass "$(cat "$D/mdp")" -keypass "$(cat "$D/mdp")" \
+              -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Coach Perso (test),O=Coach Perso,C=FR"
+            echo "Nouvelle clé de test créée."
+          else
+            echo "::add-mask::$(cat "$D/mdp")"
+            echo "Clé de test restaurée depuis le cache."
+          fi
+          echo "CP_TEST_KEYSTORE=$D/test.jks" >> "$GITHUB_ENV"
+          echo "CP_TEST_PASSWORD=$(cat "$D/mdp")" >> "$GITHUB_ENV"
 
       - name: APK de debug (installable)
         working-directory: android
@@ -88,7 +108,6 @@ jobs:
           chmod +x gradlew
           ./gradlew --no-daemon assembleDebug -PversionCode=${{ github.run_number }} -PversionName=1.0.${{ github.run_number }}
           cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/coach-perso-debug.apk"
-          ls -l ~/.android/debug.keystore   # la clé que le cache conserve
 
       - name: APK de production signé (si les secrets existent)
         if: env.KS_B64 != ''
