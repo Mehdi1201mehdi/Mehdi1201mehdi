@@ -281,6 +281,9 @@ export function restaurer(brut) {
     seanceId: brut.seanceId,
     debut: typeof brut.debut === "string" ? brut.debut : new Date().toISOString(),
     fini: !!brut.fini,
+    // Unité dans laquelle les charges ont été SAISIES (kg ou lb). Une séance
+    // enregistrée avant l'apparition des livres était forcément en kg.
+    unite: brut.unite === "lb" ? "lb" : "kg",
     data,
   };
 }

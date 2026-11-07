@@ -29,8 +29,9 @@ import { chercherFoods, portion } from "../data/foods.js";
 import { rechercher as offRechercher, parCodeBarres } from "../integrations/openfoodfacts.js";
 import { scannerDisponible, demarrerScan, normaliserCode } from "./scanner.js";
 import { vueDico } from "./dico.js";
+import { estImperial, uniteCharge, versAffichage, depuisSaisie, texteCharge, texteVolume } from "../engine/unites.js";
 import { estNatif, partagerFichier, notifsNativesDispo, autoriserNotifs, programmerFinRepos, annulerFinRepos } from "./natif.js";
-import { bilanSemaine, formatDuree, MET_MUSCULATION } from "../engine/activite.js";
+import { bilanSemaine, formatDuree, MET_MUSCULATION, caloriesSeance } from "../engine/activite.js";
 import { catalogueCompact, extraireProposition, routineDepuisProposition, htmlLeger, demandeDePlan } from "../engine/coachRoutine.js";
 import { $, esc, h } from "./dom.js";
 import { urlDemo, vignetteExo, vignetteHTML, REDUIRE_MOTION } from "./vignettes.js";
@@ -73,6 +74,18 @@ import {
 
 /** Nom lisible d'un exercice (pour records/stats). */
 const nomExo = (id) => (getExercise(id) ? getExercise(id).nom : id);
+/* ---------- unités de poids ----------
+   Tout est STOCKÉ en kg ; ces aides ne servent qu'à l'affichage et à la saisie.
+   En kg, elles rendent exactement ce que l'application affichait déjà. */
+const uImp = () => estImperial(Etat.data.reglages);
+const uUnite = () => uniteCharge(uImp());
+const uAff = (kg) => versAffichage(kg, uImp());
+const uCharge = (kg, o) => texteCharge(kg, uImp(), o);
+const uVolume = (kg, o) => texteVolume(kg, uImp(), o);
+/** Unité de la séance en cours : figée au démarrage, pour que changer le réglage
+ *  en pleine séance ne mélange pas kg et lb dans les champs déjà saisis. */
+const uLive = () => !!(LIVE && LIVE.unite === "lb");
+const uAffLive = (kg) => versAffichage(kg, uLive());
 /** Libellé court du niveau (évite la troncature dans les tuiles stat étroites). */
 const NIVEAU_COURT = { debutant: "Débutant", intermediaire: "Inter.", avance: "Avancé" };
 const niveauCourt = (niv) => NIVEAU_COURT[niv] || LEVEL_LABELS[niv] || niv;
@@ -623,7 +636,7 @@ function carteBilanSemaine(logs, p) {
   const b = bilanSemaine(logs, p && p.poidsKg);
   const c = h(`<button class="card sem-bilan tap" type="button" aria-label="Voir mes progrès"></button>`);
   const col = (val, lab) => `<span class="sb-col"><b class="num">${val}</b><span>${lab}</span></span>`;
-  const vol = b.volume >= 1000 ? `${(b.volume / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} t` : `${b.volume} kg`;
+  const vol = uVolume(b.volume, { tonnes: true });
   c.append(h(`<span class="sb-grille">
     ${col(b.dureeMin ? formatDuree(b.dureeMin) : "—", "Temps")}
     ${col(b.seances ? vol : "—", "Volume")}
@@ -923,7 +936,7 @@ function vDash(v) {
       const quand = jours <= 0 ? "aujourd'hui" : jours === 1 ? "hier" : `il y a ${jours} j`;
       const vol = Math.round(volumeLog(l));
       const min = Math.round((l.dureeSec || 0) / 60);
-      box.append(h(`<div class="histo-row"><span class="hr-t"><b>${esc(l.seanceNom || "Séance")}</b><br><span class="muted small">${quand}</span></span><span class="muted small hr-v">${min ? min + " min · " : ""}${vol.toLocaleString("fr-FR")} kg</span></div>`));
+      box.append(h(`<div class="histo-row"><span class="hr-t"><b>${esc(l.seanceNom || "Séance")}</b><br><span class="muted small">${quand}</span></span><span class="muted small hr-v">${min ? min + " min · " : ""}${uVolume(vol)}</span></div>`));
     });
     v.append(box);
   }
@@ -1716,15 +1729,15 @@ function ouvrirDetail(exo) {
       }
       const f = h(`<div class="stack"></div>`);
       const g = h(`<div class="statgrid"></div>`);
-      g.append(statCard(IC.dumbbell, `${hh.maxCharge} kg`, "Charge max"));
-      g.append(statCard(IC.activity, `${hh.best1rm} kg`, "1RM estimé"));
+      g.append(statCard(IC.dumbbell, uCharge(hh.maxCharge), "Charge max"));
+      g.append(statCard(IC.activity, uCharge(hh.best1rm), "1RM estimé"));
       g.append(statCard(IC.repeat, `${hh.totalSeries}`, "Séries totales"));
       g.append(statCard(IC.calendar, `${hh.nbSeances}`, "Séances"));
       f.append(g);
       f.append(h(`<div class="eyebrow" style="margin-top:10px">Dernières séances</div>`));
       hh.seances.slice(0, 8).forEach((s) => {
         const d = new Date(s.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
-        const detail = s.series.map((x) => `${x.chargeKg || 0}kg×${x.reps || x.dureeSec || 0}`).join(" · ");
+        const detail = s.series.map((x) => `${uAff(x.chargeKg) || 0}${uUnite()}×${x.reps || x.dureeSec || 0}`).join(" · ");
         f.append(h(`<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="eyebrow" style="color:var(--ink-soft)">${d}</div><div class="num small" style="margin-top:2px">${esc(detail)}</div></div>`));
       });
       return f;
@@ -2448,6 +2461,7 @@ async function demarrer(seance) {
   if (!await peutDemarrer()) { nav("train"); return false; }
   APERCU = null;
   LIVE = nouvelleSession(seance);
+  LIVE.unite = uUnite();
   persistLive(true);
   render();
   return true;
@@ -2597,7 +2611,7 @@ function carteExoLive(e, seance) {
 
   // Ligne de contexte unique, dépliable : repos, charge conseillée, objectif.
   const objectif = !enTemps && sug.chargeKg
-    ? `${sug.chargeKg} kg × ${plage[0]}–${plage[1]}` : null;
+    ? `${texteCharge(sug.chargeKg, uLive())} × ${plage[0]}–${plage[1]}` : null;
   const tempo = modeAvance() && (t?.tempo || exo.tempoDefaut) ? (t?.tempo || exo.tempoDefaut) : null;
   const metaTxt = `<span class="cic">${IC.clock}</span>repos ${formatRepos(t?.reposSec || 60)}`
     + (objectif ? ` · <span class="cic">${IC.dumbbell}</span>objectif <b class="sug">${objectif}</b>` : "")
@@ -2617,7 +2631,7 @@ function carteExoLive(e, seance) {
   if (avance) c.classList.add("adv");
   const showEffort = st.showRir != null ? st.showRir : avance;
   const col2 = showEffort ? metriqueEffort() : "Préc.";
-  c.append(h(`<div class="setrow"><span class="head">Série</span><span class="head">${col2}</span><span class="head">${enTemps ? "Sec" : "Kg"}</span><span class="head">${enTemps ? "Durée" : "Reps"}</span><span class="head">✓</span></div>`));
+  c.append(h(`<div class="setrow"><span class="head">Série</span><span class="head">${col2}</span><span class="head">${enTemps ? "Sec" : (uLive() ? "Lb" : "Kg")}</span><span class="head">${enTemps ? "Durée" : "Reps"}</span><span class="head">✓</span></div>`));
   // Les suggestions des séries suivantes dépendent de ce qui vient d'être
   // saisi : elles doivent être recalculées à chaque frappe, sinon l'écran
   // promet une valeur et la validation en enregistre une autre.
@@ -2625,7 +2639,7 @@ function carteExoLive(e, seance) {
   const majSuggestions = () => {
     for (const { row, i } of lignes) {
       const dpi = derniere && derniere.series[i];
-      const cc = valeurSerie(st.series, i, "charge", dpi && dpi.chargeKg, sug.chargeKg);
+      const cc = valeurSerie(st.series, i, "charge", uAffLive(dpi && dpi.chargeKg), uAffLive(sug.chargeKg));
       const rr = valeurSerie(st.series, i, "reps", dpi && dpi.reps, plage && plage[0]);
       const ic = row.querySelector('input[data-f="charge"]');
       if (ic) ic.placeholder = cc == null ? "—" : String(cc);
@@ -2635,7 +2649,7 @@ function carteExoLive(e, seance) {
   };
   st.series.forEach((s, i) => {
     const dp = derniere && derniere.series[i];
-    const prev = dp ? (enTemps ? `${dp.dureeSec || 0}s` : `${dp.chargeKg || 0}×${dp.reps || 0}`) : "—";
+    const prev = dp ? (enTemps ? `${dp.dureeSec || 0}s` : `${uAffLive(dp.chargeKg) || 0}×${dp.reps || 0}`) : "—";
     const col2El = showEffort
       ? `<input inputmode="decimal" placeholder="${metriqueEffort() === "RPE" ? "8" : "2"}" value="${s.rir}" data-f="rir" aria-label="${metriqueEffort()} série ${i + 1}">`
       : `<span class="prev muted">${prev}</span>`;
@@ -2645,7 +2659,7 @@ function carteExoLive(e, seance) {
     // Suggestion affichée = valeur qui sera enregistrée si l'on valide sans
     // rien taper. Les deux doivent être calculées au même endroit, sans quoi
     // l'écran promet une chose et l'historique en garde une autre.
-    const chargeAff = valeurSerie(st.series, i, "charge", dp && dp.chargeKg, sug.chargeKg);
+    const chargeAff = valeurSerie(st.series, i, "charge", uAffLive(dp && dp.chargeKg), uAffLive(sug.chargeKg));
     const repsAff = valeurSerie(st.series, i, "reps", dp && dp.reps, plage && plage[0]);
     const numEl = avance
       ? `<button class="serie sertype ${s.type !== "normale" ? "on" : ""}" aria-label="Type de la série ${i + 1} : ${tSerie.label}. Toucher pour changer">${i + 1}${tSerie.court ? `<span class="sertag">${tSerie.court}</span>` : ""}</button>`
@@ -2677,7 +2691,7 @@ function carteExoLive(e, seance) {
       // geste le plus courant en salle : on répète la série précédente.
       if (s.done) {
         completerSerie(st.series, i, {
-          chargePrecedente: dp && dp.chargeKg, chargeConseil: sug.chargeKg,
+          chargePrecedente: uAffLive(dp && dp.chargeKg), chargeConseil: uAffLive(sug.chargeKg),
           repsPrecedentes: dp && dp.reps, repsConseil: plage && plage[0],
         });
         row.querySelectorAll("input[data-f]").forEach((inp) => {
@@ -2725,7 +2739,7 @@ function carteExoLive(e, seance) {
     bFill.addEventListener("click", () => {
       st.series.forEach((s, i) => {
         const dp = derniere && derniere.series[i];
-        if (!s.charge && (dp?.chargeKg != null || sug.chargeKg != null)) s.charge = String(dp?.chargeKg ?? sug.chargeKg);
+        if (!s.charge && (dp?.chargeKg != null || sug.chargeKg != null)) s.charge = String(uAffLive(dp?.chargeKg ?? sug.chargeKg));
         if (!s.reps && (dp?.reps != null || plage?.[0] != null)) s.reps = String(dp?.reps ?? plage[0]);
       });
       persistLive(true); toast("Séries pré-remplies — ajuste puis valide ✓"); render();
@@ -2929,7 +2943,9 @@ async function terminer() {
     const enRpe = metriqueEffort() === "RPE";
     const series = st.series.filter((s) => s.done || s.reps || s.charge || s.dureeSec)
       .map((s) => ({
-        chargeKg: s.charge === "" ? null : +s.charge,
+        // Saisie → kg, dans l'unité de la séance. Accepte aussi la virgule du
+        // clavier français : « 62,5 » donnait NaN, enregistré comme vide.
+        chargeKg: depuisSaisie(s.charge, LIVE.unite === "lb"),
         reps: s.reps === "" ? null : +s.reps,
         rir: s.rir === "" ? null : (enRpe ? rirDepuisRpe(s.rir) : +s.rir),
         dureeSec: s.dureeSec || null,
@@ -2986,7 +3002,9 @@ function ecranFinSeance(log, prs) {
   const dureeTxt = min >= 60 ? `${Math.floor(min / 60)}h${String(min % 60).padStart(2, "0")}` : `${min} min`;
   const nbSeries = (log.exercices || []).reduce((a, e) => a + (e.series || []).length, 0);
   const volume = Math.round(volumeLog(log));
-  const kcal = Math.round(min * 8);
+  // Même estimation que l'accueil et Progrès : MET × poids × durée (et non
+  // plus 8 kcal/min pour tout le monde, quel que soit le poids).
+  const kcal = caloriesSeance(log.dureeSec, (Etat.data.profil || {}).poidsKg);
   const sheet = h(`<div class="sheet finseance"><div class="inner"></div></div>`);
   const inner = sheet.querySelector(".inner");
   // « Excellent travail, continue comme ça ! » ne disait rien, et on cesse de le
@@ -3003,8 +3021,8 @@ function ecranFinSeance(log, prs) {
   g.append(statCard(IC.clock, dureeTxt, "Durée"));
   g.append(statCard(IC.dumbbell, `${(log.exercices || []).length}`, "Exercices"));
   g.append(statCard(IC.repeat, `${nbSeries}`, "Séries"));
-  g.append(statCard(IC.bars, volume.toLocaleString("fr-FR"), "Volume kg"));
-  g.append(statCard(IC.flame, `${kcal}`, "Calories"));
+  g.append(statCard(IC.bars, uVolume(volume).replace(/ (kg|lb)$/, ""), `Volume ${uUnite()}`));
+  g.append(statCard(IC.flame, kcal ? `≈ ${kcal}` : "—", "kcal estimées"));
   g.append(statCard(IC.trophy, `${prs.length}`, prs.length > 1 ? "Records" : "Record"));
   inner.append(g);
   if (prs.length) {
@@ -3021,7 +3039,7 @@ function ecranFinSeance(log, prs) {
       <span class="muted small">il y a ${cmp.jours} j</span></div>`));
     const ecart = (v, unite) => `<b class="num ${v > 0 ? "fin-plus" : v < 0 ? "fin-moins" : ""}">${v > 0 ? "+" : ""}${v.toLocaleString("fr-FR")}${unite}</b>`;
     cc.append(h(`<div class="fin-deltas">
-      <span>${ecart(cmp.delta.volume, " kg")}<span class="muted">Volume</span></span>
+      <span>${ecart(Math.round(uImp() ? cmp.delta.volume * 2.20462 : cmp.delta.volume), " " + uUnite())}<span class="muted">Volume</span></span>
       <span>${ecart(cmp.delta.series, "")}<span class="muted">Séries</span></span>
       <span>${ecart(Math.round(cmp.delta.duree / 60), " min")}<span class="muted">Durée</span></span>
     </div>`));
@@ -3029,10 +3047,10 @@ function ecranFinSeance(log, prs) {
     // qu'on a fait moins de séries n'est pas une régression.
     cmp.progres.slice(0, 3).forEach((p) => cc.append(h(`<div class="spread small fin-mvt">
       <span>${esc(nomExo(p.exerciceId))}</span>
-      <span><b class="num fin-plus">+${fr(p.delta)} kg</b> <span class="muted">${fr(p.avant)} → ${fr(p.apres)}</span></span></div>`)));
+      <span><b class="num fin-plus">+${fr(uAff(p.delta))} ${uUnite()}</b> <span class="muted">${fr(uAff(p.avant))} → ${fr(uAff(p.apres))}</span></span></div>`)));
     cmp.recul.slice(0, 2).forEach((p) => cc.append(h(`<div class="spread small fin-mvt">
       <span class="muted">${esc(nomExo(p.exerciceId))}</span>
-      <span><b class="num fin-moins">${fr(p.delta)} kg</b> <span class="muted">${fr(p.avant)} → ${fr(p.apres)}</span></span></div>`)));
+      <span><b class="num fin-moins">${fr(uAff(p.delta))} ${uUnite()}</b> <span class="muted">${fr(uAff(p.avant))} → ${fr(uAff(p.apres))}</span></span></div>`)));
     inner.append(cc);
   } else if (cmp.raison) {
     inner.append(h(`<div class="hint" style="margin-top:14px">${esc(cmp.raison)}</div>`));
@@ -3056,9 +3074,9 @@ function ecranFinSeance(log, prs) {
 }
 /** Libellé court d'un record (poids, reps ou 1RM estimé). */
 function etiquettePR(r) {
-  if (r.type === "poids") return `${r.valeur} kg (avant ${r.ancien} kg)`;
+  if (r.type === "poids") return `${uCharge(r.valeur)} (avant ${uCharge(r.ancien)})`;
   if (r.type === "reps") return `${r.valeur} reps (avant ${r.ancien})`;
-  return `1RM estimé ${r.valeur} kg (avant ${r.ancien} kg)`;
+  return `1RM estimé ${uCharge(r.valeur)} (avant ${uCharge(r.ancien)})`;
 }
 
 /* ---------- minuteur de repos ----------
@@ -3518,11 +3536,11 @@ function guideRenderWork(g, cur) {
   else body.append(h(`<div class="guide-sil">${muscles.length ? miniSilhouette(muscles) : ""}</div>`));
   body.append(h(`<h1 class="guide-nom">${esc(nom)}</h1>`));
   if (muscles.length) body.append(h(`<div class="guide-mus">${muscles.map((m) => esc(MUSCLE_LABELS[m] || m)).join(" · ")}</div>`));
-  body.append(h(`<div class="guide-cible"><span class="num">${esc(cibleTxt)}</span>${sug.chargeKg ? ` · conseil ~${sug.chargeKg} kg` : ""}</div>`));
+  body.append(h(`<div class="guide-cible"><span class="num">${esc(cibleTxt)}</span>${sug.chargeKg ? ` · conseil ~${texteCharge(sug.chargeKg, uLive())}` : ""}</div>`));
   if (sug.message) body.append(h(`<div class="notice small guide-conseil">${esc(sug.message)}</div>`));
 
   const inp = h(`<div class="guide-inputs"></div>`);
-  const champCharge = h(`<label class="guide-field"><span>${enTemps ? "Charge (kg)" : "Charge (kg)"}</span><input inputmode="decimal" value="${s.charge || ""}" placeholder="${sug.chargeKg || "—"}" aria-label="Charge"></label>`);
+  const champCharge = h(`<label class="guide-field"><span>Charge (${uLive() ? "lb" : "kg"})</span><input inputmode="decimal" value="${s.charge || ""}" placeholder="${uAffLive(sug.chargeKg) ?? "—"}" aria-label="Charge"></label>`);
   const champVal = h(`<label class="guide-field"><span>${enTemps ? "Durée (s)" : "Répétitions"}</span><input inputmode="numeric" value="${enTemps ? (s.dureeSec || "") : (s.reps || "")}" placeholder="${enTemps ? (t?.dureeSec || 40) : plage[0]}" aria-label="${enTemps ? "Durée" : "Répétitions"}"></label>`);
   inp.append(champCharge, champVal);
   body.append(inp);
@@ -3999,6 +4017,7 @@ async function demarrerAuto() {
   Etat.sauver();
   APERCU = null;
   LIVE = nouvelleSession(seance);
+  LIVE.unite = uUnite();
   persistLive(true);
   // On bascule explicitement sur l'onglet Séance : `demarrer()` se contente de
   // re-rendre la vue courante, ce qui laissait l'utilisateur sur l'Accueil.
@@ -4068,7 +4087,7 @@ function grilleChiffres(logs) {
   const nb = logs.length;
   const total = volumeTotal(logs);
   const tonnes = total / 1000;
-  const volTxt = tonnes >= 1 ? `${tonnes.toFixed(1).replace(".", ",")} T` : `${Math.round(total)} kg`;
+  const volTxt = uImp() ? uVolume(total, { tonnes: true }) : tonnes >= 1 ? `${tonnes.toFixed(1).replace(".", ",")} T` : `${Math.round(total)} kg`;
   const cible = Math.max(1, (Etat.data.profil?.joursParSemaine || 4) * 4);
   const recentes = logs.filter((l) => Date.parse(l.date) > Date.now() - 28 * 864e5).length;
   const regularite = Math.min(100, Math.round((recentes / cible) * 100));
@@ -4881,7 +4900,8 @@ function contexteUtilisateur(opts = {}) {
   const perso = (Etat.data.programmesPerso || []).map((r) => r.nom).filter(Boolean);
   if (perso.length) l.push(`Routines personnelles : ${perso.slice(0, 8).join(", ")}.`);
   l.push(sj ? `Séance prévue aujourd'hui : ${sj.nom} (${sj.exercices.length} exercices).` : "Aujourd'hui : jour de repos dans le programme.");
-  l.push(`Séances enregistrées au total : ${logs.length}. Série en cours : ${serieActuelle(logs)} jour(s). Charges exprimées en kg.`);
+  l.push(`Séances enregistrées au total : ${logs.length}. Série en cours : ${serieActuelle(logs)} jour(s). Données de charge exprimées en kg.`);
+  if (uImp()) l.push("L'utilisateur affiche ses charges en LIVRES : donne toutes tes charges en lb (1 kg = 2,2046 lb), arrondies à 2,5 lb.");
 
   // Historique détaillé : SEULEMENT si l'utilisateur l'a autorisé (Compte → Coach).
   if (opts.historique) {
@@ -5004,7 +5024,7 @@ function repondreAssistant(q) {
       const cls = classementRecords(Etat.data.logs, nomExo, 6);
       if (!cls.length) { txt("Pas encore de record : enregistre quelques séances et ils apparaîtront ici."); break; }
       txt("Tes meilleures performances :");
-      cls.forEach((r) => box.append(h(`<div class="spread small"><span>${esc(r.nom)}</span><b>${r.poidsMax} kg · 1RM ~${r.e1rm} kg</b></div>`)));
+      cls.forEach((r) => box.append(h(`<div class="spread small"><span>${esc(r.nom)}</span><b>${uCharge(r.poidsMax)} · 1RM ~${uCharge(r.e1rm)}</b></div>`)));
       const bn = h(`<button class="secondary big">Voir tous mes records</button>`);
       bn.addEventListener("click", () => { fermerCoach(); nav("stats"); });
       box.append(bn);
@@ -5785,7 +5805,7 @@ function ouvrirFicheMuscle(muscle) {
 
   /* --- chiffres clés --- */
   const g = h(`<div class="statgrid" style="margin-top:4px"></div>`);
-  g.append(statCard(IC.bars, f.volume.toLocaleString("fr-FR"), "Volume kg"));
+  g.append(statCard(IC.bars, uVolume(f.volume).replace(/ (kg|lb)$/, ""), `Volume ${uUnite()}`));
   g.append(statCard(IC.repeat, `${f.principaux}`, f.principaux > 1 ? "Séries directes" : "Série directe"));
   g.append(statCard(IC.layers, `${f.secondaires}`, "En secondaire"));
   g.append(statCard(IC.clock, f.dernierJours === 0 ? "Auj." : `${f.dernierJours} j`, "Dernière fois"));
@@ -5799,7 +5819,7 @@ function ouvrirFicheMuscle(muscle) {
     const haut = Math.round((x.volume / maxi) * 100);
     const d = new Date(x.semaine + "T12:00:00");
     const lab = Number.isFinite(d.getTime()) ? `${d.getDate()}/${d.getMonth() + 1}` : "";
-    return `<span class="mus-bar" title="Semaine du ${esc(lab)} : ${x.volume.toLocaleString("fr-FR")} kg">
+    return `<span class="mus-bar" title="Semaine du ${esc(lab)} : ${uVolume(x.volume)}">
       <i style="height:${Math.max(2, haut)}%"${x.volume ? "" : ' class="vide"'}></i></span>`;
   }).join("");
   const c2 = h(`<div class="card stack" style="margin-top:12px"></div>`);
@@ -5809,7 +5829,7 @@ function ouvrirFicheMuscle(muscle) {
   c2.append(h(`<div class="mus-graph" role="img" aria-label="Volume hebdomadaire des 8 dernières semaines">${barres}</div>`));
   // Moyenne sur les semaines ENTRAÎNÉES : diviser par le total écraserait le
   // chiffre de quelqu'un qui revient après une pause.
-  c2.append(h(`<div class="muted small" style="margin-top:6px">Moyenne ${moy.toLocaleString("fr-FR")} kg par semaine entraînée · ${f.seances} séance${f.seances > 1 ? "s" : ""}</div>`));
+  c2.append(h(`<div class="muted small" style="margin-top:6px">Moyenne ${uVolume(moy)} par semaine entraînée · ${f.seances} séance${f.seances > 1 ? "s" : ""}</div>`));
   inner.append(c2);
 
   /* --- exercices qui l'ont travaillé --- */
@@ -5819,7 +5839,7 @@ function ouvrirFicheMuscle(muscle) {
     if (!exo) return;
     const b = h(`<button class="exline">${vignetteHTML(exo, "sm")}
       <span class="meta"><span class="nm">${esc(exo.nom)}</span>
-        <span class="muted small">${x.series} série${x.series > 1 ? "s" : ""}${x.role === "principal" ? ` · ${x.volume.toLocaleString("fr-FR")} kg` : " · en secondaire"}</span></span>
+        <span class="muted small">${x.series} série${x.series > 1 ? "s" : ""}${x.role === "principal" ? ` · ${uVolume(x.volume)}` : " · en secondaire"}</span></span>
       <span class="chev" aria-hidden="true">›</span></button>`);
     b.addEventListener("click", () => { fermer(); ouvrirDetail(exo); });
     inner.append(b);
@@ -5951,7 +5971,7 @@ function cartephotos(v) {
       const col = h(`<div class="ph-col"></div>`);
       col.append(vignette(f, { alt: `${titre} — ${dateLisible(f.date)}` }));
       col.append(h(`<div class="ph-leg"><b>${esc(String(titre))}</b>
-        <span class="muted">${esc(dateLisible(f.date))}${f.poidsKg != null ? ` · ${fr(f.poidsKg)} kg` : ""}</span></div>`));
+        <span class="muted">${esc(dateLisible(f.date))}${f.poidsKg != null ? ` · ${fr(uAff(f.poidsKg))} ${uUnite()}` : ""}</span></div>`));
       duo.append(col);
     });
     cc.append(duo);
@@ -5959,7 +5979,7 @@ function cartephotos(v) {
     cc.append(h(`<div class="spread small" style="margin-top:8px">
       <span class="muted">${paire.jours} jours${mois >= 2 ? ` (~${mois} mois)` : ""}</span>
       ${paire.deltaPoids != null
-        ? `<span class="badge${paire.deltaPoids === 0 ? "" : " accent"}">${paire.deltaPoids > 0 ? "+" : ""}${fr(paire.deltaPoids)} kg</span>`
+        ? `<span class="badge${paire.deltaPoids === 0 ? "" : " accent"}">${paire.deltaPoids > 0 ? "+" : ""}${fr(uAff(paire.deltaPoids))} ${uUnite()}</span>`
         : `<span class="muted">poids non renseigné</span>`}</div>`));
     v.append(cc);
   } else {
@@ -5980,7 +6000,7 @@ function cartephotos(v) {
     const pose = POSES.find((p) => p.cle === f.pose);
     item.append(h(`<figcaption class="ph-cap">
       <b>${esc(dateLisible(f.date).replace(/ \d{4}$/, ""))}</b>
-      <span class="muted">${esc(pose ? pose.nom : "")}${f.poidsKg != null ? ` · ${fr(f.poidsKg)} kg` : ""}</span></figcaption>`));
+      <span class="muted">${esc(pose ? pose.nom : "")}${f.poidsKg != null ? ` · ${fr(uAff(f.poidsKg))} ${uUnite()}` : ""}</span></figcaption>`));
     const bSup = h(`<button class="chip ph-sup" aria-label="Supprimer la photo du ${esc(dateLisible(f.date))}">${IC.trash}</button>`);
     bSup.addEventListener("click", async () => {
       if (!confirm(`Supprimer la photo du ${dateLisible(f.date)} ? C'est définitif.`)) return;
@@ -6169,6 +6189,14 @@ function carteProgression(v) {
       label = c ? c.label : "";
     }
     points = filtrerDepuis(points, PROG_CHART.periode);
+    // Livres : on convertit les séries exprimées en kg (charges, volume, poids
+    // du corps) au moment du tracé — les données restent en kg.
+    const enKg = PROG_CHART.type === "exercice" && PROG_CHART.exerciceId
+      ? PROG_CHART.metrique !== "reps" : PROG_CHART.champCorps === "poidsKg";
+    if (uImp() && enKg) {
+      points = points.map((pt) => ({ ...pt, v: PROG_CHART.metrique === "volume" && PROG_CHART.type === "exercice" ? Math.round(pt.v * 2.20462) : uAff(pt.v) }));
+      label = label.replace(/\(kg\)/g, "(lb)").replace(/\bkg\b/g, "lb");
+    }
     zone.innerHTML = svgLine(points, label);
   };
 
@@ -6710,7 +6738,7 @@ function vStats(v) {
   const objPct = Math.min(1, sm.seances / Math.max(1, objSem));
   v.append(h(`<div class="card objweek">
     <div class="spread"><span class="small"><b>${sm.seances}/${objSem}</b> séance${sm.seances > 1 ? "s" : ""} cette semaine</span>
-    <span class="small muted">${sm.seances ? `${sm.volume.toLocaleString("fr-FR")} kg` : "à démarrer"}</span></div>
+    <span class="small muted">${sm.seances ? uVolume(sm.volume) : "à démarrer"}</span></div>
     <div class="bar" style="margin-top:7px"><div style="width:${Math.round(objPct * 100)}%${objPct >= 1 ? ";background:var(--ok)" : ""}"></div></div>
   </div>`));
 
@@ -6730,8 +6758,9 @@ function vStats(v) {
   const g = h(`<div class="statgrid"></div>`);
   g.append(statCard(IC.dumbbell, `${lp.length}`, "Séances"));
   g.append(statCard(IC.clock, `${Math.floor(dureeP / 60)}h${String(dureeP % 60).padStart(2, "0")}`, "Temps total"));
-  g.append(statCard(IC.bars, volP.toLocaleString("fr-FR"), "Volume kg"));
-  g.append(statCard(IC.flame, (dureeP * 8).toLocaleString("fr-FR"), "Calories"));
+  g.append(statCard(IC.bars, uVolume(volP).replace(/ (kg|lb)$/, ""), `Volume ${uUnite()}`));
+  const kcalP = lp.reduce((a, l) => a + caloriesSeance(l.dureeSec, (p || {}).poidsKg), 0);
+  g.append(statCard(IC.flame, kcalP.toLocaleString("fr-FR"), "kcal estimées"));
   v.append(g);
 
   // Graphique de progression interactif : LE graphique utile, toujours visible.
@@ -6748,12 +6777,12 @@ function vStats(v) {
 
   section(v, "volume", "Volume", (b) => {
     const sem2 = volumeParSemaine(logs);
-    if (sem2.length >= 1) b.append(h(`<div class="card">${svgBars(sem2, "Volume par semaine (kg)")}</div>`));
+    if (sem2.length >= 1) b.append(h(`<div class="card">${svgBars(uImp() ? sem2.map((x) => ({ ...x, v: Math.round(x.v * 2.20462) })) : sem2, `Volume par semaine (${uUnite()})`)}</div>`));
     const parMuscle = volumeParMuscle(logs, getExercise).slice(0, 8)
       .map((x) => ({ x: MUSCLE_LABELS[x.muscle] || x.muscle, v: x.v }));
     if (parMuscle.length) b.append(h(`<div class="card">${svgBars(parMuscle, "Volume par groupe musculaire")}</div>`));
     if (!sem2.length && !parMuscle.length) b.append(h(`<div class="muted small">Aucune séance enregistrée pour l'instant.</div>`));
-  }, { resume: `${volP.toLocaleString("fr-FR")} kg` });
+  }, { resume: uVolume(volP) });
 
   section(v, "muscles", "Muscles & récupération", (b) => {
     carteMuscleHeatmap(b);
@@ -6763,7 +6792,7 @@ function vStats(v) {
   if (prs.length) {
     section(v, "records", "Records personnels", (b) => {
       const rg = h(`<div class="recgrid"></div>`);
-      prs.slice(0, 6).forEach((r) => rg.append(h(`<div class="reccard"><div class="rc-name">${esc(r.nom)}</div><div class="rc-val num">${r.e1rm}<span> kg</span></div><div class="rc-sub muted">${r.charge}kg × ${r.reps}</div></div>`)));
+      prs.slice(0, 6).forEach((r) => rg.append(h(`<div class="reccard"><div class="rc-name">${esc(r.nom)}</div><div class="rc-val num">${uAff(r.e1rm)}<span> ${uUnite()}</span></div><div class="rc-sub muted">${uAff(r.charge)}${uUnite()} × ${r.reps}</div></div>`)));
       b.append(rg);
       b.append(h(`<div class="hint">${esc(FORMULE_1RM)}. Estimation indicative — ne teste jamais un vrai maximum en reprise.</div>`));
     }, { resume: `${prs.length}` });
@@ -6774,7 +6803,7 @@ function vStats(v) {
   // poids — rangé dans une section (consulté occasionnellement, pas à chaque ouverture)
   const secPoids = h(`<div></div>`);
   const c = h(`<div class="card stack"><h2 style="margin:0">Poids du corps</h2></div>`);
-  const rowW = h(`<div class="row"><input id="wKg" aria-label="Poids du matin en kg" inputmode="decimal" placeholder="Poids du matin (kg)" style="flex:1"><button class="primary" id="wAdd">Ajouter</button></div>`);
+  const rowW = h(`<div class="row"><input id="wKg" aria-label="Poids du matin en ${uUnite()}" inputmode="decimal" placeholder="Poids du matin (${uUnite()})" style="flex:1"><button class="primary" id="wAdd">Ajouter</button></div>`);
   c.append(rowW);
   const poids = Etat.data.metrics.filter((m) => m.poidsKg);
   // Jauge IMC (dernier poids connu ou poids du profil), façon carte « BMI »
@@ -6787,23 +6816,23 @@ function vStats(v) {
     const ii = h(`<div style="flex:1;min-width:0"></div>`);
     ii.append(h(`<div class="eyebrow" style="color:var(--accent-ink)">Indice de masse corporelle</div>`));
     ii.append(h(`<div style="margin:2px 0"><b style="font-size:1.4rem">${imc.toFixed(1)}</b> <span class="badge" style="background:color-mix(in srgb,${cat.col} 18%,transparent);color:${cat.col}">${cat.txt}</span></div>`));
-    ii.append(h(`<div class="muted small">${poidsActuel} kg · ${p.tailleCm} cm. L'IMC est indicatif et ne distingue pas muscle et graisse.</div>`));
+    ii.append(h(`<div class="muted small">${uCharge(poidsActuel)} · ${p.tailleCm} cm. L'IMC est indicatif et ne distingue pas muscle et graisse.</div>`));
     cimc.append(ii);
     c.append(cimc);
   }
   // Courbe de poids lissée (tendance)
   if (poids.length >= 2) {
-    const dp = poids.slice(-14).map((m) => ({ x: new Date(m.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }), v: m.poidsKg }));
-    c.append(h(`<div>${svgLine(dp, "Tendance du poids (kg)")}</div>`));
+    const dp = poids.slice(-14).map((m) => ({ x: new Date(m.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }), v: uAff(m.poidsKg) }));
+    c.append(h(`<div>${svgLine(dp, `Tendance du poids (${uUnite()})`)}</div>`));
   }
-  if (poids.length) c.append(h(`<div class="small muted">Dernier : ${poids[poids.length - 1].poidsKg} kg · ${poids.length} mesure(s)</div>`));
+  if (poids.length) c.append(h(`<div class="small muted">Dernier : ${uCharge(poids[poids.length - 1].poidsKg)} · ${poids.length} mesure(s)</div>`));
   c.append(h(`<div class="hint">Pèse-toi le matin à jeun. Aucune décision sur une seule pesée : on regarde la tendance sur 1–2 semaines.</div>`));
   secPoids.append(c);
   section(v, "poids", "Poids du corps", (b) => b.append(secPoids), {
-    resume: poids.length ? `${poids[poids.length - 1].poidsKg} kg` : "",
+    resume: poids.length ? uCharge(poids[poids.length - 1].poidsKg) : "",
   });
   c.querySelector("#wAdd").addEventListener("click", () => {
-    const kg = parseFloat((c.querySelector("#wKg").value || "").replace(",", ".")); if (!kg) return;
+    const kg = depuisSaisie(c.querySelector("#wKg").value, uImp()); if (!kg) return;
     Etat.data.metrics.push({ id: Etat.uid(), date: new Date().toISOString(), poidsKg: kg }); Etat.sauver(); render();
   });
 
@@ -6908,7 +6937,7 @@ function vSet(v) {
   // rythme » ; la taille et l'âge ne changent pas et sont remontés au-dessus.
   const ps = h(`<div class="profstats"></div>`);
   ps.append(h(`<div><b>${esc(GOAL_LABELS[p.objectif] || p.objectif || "—")}</b><span>Objectif</span></div>`));
-  ps.append(h(`<div><b>${p.poidsKg ? p.poidsKg + " kg" : "—"}</b><span>Poids</span></div>`));
+  ps.append(h(`<div><b>${p.poidsKg ? uCharge(p.poidsKg) : "—"}</b><span>Poids</span></div>`));
   ps.append(h(`<div><b>${p.joursParSemaine ? p.joursParSemaine + "/sem." : "—"}</b><span>Fréquence</span></div>`));
   v.append(ps);
 
@@ -6920,7 +6949,7 @@ function vSet(v) {
   ligneI("Jours par semaine", `${p.joursParSemaine} jours`);
   ligneI("Durée de séance", `${p.dureeSeanceMin} min`);
   ligneI("Lieu", p.lieu);
-  ligneI("Unité", p.unites === "imperial" ? "lb / in" : "kg / cm");
+  ligneI("Unité de poids", uImp() ? "Livres (lb)" : "Kilogrammes (kg)");
   v.append(info);
 
   // Outils (accès aux rubriques hors barre de navigation)
@@ -7105,7 +7134,21 @@ function vSet(v) {
   section(v, "p-prog", "Programme d'entraînement", (b) => b.append(prof));
 
   const aff = h(`<div class="card stack"></div>`);
+  aff.append(h(`<span class="small">Thème</span>`));
   aff.append(chipsInline([["auto", "Auto"], ["light", "Clair"], ["dark", "Lime"], ["nuit", "Nuit"]], (val) => Etat.data.reglages.theme === val, (val) => { Etat.data.reglages.theme = val; Etat.sauver(); appliquerTheme(); }));
+  // Unité de poids : purement d'affichage, l'historique reste stocké en kg et
+  // s'affiche aussitôt dans l'autre unité. Une séance déjà commencée garde
+  // l'unité dans laquelle elle a été saisie jusqu'à sa fin.
+  aff.append(h(`<span class="small" style="margin-top:8px">Unité de poids</span>`));
+  aff.append(chipsInline([["metrique", "Kilogrammes (kg)"], ["imperial", "Livres (lb)"]],
+    (val) => (Etat.data.reglages.unites === "imperial" ? "imperial" : "metrique") === val,
+    (val) => {
+      Etat.data.reglages.unites = val;
+      if (Etat.data.profil) Etat.data.profil.unites = val;
+      Etat.sauver();
+      toast(val === "imperial" ? "Charges et poids affichés en livres" : "Charges et poids affichés en kilogrammes");
+    }));
+  aff.append(h(`<div class="hint" style="margin-top:0">Tout l'historique est converti à l'affichage, rien n'est modifié. Les calculateurs de force et le chargement de barre restent en kg.</div>`));
   section(v, "p-app", "Apparence", (b) => b.append(aff));
 
   // Démonstrations
