@@ -54,8 +54,20 @@ test("metriquesVersCSV : poids et mensurations, valeurs manquantes vides", () =>
   ];
   const csv = metriquesVersCSV(metrics);
   const lignes = csv.slice(1).split("\r\n").filter(Boolean);
-  assert.equal(lignes[1], "2026-07-01;81.4;;;;");
-  assert.equal(lignes[2], "2026-07-08;;88;;36;");
+  // Les six colonnes d'origine restent en tête, à la même place.
+  assert.ok(lignes[1].startsWith("2026-07-01;81.4;;;;"));
+  assert.ok(lignes[2].startsWith("2026-07-08;;88;;36;"));
+  assert.equal(lignes[0].split(";").length, 19, "Date + 18 colonnes (16 mesures + 2 historiques)");
+  assert.ok(lignes[0].includes("Biceps gauche (cm)") && lignes[0].includes("Masse grasse (%)"));
+});
+
+test("metriquesVersCSV : lignes triées par date (relevé saisi après coup)", () => {
+  const csv = metriquesVersCSV([
+    { date: "2026-07-08T07:00:00.000Z", poidsKg: 80 },
+    { date: "2026-07-01T07:00:00.000Z", poidsKg: 81 },
+  ]);
+  const lignes = csv.slice(1).split("\r\n").filter(Boolean);
+  assert.ok(lignes[1].startsWith("2026-07-01;81"));
 });
 
 test("nomFichierExport : préfixe + date courte", () => {

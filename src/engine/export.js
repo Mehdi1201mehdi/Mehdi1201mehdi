@@ -58,14 +58,27 @@ export function seancesVersCSV(logs, resoudreNom = (id) => id) {
 }
 
 /**
- * CSV du suivi corporel : une ligne par mesure enregistrée (poids et/ou mensurations).
+ * CSV du suivi corporel : une ligne par relevé (poids et/ou mensurations), triée
+ * par date. Les six premières colonnes sont celles d'origine (inchangées pour
+ * qui a déjà des tableurs branchés dessus) ; suivent la masse grasse et les
+ * mesures gauche / droite (engine/corps.js). Masses en kg, longueurs en cm.
  * @param {any[]} metrics Etat.data.metrics
  */
 export function metriquesVersCSV(metrics) {
-  const headers = ["Date", "Poids (kg)", "Tour de taille (cm)", "Poitrine (cm)", "Bras (cm)", "Cuisse (cm)"];
-  const rows = (metrics || []).map((m) => [
-    dateCourte(m.date), m.poidsKg ?? "", m.taille ?? "", m.poitrine ?? "", m.bras ?? "", m.cuisse ?? "",
-  ]);
+  const colonnes = [
+    ["poidsKg", "Poids (kg)"], ["taille", "Tour de taille (cm)"], ["poitrine", "Poitrine (cm)"],
+    ["bras", "Bras (cm)"], ["cuisse", "Cuisse (cm)"],
+    ["masseGrassePct", "Masse grasse (%)"], ["cou", "Cou (cm)"], ["epaules", "Épaules (cm)"],
+    ["hanches", "Hanches (cm)"], ["poignet", "Poignet (cm)"],
+    ["brasG", "Biceps gauche (cm)"], ["brasD", "Biceps droit (cm)"],
+    ["avantBrasG", "Avant-bras gauche (cm)"], ["avantBrasD", "Avant-bras droit (cm)"],
+    ["cuisseG", "Cuisse gauche (cm)"], ["cuisseD", "Cuisse droite (cm)"],
+    ["molletG", "Mollet gauche (cm)"], ["molletD", "Mollet droit (cm)"],
+  ];
+  const headers = ["Date", ...colonnes.map(([, l]) => l)];
+  const rows = (metrics || []).filter((m) => m && m.date).slice()
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+    .map((m) => [dateCourte(m.date), ...colonnes.map(([k]) => m[k] ?? "")]);
   return toCSV(headers, rows);
 }
 

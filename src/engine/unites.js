@@ -92,3 +92,31 @@ export function texteVolume(kg, imperial, opts = {}) {
   if (opts.tonnes && lb >= 10000) return `${(lb / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} k lb`;
   return `${Math.round(lb).toLocaleString("fr-FR")} lb`;
 }
+
+/* ---------- Longueurs (mensurations) : cm ou pouces ----------
+   Même règle que les charges : STOCKÉ en centimètres, converti à l'affichage
+   et à la saisie. Pouces au dixième (1 in = 2,54 cm, valeur exacte). */
+export const CM_PAR_POUCE = 2.54;
+
+/** Libellé court de l'unité de longueur. */
+export function uniteLongueur(imperial) {
+  return imperial ? "in" : "cm";
+}
+
+/** Valeur à afficher pour une longueur stockée en cm, ou null. */
+export function longueurAffichage(cm, imperial) {
+  if (cm === null || cm === undefined || cm === "") return null;
+  const n = Number(cm);
+  if (!Number.isFinite(n)) return null;
+  return imperial ? Math.round((n / CM_PAR_POUCE) * 10) / 10 : Math.round(n * 10) / 10;
+}
+
+/** Saisie (virgule acceptée) → cm, ou null. */
+export function longueurDepuisSaisie(valeur, imperial) {
+  if (valeur === null || valeur === undefined) return null;
+  const s = String(valeur).trim().replace(",", ".");
+  if (!s) return null;
+  const n = Number(s);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return imperial ? Math.round(n * CM_PAR_POUCE * 100) / 100 : n;
+}

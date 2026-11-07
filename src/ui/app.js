@@ -29,7 +29,10 @@ import { chercherFoods, portion } from "../data/foods.js";
 import { rechercher as offRechercher, parCodeBarres } from "../integrations/openfoodfacts.js";
 import { scannerDisponible, demarrerScan, normaliserCode } from "./scanner.js";
 import { vueDico } from "./dico.js";
-import { estImperial, uniteCharge, versAffichage, depuisSaisie, texteCharge, texteVolume } from "../engine/unites.js";
+import { estImperial, uniteCharge, versAffichage, depuisSaisie, texteCharge, texteVolume,
+  uniteLongueur, longueurAffichage, longueurDepuisSaisie } from "../engine/unites.js";
+import { CHAMPS_MESURES, CHAMPS_SAISIE, GROUPES_MESURES, champMesure, construireReleve, etatAu,
+  joursDeMesure, comparerMesures, asymetries, jourLocal } from "../engine/corps.js";
 import { estNatif, partagerFichier, notifsNativesDispo, autoriserNotifs, programmerFinRepos, annulerFinRepos } from "./natif.js";
 import { bilanSemaine, formatDuree, MET_MUSCULATION, caloriesSeance } from "../engine/activite.js";
 import { catalogueCompact, extraireProposition, routineDepuisProposition, htmlLeger, demandeDePlan } from "../engine/coachRoutine.js";
@@ -6250,13 +6253,12 @@ function ouvrirScanner(boite, onCode) {
    PROGRÈS
    ====================================================================== */
 /* ---------- graphique de progression interactif ---------- */
-const CHAMPS_CORPS = [
-  { cle: "poidsKg", label: "Poids du corps (kg)" },
-  { cle: "taille", label: "Tour de taille (cm)" },
-  { cle: "poitrine", label: "Poitrine (cm)" },
-  { cle: "bras", label: "Bras (cm)" },
-  { cle: "cuisse", label: "Cuisse (cm)" },
-];
+/** Mesures du corps traçables : celles qui ont au moins une valeur, avec leur unité d'affichage. */
+function champsCorpsDispo() {
+  const m = Etat.data.metrics || [];
+  return CHAMPS_MESURES.filter((c) => m.some((x) => x && x[c.cle] != null))
+    .map((c) => ({ cle: c.cle, type: c.type, label: `${c.label} (${c.type === "masse" ? uUnite() : c.type === "pct" ? "%" : uniteLongueur(uImp())})` }));
+}
 const PERIODES = [{ j: 0, label: "Tout" }, { j: 30, label: "30 j" }, { j: 90, label: "90 j" }, { j: 180, label: "6 mois" }];
 /** @type {{type:string, exerciceId:string|null, metrique:string, champCorps:string, periode:number}} */
 let PROG_CHART = { type: "exercice", exerciceId: null, metrique: "1rm", champCorps: "poidsKg", periode: 0 };
@@ -6264,7 +6266,9 @@ let PROG_CHART = { type: "exercice", exerciceId: null, metrique: "1rm", champCor
 function carteProgression(v) {
   const logs = Etat.data.logs;
   const exos = [...new Set(logs.flatMap((l) => (l.exercices || []).map((e) => e.exerciceId)))];
-  const aCorps = (Etat.data.metrics || []).some((m) => CHAMPS_CORPS.some((c) => m[c.cle] != null));
+  const CHAMPS_CORPS = champsCorpsDispo();
+  const aCorps = CHAMPS_CORPS.length > 0;
+  if (aCorps && !CHAMPS_CORPS.some((c) => c.cle === PROG_CHART.champCorps)) PROG_CHART.champCorps = CHAMPS_CORPS[0].cle;
   if (!exos.length && !aCorps) return; // rien à tracer pour l'instant
   if (PROG_CHART.type === "exercice" && !exos.length) PROG_CHART.type = "corps";
   if (!PROG_CHART.exerciceId || !exos.includes(PROG_CHART.exerciceId)) PROG_CHART.exerciceId = exos[0] || null;
@@ -6327,10 +6331,14 @@ function carteProgression(v) {
     // Seules les masses se convertissent : ni les reps, ni les km, ni les secondes.
     const metDef = METRIQUES_EXO.find((m) => m.cle === PROG_CHART.metrique);
     const enKg = PROG_CHART.type === "exercice" && PROG_CHART.exerciceId
-      ? !!metDef && metDef.unite === "kg" : PROG_CHART.champCorps === "poidsKg";
+      ? !!metDef && metDef.unite === "kg" : champMesure(PROG_CHART.champCorps)?.type === "masse";
     if (uImp() && enKg) {
       points = points.map((pt) => ({ ...pt, v: PROG_CHART.metrique === "volume" && PROG_CHART.type === "exercice" ? Math.round(pt.v * 2.20462) : uAff(pt.v) }));
       label = label.replace(/\(kg\)/g, "(lb)").replace(/\bkg\b/g, "lb");
+    }
+    // Longueurs en pouces (le libellé porte déjà « in ») ; données en cm.
+    if (PROG_CHART.type !== "exercice" && champMesure(PROG_CHART.champCorps)?.type === "longueur" && uImp()) {
+      points = points.map((pt) => ({ ...pt, v: longueurAffichage(pt.v, true) }));
     }
     zone.innerHTML = svgLine(points, label);
     if (PROG_CHART.type === "exercice" && PROG_CHART.exerciceId) zone.append(listeMensuelle(PROG_CHART.exerciceId, PROG_CHART.metrique));
@@ -7053,7 +7061,8 @@ function vStats(v) {
   const c = h(`<div class="card stack"><h2 style="margin:0">Poids du corps</h2></div>`);
   const rowW = h(`<div class="row"><input id="wKg" aria-label="Poids du matin en ${uUnite()}" inputmode="decimal" placeholder="Poids du matin (${uUnite()})" style="flex:1"><button class="primary" id="wAdd">Ajouter</button></div>`);
   c.append(rowW);
-  const poids = Etat.data.metrics.filter((m) => m.poidsKg);
+  // Tri par date : un relevé peut être saisi après coup (date choisie).
+  const poids = Etat.data.metrics.filter((m) => m.poidsKg).slice().sort((a, b) => (a.date < b.date ? -1 : 1));
   // Jauge IMC (dernier poids connu ou poids du profil), façon carte « BMI »
   const poidsActuel = poids.length ? poids[poids.length - 1].poidsKg : p.poidsKg;
   if (poidsActuel && p.tailleCm) {
@@ -7084,20 +7093,12 @@ function vStats(v) {
     Etat.data.metrics.push({ id: Etat.uid(), date: new Date().toISOString(), poidsKg: kg }); Etat.sauver(); render();
   });
 
-  section(v, "mensurations", "Mensurations", (v) => {
-    // Mensurations
-    const cm = h(`<div class="card stack"><h2 style="margin:0">Mensurations</h2>
-      <div class="row"><input id="mTaille" aria-label="Tour de taille en cm" inputmode="decimal" placeholder="Tour de taille (cm)" style="flex:1"><input id="mPoit" aria-label="Poitrine en cm" inputmode="decimal" placeholder="Poitrine" style="flex:1"></div>
-      <div class="row"><input id="mBras" aria-label="Bras en cm" inputmode="decimal" placeholder="Bras" style="flex:1"><input id="mCuisse" aria-label="Cuisse en cm" inputmode="decimal" placeholder="Cuisse" style="flex:1"><button id="mAdd">Enregistrer</button></div>
-      <div class="hint">Mesure 1×/semaine, mêmes conditions. Le tour de taille est le meilleur repère de perte de graisse.</div></div>`);
-    v.append(cm);
-    $("#mAdd", v).addEventListener("click", () => {
-      const num = (id) => parseFloat(($(id, v).value || "").replace(",", ".")) || null;
-      const e = { id: Etat.uid(), date: new Date().toISOString(), taille: num("#mTaille"), poitrine: num("#mPoit"), bras: num("#mBras"), cuisse: num("#mCuisse") };
-      if (!e.taille && !e.poitrine && !e.bras && !e.cuisse) return;
-      Etat.data.metrics.push(e); Etat.sauver(); render();
+  {
+    const jm = joursDeMesure(Etat.data.metrics || []);
+    section(v, "mensurations", "Mensurations", (b) => carteMensurations(b), {
+      resume: jm.length ? `dernière : ${new Date(jm[0] + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}` : "",
     });
-  });
+  }
 
   // Équilibre du corps — le seul déséquilibre qu'aucun total de volume ne montre.
   {
@@ -7137,6 +7138,145 @@ function vStats(v) {
   } else {
     v.append(h(`<div class="notice small">Réalise ta première séance pour voir tes statistiques se remplir.</div>`));
   }
+}
+
+/* ---------- Mensurations : 16 mesures, comparaison de dates, asymétries ---------- */
+let MES_CMP = { a: null, b: null };
+/** Valeur d'une mesure dans l'unité de l'utilisateur. */
+function texteMesure(c, v) {
+  if (v == null) return "—";
+  if (c.type === "masse") return uCharge(v);
+  if (c.type === "pct") return `${(Math.round(v * 10) / 10).toLocaleString("fr-FR")}\u00A0%`;
+  return `${longueurAffichage(v, uImp()).toLocaleString("fr-FR")}\u00A0${uniteLongueur(uImp())}`;
+}
+function texteEcartMesure(c, d) {
+  if (d == null) return "";
+  if (Math.abs(d) < 0.05) return "=";
+  return `${d > 0 ? "+" : "−"}${texteMesure(c, Math.abs(d))}`;
+}
+const jourCourt = (j) => new Date(j + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+
+function carteMensurations(b) {
+  const metrics = Etat.data.metrics || [];
+  const jours = joursDeMesure(metrics);
+  const acts = h(`<div class="row"></div>`);
+  const bNew = h(`<button class="primary"><span class="btn-ico">${IC.plus}</span>Nouvelle mesure</button>`);
+  bNew.addEventListener("click", () => ouvrirSaisieMesures());
+  acts.append(bNew);
+  if (jours.length) {
+    const bCsv = h(`<button class="chip">Exporter (CSV)</button>`);
+    bCsv.addEventListener("click", () => telechargerCSV(metriquesVersCSV(metrics), nomFichierExport("suivi-corporel")));
+    acts.append(bCsv);
+  }
+  b.append(acts);
+  if (!jours.length) {
+    b.append(etatVide(illustration("courbe"), "Aucune mensuration", "Poids, masse grasse et 14 tours (gauche et droite) : mesure-toi une fois par semaine, mêmes conditions."));
+    return;
+  }
+  // Comparaison de deux dates. Par défaut : la plus ancienne et la plus récente.
+  const ja = jours.includes(MES_CMP.a) ? MES_CMP.a : jours[jours.length - 1];
+  const jb = jours.includes(MES_CMP.b) ? MES_CMP.b : jours[0];
+  const opt = (j, sel) => `<option value="${j}"${sel ? " selected" : ""}>${esc(jourCourt(j))}</option>`;
+  const ctr = h(`<div class="selrow mes-dates">
+    <label class="small muted">Du <select class="selchip" aria-label="Première date">${jours.map((j) => opt(j, j === ja)).join("")}</select></label>
+    <label class="small muted">au <select class="selchip" aria-label="Seconde date">${jours.map((j) => opt(j, j === jb)).join("")}</select></label></div>`);
+  const [sa, sb] = ctr.querySelectorAll("select");
+  sa.addEventListener("change", () => { MES_CMP.a = sa.value; render(); });
+  sb.addEventListener("change", () => { MES_CMP.b = sb.value; render(); });
+  b.append(ctr);
+  const lignes = comparerMesures(metrics, ja, jb);
+  const tab = h(`<div class="mes-table" role="table" aria-label="Comparaison des mensurations"></div>`);
+  tab.append(h(`<div class="mes-row mes-tete" role="row"><span role="columnheader">Mesure</span><span role="columnheader">${esc(new Date(ja + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "short" }))}</span><span role="columnheader">${esc(new Date(jb + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "short" }))}</span><span role="columnheader">Écart</span></div>`));
+  for (const g of GROUPES_MESURES) {
+    const dansG = lignes.filter((l) => champMesure(l.cle).groupe === g);
+    if (!dansG.length) continue;
+    tab.append(h(`<div class="mes-groupe" role="row"><span role="cell">${esc(g)}</span></div>`));
+    dansG.forEach((l) => {
+      const c = champMesure(l.cle);
+      // Valeur recopiée d'un relevé plus ancien : atténuée, datée, sans écart.
+      const cel = (v, d, frais) => (v == null ? `<span role="cell" class="num muted">—</span>`
+        : frais ? `<span role="cell" class="num">${texteMesure(c, v)}</span>`
+        : `<span role="cell" class="num mes-ancien" title="Relevé le ${esc(new Date(d).toLocaleDateString("fr-FR"))}">${texteMesure(c, v)}*</span>`);
+      tab.append(h(`<div class="mes-row" role="row"><span role="cell">${esc(c.court)}</span>${cel(l.a, l.dateA, l.fraisA)}${cel(l.b, l.dateB, l.fraisB)}<span role="cell" class="num mes-ecart">${esc(texteEcartMesure(c, l.delta))}</span></div>`));
+    });
+  }
+  b.append(tab);
+  b.append(h(`<div class="hint">Chaque colonne montre la dernière valeur connue à cette date (relevée dans les 7 jours). * : valeur plus ancienne, sans écart calculé.</div>`));
+  // Asymétries gauche / droite à la date la plus récente choisie.
+  const asy = asymetries(metrics, jb);
+  if (asy.length) {
+    const noms = { bras: "Biceps", avantBras: "Avant-bras", cuisse: "Cuisses", mollet: "Mollets" };
+    const box = h(`<div class="stack" style="gap:var(--space-2)"><div class="eyebrow">Gauche / droite</div></div>`);
+    asy.forEach((x) => {
+      const cote = x.plusFort ? `côté ${x.plusFort === "G" ? "gauche" : "droit"} plus fort` : "symétrique";
+      box.append(h(`<div class="spread small"><span>${esc(noms[x.paire] || x.paire)}</span><span class="${x.aSurveiller ? "mes-asy-alerte" : "muted"}">${x.ecartCm ? `${texteMesure({ type: "longueur" }, x.ecartCm)} · ${x.ecartPct.toLocaleString("fr-FR")}\u00A0% · ${cote}` : "symétrique"}</span></div>`));
+    });
+    if (asy.some((x) => x.aSurveiller)) box.append(h(`<div class="hint">Plus de 5 % d'écart : fréquent du côté dominant. Commence les exercices unilatéraux par le côté le plus faible et suis l'évolution.</div>`));
+    b.append(box);
+  }
+}
+
+/** Feuille de saisie d'un relevé (16 mesures, date modifiable, unités de l'utilisateur). */
+function ouvrirSaisieMesures() {
+  const imp = uImp();
+  const metrics = Etat.data.metrics || [];
+  const auj = jourLocal(new Date().toISOString());
+  const dernier = etatAu(metrics, auj);
+  const unite = (c) => (c.type === "masse" ? uUnite() : c.type === "pct" ? "%" : uniteLongueur(imp));
+  const versAff = (c, v) => (v == null ? "" : c.type === "masse" ? uAff(v) : c.type === "pct" ? v : longueurAffichage(v, imp));
+  const sheet = h(`<div class="sheet"><div class="inner mes-saisie"></div></div>`);
+  const inner = sheet.querySelector(".inner");
+  const fermer = () => sheet.remove();
+  inner.append(h(`<div class="sheet-top"><h2 style="margin:0">Nouvelle mesure</h2><button class="chip" id="mesX" aria-label="Fermer">✕</button></div>`));
+  inner.append(h(`<label class="mes-date small muted">Date <input type="date" id="mesDate" value="${auj}" max="${auj}"></label>`));
+  inner.append(h(`<div class="hint">Remplis seulement ce que tu as mesuré. En gris : ta dernière valeur. Mesure le matin, au même endroit, ruban à plat sans serrer.</div>`));
+  for (const g of GROUPES_MESURES) {
+    const bloc = h(`<fieldset class="mes-bloc"><legend>${esc(g)}</legend><div class="mes-grille"></div></fieldset>`);
+    const grille = bloc.querySelector(".mes-grille");
+    CHAMPS_SAISIE.filter((c) => c.groupe === g).forEach((c) => {
+      const prec = dernier[c.cle] ? versAff(c, dernier[c.cle].v) : "";
+      grille.append(h(`<label class="mes-champ"><span>${esc(c.court)}</span><span class="mes-in"><input inputmode="decimal" data-cle="${c.cle}" placeholder="${esc(String(prec).replace(".", ",")) || "—"}" aria-label="${esc(c.label)} en ${unite(c)}"><i>${unite(c)}</i></span></label>`));
+    });
+    inner.append(bloc);
+  }
+  const err = h(`<div class="warn small" hidden></div>`);
+  const bOk = h(`<button class="primary big">Enregistrer la mesure</button>`);
+  inner.append(err, bOk);
+  bOk.addEventListener("click", () => {
+    const valeurs = {};
+    inner.querySelectorAll("input[data-cle]").forEach((inp) => {
+      const c = champMesure(inp.dataset.cle);
+      const brut = inp.value.trim();
+      if (!brut) return;
+      valeurs[c.cle] = c.type === "masse" ? depuisSaisie(brut, imp)
+        : c.type === "pct" ? (Number(brut.replace(",", ".")) || NaN)
+        : (longueurDepuisSaisie(brut, imp) ?? NaN);
+    });
+    // Bornes exprimées dans l'unité de l'utilisateur (pouces, livres) : un
+    // message en cm pour une saisie en pouces serait incompréhensible.
+    const horsBornes = Object.entries(valeurs).filter(([cle, v]) => {
+      const c = champMesure(cle);
+      return !Number.isFinite(v) || v < c.min || v > c.max;
+    }).map(([cle]) => {
+      const c = champMesure(cle);
+      return `${c.label} : valeur improbable (attendu entre ${texteMesure(c, c.min)} et ${texteMesure(c, c.max)}).`;
+    });
+    if (horsBornes.length) { err.hidden = false; err.textContent = horsBornes.join(" "); return; }
+    const jour = inner.querySelector("#mesDate").value || auj;
+    // Aujourd'hui : l'heure réelle ; un autre jour : midi local (ordre stable).
+    const dateISO = jour === auj ? new Date().toISOString() : new Date(jour + "T12:00:00").toISOString();
+    const r = construireReleve(valeurs, dateISO, Etat.uid());
+    if (!r.ok) { err.hidden = false; err.textContent = r.erreurs.join(" "); return; }
+    Etat.data.metrics.push(r.releve);
+    Etat.sauver();
+    fermer();
+    MES_CMP.b = null;   // la comparaison montre le nouveau relevé
+    toast("Mesure enregistrée");
+    render();
+  });
+  sheet.querySelector("#mesX").addEventListener("click", fermer);
+  sheet.addEventListener("click", (ev) => { if (ev.target === sheet) fermer(); });
+  document.body.append(sheet);
 }
 
 /* ======================================================================

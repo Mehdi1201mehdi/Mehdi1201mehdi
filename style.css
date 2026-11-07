@@ -2737,3 +2737,31 @@ button.sem-bilan{display:flex;flex-direction:column;align-items:stretch;gap:10px
 .ml-d{grid-column:1 / -1;font-size:.8rem;font-weight:700}
 .ml-d.up{color:var(--ok)}
 .ml-d.down{color:var(--ink-soft)}
+
+/* ---------- Mensurations : comparaison de dates et saisie ---------- */
+.mes-dates{display:flex;flex-wrap:wrap;gap:var(--space-2);margin:var(--space-3) 0 var(--space-2)}
+.mes-dates label{display:inline-flex;align-items:center;gap:var(--space-1)}
+/* Une seule grille pour tout le tableau (lignes en display:contents) : les
+   colonnes de chiffres prennent leur largeur naturelle et restent alignées
+   d'une ligne à l'autre ; seul le libellé se replie à 320 px. */
+.mes-table{display:grid;grid-template-columns:minmax(0,1fr) repeat(3,auto);align-items:stretch}
+.mes-row{display:contents;font-size:.9rem}
+.mes-row > span{padding:var(--space-2) 0;border-top:1px solid var(--line);font-size:.9rem}
+.mes-row .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;padding-left:var(--space-3)}
+.mes-tete > span{border-top:0;font-size:var(--fs-label);font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft)}
+.mes-tete span:not(:first-child){text-align:right}
+.mes-groupe{grid-column:1 / -1;padding:var(--space-3) 0 var(--space-1);font-size:var(--fs-label);font-weight:800;color:var(--accent-ink);letter-spacing:.04em;text-transform:uppercase}
+.mes-ecart{font-weight:800}
+.mes-asy-alerte{color:var(--amber);font-weight:700}
+@media (max-width:359px){.mes-row .num{padding-left:var(--space-2)}.mes-row > span{font-size:.82rem}}
+.mes-saisie .mes-date{display:flex;align-items:center;gap:var(--space-2);margin:var(--space-2) 0}
+.mes-saisie .mes-date input{flex:1;min-height:var(--tap)}
+.mes-bloc{border:0;margin:var(--space-3) 0 0;padding:0}
+.mes-bloc legend{font-size:var(--fs-label);font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:var(--space-2)}
+.mes-grille{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-2)}
+.mes-champ{display:flex;flex-direction:column;gap:4px;font-size:.85rem;font-weight:700;min-width:0}
+.mes-in{position:relative;display:block}
+.mes-in input{width:100%;min-height:var(--tap);padding-right:2.4em;font-weight:800;font-variant-numeric:tabular-nums}
+.mes-in i{position:absolute;right:.8em;top:50%;transform:translateY(-50%);font-style:normal;font-size:.8rem;color:var(--ink-soft);pointer-events:none}
+.mes-saisie > .primary.big{margin-top:var(--space-4);width:100%}
+.mes-ancien{color:var(--ink-soft)}
