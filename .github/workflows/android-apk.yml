@@ -47,12 +47,17 @@ jobs:
           node-version: "22"
           cache: npm
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
 
+      # Le SDK Android est préinstallé sur ubuntu-latest ; l'action accepte les
+      # licences. Son paquet par défaut « tools » n'existe plus dans le SDK
+      # actuel (échec du premier run) : on ne demande que platform-tools.
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - name: Dépendances (Capacitor)
         run: npm ci
