@@ -485,10 +485,29 @@ export const CATALOGUE = [...EXERCISES, ...SALLE_EXERCISES];
 /** Index par id pour accès O(1) (sur le catalogue actuellement chargé). */
 export const EXERCISES_BY_ID = Object.fromEntries(CATALOGUE.map((e) => [e.id, e]));
 
+/**
+ * Entrées wger qui DOUBLENT un exercice déjà présent (même mouvement, même
+ * matériel). Elles restent résolubles par leur identifiant — un historique qui
+ * les cite s'affiche toujours — mais n'apparaissent plus dans le catalogue :
+ * deux fiches pour le même mouvement, c'est un faux choix.
+ */
+export const DOUBLONS_MASQUES = {
+  "wger-edc3f6b7-bodyweight-squat-hd": "squat-poids-du-corps",
+  "wger-65d12ecf-dumbbell-romanian-deadlift": "souleve-terre-roumain-halteres",
+  "wger-60d2c34b-bulgarian-squat-with-dumbbells": "squat-bulgare-halteres",
+  "wger-3b96a05b-pike-push-ups": "pompes-piquees",
+  "wger-87affa4b-shoulder-press-dumbbells": "developpe-epaules-halteres",
+  "wger-3188868c-triceps-extensions-on-cable": "extension-triceps-poulie",
+  "wger-95d226ad-fly-with-dumbbells": "ecarte-couche-halteres",
+  "wger-3db63138-bench-press-narrow-grip": "developpe-couche-prise-serree",
+  "wger-63fbb8e5-close-grip-lat-pull-down": "tirage-vertical-serre",
+  "wger-46adc238-foam-roll-it-band": "wger-4d96e62c-foam-roller-iliotibial-band",
+};
+
 let extraCataloguePromise = null;
 let extraCatalogueCharge = false;
 
-/** L'extension wger (250 exercices) est-elle déjà fusionnée dans CATALOGUE ? */
+/** Les extensions (wger, free-exercise-db) sont-elles déjà fusionnées dans CATALOGUE ? */
 export function catalogueEtenduCharge() {
   return extraCatalogueCharge;
 }
@@ -496,10 +515,18 @@ export function catalogueEtenduCharge() {
 /** Charge à la demande (idempotent) l'extension wger et la fusionne dans CATALOGUE/EXERCISES_BY_ID. */
 export function chargerCatalogueEtendu() {
   if (!extraCataloguePromise) {
-    extraCataloguePromise = import("./exercises-extra.js").then(({ EXTRA_EXERCISES }) => {
-      for (const e of EXTRA_EXERCISES) { CATALOGUE.push(e); EXERCISES_BY_ID[e.id] = e; }
-      extraCatalogueCharge = true;
-    });
+    // Deux extensions, chargées ensemble : wger (CC-BY-SA, avec descriptions)
+    // et free-exercise-db (domaine public, métadonnées seules). Un identifiant
+    // déjà présent n'est jamais écrasé.
+    extraCataloguePromise = Promise.all([import("./exercises-extra.js"), import("./exercises-fedb.js")])
+      .then(([{ EXTRA_EXERCISES }, { FEDB_EXERCISES }]) => {
+        for (const e of [...EXTRA_EXERCISES, ...FEDB_EXERCISES]) {
+          if (EXERCISES_BY_ID[e.id]) continue;
+          EXERCISES_BY_ID[e.id] = e;
+          if (!DOUBLONS_MASQUES[e.id]) CATALOGUE.push(e);
+        }
+        extraCatalogueCharge = true;
+      });
   }
   return extraCataloguePromise;
 }

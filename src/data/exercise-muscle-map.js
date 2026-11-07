@@ -195,6 +195,11 @@ export function deriverCoefficients(exo) {
     out[cle] = Math.max(out[cle] || 0, Math.round(poids * 100) / 100);
   };
   const etaler = (muscleCatalogue, poids) => {
+    // Les abducteurs de hanche (moyen fessier) n'ont pas de muscle propre dans
+    // le moteur : on les reporte sur les fessiers, comme l'entrée explicite
+    // « abducteurs-machine » (0,70). Les ignorer laissait des exercices
+    // importés (monster walk, abduction à l'élastique) sans aucun muscle.
+    if (muscleCatalogue === "abducteurs") { ajouter("fessiers", poids * 0.7); return; }
     if (IGNORES.has(muscleCatalogue)) return;
     const table = REPARTITION[muscleCatalogue];
     if (!table) { ajouter(muscleCatalogue, poids); return; }

@@ -33,7 +33,9 @@ export function mesuresExercice(exo) {
   if (!exo) return base;
   if (exo.mesures && typeof exo.mesures === "object") return { ...base, ...exo.mesures };
   const texte = `${exo.id || ""} ${exo.nom || ""} ${(exo.nomsAlternatifs || []).join(" ")} ${(exo.equipement || []).join(" ")}`;
-  if (exo.typeExercice === "cardio" && RE_DISTANCE.test(texte)) {
+  // Pliométrie (sauts, bonds) : des répétitions, même si le nom évoque la course.
+  const plio = (exo.tags || []).includes("plyometrics");
+  if (exo.typeExercice === "cardio" && !plio && RE_DISTANCE.test(texte)) {
     return { charge: false, reps: false, distance: true, duree: true, isometrique: false };
   }
   if (exo.typeExercice === "cardio") {

@@ -39,6 +39,9 @@ export const EQUIPMENT_LABELS = {
   medecine_ball: "Médecine-ball", swiss_ball: "Ballon de stabilité",
   rouleau: "Rouleau de massage", tapis_course: "Tapis de course",
   velo: "Vélo", rameur: "Rameur",
+  // Affichage seul (exercices importés : traîneau, pneu, landmine…) — n'est pas
+  // proposé dans le profil, donc jamais exigé par le générateur de programme.
+  autre: "Autre matériel",
 };
 
 /** Objectifs d'entraînement. */

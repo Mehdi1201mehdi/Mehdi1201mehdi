@@ -1626,6 +1626,12 @@ function dupliquerSeancePassee() {
 }
 function splitLabel(s) { return ({ full_body: "Corps entier", haut_bas: "Haut / Bas", push_pull_legs: "Push · Pull · Legs", mobilite: "Mobilité" }[s] || s); }
 const DIFF_LABEL = ["", "Grand débutant", "Débutant", "Intermédiaire", "Avancé"];
+/** Patron biomécanique lisible (au lieu de l'identifiant interne « poussee_horizontale »). */
+const LIB_PATRON = {
+  squat: "Squat", charniere_hanche: "Charnière de hanche", fente: "Fente", poussee_horizontale: "Poussée horizontale",
+  poussee_verticale: "Poussée verticale", tirage_horizontal: "Tirage horizontal", tirage_vertical: "Tirage vertical",
+  extension_bras: "Extension du coude", flexion_bras: "Flexion du coude", gainage: "Gainage", isolation_jambe: "Isolation jambe", cardio: "Cardio",
+};
 function estRealisable(exo) {
   const p = Etat.data.profil || {};
   const eq = new Set(p.equipements || []);
@@ -1707,8 +1713,11 @@ function ouvrirDetail(exo) {
       const ligne = (k, val) => { if (val) dl.append(h(`<div class="spread small"><span class="muted">${k}</span><b>${esc(val)}</b></div>`)); };
       ligne("Équipement", equipTxt);
       ligne("Niveau", DIFF_LABEL[diff]);
-      ligne("Catégorie", exo.typeExercice);
-      ligne("Mouvement", exo.patron);
+      ligne("Catégorie", TYPE_EXO_LABELS[exo.typeExercice] || exo.typeExercice);
+      ligne("Mouvement", LIB_PATRON[exo.patron] || exo.patron);
+      // Attribution : obligatoire pour wger (CC-BY-SA), utile pour tout import.
+      if (exo.source === "wger") ligne("Source", "wger.de — licence CC-BY-SA 4.0");
+      else if (exo.source === "free-exercise-db") ligne("Source", "free-exercise-db — domaine public");
       f.append(dl);
       return f;
     },
@@ -1721,7 +1730,12 @@ function ouvrirDetail(exo) {
       if ((exo.erreurs || []).length) f.append(h(`<div class="sec"><h3>Erreurs fréquentes</h3><div class="small muted">✖ ${exo.erreurs.map(esc).join(" · ")}</div></div>`));
       if (exo.securite) f.append(h(`<div class="sec"><h3>Sécurité</h3><div class="warn small">${mi(IC.alert, "mi-amber")} ${esc(exo.securite)}</div></div>`));
       if (!f.children.length) {
-        return h(`<div class="empty-state"><div class="es-ic">${IC.info}</div><b>Pas de consignes détaillées</b><div class="muted small">Regarde la démonstration en haut de la fiche : elle montre l'amplitude et le rythme.</div></div>`);
+        // Fiches importées sans texte : on dit pourquoi, au lieu de renvoyer
+        // vers une démonstration qui n'existe pas.
+        const importe = exo.source === "free-exercise-db";
+        return h(`<div class="empty-state"><div class="es-ic">${IC.info}</div><b>Pas de consignes détaillées</b><div class="muted small">${importe
+          ? "Fiche importée de free-exercise-db (domaine public) : muscles, matériel et niveau sont fournis, pas les consignes, dont la provenance n'est pas documentée. Le schéma ci-dessus montre les muscles travaillés."
+          : "Regarde la démonstration en haut de la fiche : elle montre l'amplitude et le rythme."}</div></div>`);
       }
       return f;
     },
@@ -7675,7 +7689,8 @@ function vSet(v) {
 
   // Démonstrations
   const cwx = h(`<div class="card stack">
-    <div class="hint">Les visuels des exercices viennent du dataset GitHub <b>hasaneyldrm/exercises-dataset</b> (référencés par URL, avec attribution), avec repli sur ExerciseDB open-source. La carte musculaire est un SVG intégré adapté de <b>react-muscle-highlighter</b> (licence MIT). Aucune clé requise.</div></div>`);
+    <div class="hint">Les visuels des exercices viennent du dataset GitHub <b>hasaneyldrm/exercises-dataset</b> (référencés par URL, avec attribution), avec repli sur ExerciseDB open-source. La carte musculaire est un SVG intégré adapté de <b>react-muscle-highlighter</b> (licence MIT). Aucune clé requise.</div>
+    <div class="hint">Bibliothèque : exercices maison ; exercices de <b>wger.de</b> (licence CC-BY-SA 4.0) ; métadonnées de <b>free-exercise-db</b> (domaine public, sans textes ni images). Calories : MET du <b>2024 Adult Compendium of Physical Activities</b> (Herrmann et al., pacompendium.com).</div></div>`);
   section(v, "p-med", "Démonstrations & sources", (b) => b.append(cwx));
 
   const don = h(`<div class="card stack">
