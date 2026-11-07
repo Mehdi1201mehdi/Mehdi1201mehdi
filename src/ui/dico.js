@@ -88,7 +88,7 @@ export function vueDico(v, ctx) {
   const { TERMES, CATEGORIES_DICO, TERMES_PAR_ID } = DATA;
   const n = compterParCategorie(TERMES);
 
-  v.append(h(`<p class="muted small dico-intro">${TERMES.length} termes de musculation, d'anatomie, de nutrition et de récupération, expliqués simplement — avec leur place dans l'app.</p>`));
+  v.append(h(`<p class="muted small dico-intro">${TERMES.length} termes de musculation, d'anatomie, de biomécanique, de cardio, de nutrition et de récupération, expliqués simplement — avec leur place dans l'app.</p>`));
 
   // Recherche : seule la liste se redessine à la frappe, pour garder le focus
   // et le clavier ouverts.
