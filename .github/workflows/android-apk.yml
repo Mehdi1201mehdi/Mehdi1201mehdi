@@ -71,12 +71,24 @@ jobs:
       - name: Synchronisation du projet Android
         run: npx cap sync android
 
+      # Clé de signature de TEST stable d'un build à l'autre. Sans elle, chaque
+      # run génère une nouvelle clé de debug et Android refuse d'installer la
+      # mise à jour par-dessus (il faudrait désinstaller, donc perdre les
+      # données de l'app). Gradle la crée au premier build ; le cache la garde.
+      # Aucun mot de passe dans le dépôt. (Pour la production : secrets plus bas.)
+      - name: Clé de signature de test stable
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: coach-perso-debug-keystore-v1
+
       - name: APK de debug (installable)
         working-directory: android
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon assembleDebug -PversionCode=${{ github.run_number }} -PversionName=1.0.${{ github.run_number }}
           cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/coach-perso-debug.apk"
+          ls -l ~/.android/debug.keystore   # la clé que le cache conserve
 
       - name: APK de production signé (si les secrets existent)
         if: env.KS_B64 != ''
