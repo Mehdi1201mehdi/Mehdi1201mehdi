@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Coach Perso</string>
+    <string name="title_activity_main">Coach Perso</string>
+    <string name="package_name">fr.coachperso.app</string>
+    <string name="custom_url_scheme">fr.coachperso.app</string>
+</resources>

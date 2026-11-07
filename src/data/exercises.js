@@ -524,6 +524,10 @@ export function chercherCatalogue(filtres = {}, list = CATALOGUE) {
   return list.filter((e) => {
     if (filtres.muscle && !e.musclesPrincipaux.includes(filtres.muscle) && !(e.musclesSecondaires || []).includes(filtres.muscle)) return false;
     if (filtres.equip && !e.equipement.includes(filtres.equip)) return false;
+    // Niveau (1 à 4) et type d'exercice : comparés en chaîne, comme les
+    // valeurs des pastilles de filtre.
+    if (filtres.niveau && String(e.difficulte || "") !== String(filtres.niveau)) return false;
+    if (filtres.type && e.typeExercice !== filtres.type) return false;
     if (toks.length) {
       const hay = norm(e.nom) + " " + norm((e.nomsAlternatifs || []).join(" ")) + " " + norm((e.tags || []).join(" "));
       if (!toks.every((t) => hay.includes(t))) return false;

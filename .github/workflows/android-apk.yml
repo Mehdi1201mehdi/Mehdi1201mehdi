@@ -1,0 +1,90 @@
+name: APK Android
+
+# Compile l'application Android (Capacitor) sur les serveurs GitHub, qui
+# disposent du SDK Android et de Gradle. Lancement manuel (onglet Actions →
+# « APK Android » → Run workflow) ou automatique sur une étiquette v*.
+#
+# Résultat : un APK téléchargeable dans les « Artifacts » du run.
+#  - coach-perso-debug.apk   : installable directement (signé avec la clé de debug)
+#  - coach-perso-release.apk : seulement si les secrets de signature existent
+#
+# Secrets facultatifs (Settings → Secrets and variables → Actions) pour un APK
+# de production signé avec TA clé :
+#   ANDROID_KEYSTORE_BASE64   le fichier .jks encodé en base64
+#   ANDROID_KEYSTORE_PASSWORD mot de passe du keystore
+#   ANDROID_KEY_ALIAS         alias de la clé
+#   ANDROID_KEY_PASSWORD      mot de passe de la clé
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Dépendances (Capacitor)
+        run: npm ci
+
+      - name: Tests unitaires — pas d'APK si un test échoue
+        run: node --test tests/*.test.js
+
+      - name: Copie de l'application web dans www/
+        run: node scripts/preparer-android.mjs
+
+      - name: Synchronisation du projet Android
+        run: npx cap sync android
+
+      - name: APK de debug (installable)
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleDebug -PversionCode=${{ github.run_number }} -PversionName=1.0.${{ github.run_number }}
+          cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/coach-perso-debug.apk"
+
+      - name: APK de production signé (si les secrets existent)
+        if: env.KS_B64 != ''
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/release.jks"
+          ./gradlew --no-daemon assembleRelease -PversionCode=${{ github.run_number }} -PversionName=1.0.${{ github.run_number }}
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/coach-perso-release.apk"
+          rm -f "$RUNNER_TEMP/release.jks"
+
+      - name: Empreintes SHA-256
+        run: sha256sum coach-perso-*.apk | tee SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coach-perso-apk-${{ github.run_number }}
+          path: |
+            coach-perso-*.apk
+            SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30

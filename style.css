@@ -2293,7 +2293,7 @@ button.cat-fav.on svg{fill:var(--accent)}
 .bento-trio .stat{padding:12px 11px;gap:6px}
 .bento-trio .stat .ic{width:30px;height:30px;border-radius:9px}
 .bento-trio .stat .ic svg{width:17px;height:17px}
-.bento-trio .stat b{font-size:1.3rem}
+.bento-trio .stat b{font-size:1.3rem;white-space:nowrap}
 .bento-trio .stat .lab{font-size:.6rem;letter-spacing:.05em}
 /* 320 px : trois colonnes deviennent illisibles, on repasse à deux + une. */
 @media (max-width:340px){
@@ -2700,3 +2700,13 @@ button.dico-app-go{align-self:flex-start;margin-top:4px;min-height:44px}
 .coach-cfg-consent{display:flex;gap:12px;align-items:flex-start;padding:12px;border-radius:var(--radius-sm);background:var(--surface-2);cursor:pointer;line-height:1.4}
 .coach-cfg-consent input{width:22px;height:22px;min-height:0;flex:0 0 auto;margin-top:1px;accent-color:var(--accent)}
 @media (prefers-reduced-motion:reduce){.coach-attente i{animation:none;opacity:.6}}
+
+/* Bilan chiffré de la semaine (accueil) */
+button.sem-bilan{display:flex;flex-direction:column;align-items:stretch;gap:10px;width:100%;margin-top:10px;padding:14px 14px 12px;text-align:left;color:var(--ink)}
+.sb-grille{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.sb-col{display:flex;flex-direction:column;gap:2px;min-width:0}
+.sb-col b{font-size:1.12rem;font-weight:850;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-col span{font-size:var(--fs-caption);font-weight:750;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft)}
+.sb-ecart{color:var(--ink-soft);line-height:1.4;padding-top:9px;border-top:1px solid var(--hair)}
+.sb-up{color:var(--accent-ink)}
+.sb-down{color:var(--amber)}

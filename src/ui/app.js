@@ -29,6 +29,8 @@ import { chercherFoods, portion } from "../data/foods.js";
 import { rechercher as offRechercher, parCodeBarres } from "../integrations/openfoodfacts.js";
 import { scannerDisponible, demarrerScan, normaliserCode } from "./scanner.js";
 import { vueDico } from "./dico.js";
+import { estNatif, partagerFichier, notifsNativesDispo, autoriserNotifs, programmerFinRepos, annulerFinRepos } from "./natif.js";
+import { bilanSemaine, formatDuree, MET_MUSCULATION } from "../engine/activite.js";
 import { catalogueCompact, extraireProposition, routineDepuisProposition, htmlLeger, demandeDePlan } from "../engine/coachRoutine.js";
 import { $, esc, h } from "./dom.js";
 import { urlDemo, vignetteExo, vignetteHTML, REDUIRE_MOTION } from "./vignettes.js";
@@ -611,6 +613,36 @@ function serieJours(logs) {
   return n;
 }
 /** Bande « Ma semaine » : Lun→Dim avec statut (fait / aujourd'hui / à venir). */
+/**
+ * Bilan chiffré de la semaine, sous la bande des jours : temps d'entraînement,
+ * volume soulevé, dépense estimée — et l'écart avec la semaine précédente, la
+ * seule comparaison qui dise si l'on progresse. Tout vient des séances
+ * enregistrées ; la dépense est une estimation et l'écran le dit.
+ */
+function carteBilanSemaine(logs, p) {
+  const b = bilanSemaine(logs, p && p.poidsKg);
+  const c = h(`<button class="card sem-bilan tap" type="button" aria-label="Voir mes progrès"></button>`);
+  const col = (val, lab) => `<span class="sb-col"><b class="num">${val}</b><span>${lab}</span></span>`;
+  const vol = b.volume >= 1000 ? `${(b.volume / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} t` : `${b.volume} kg`;
+  c.append(h(`<span class="sb-grille">
+    ${col(b.dureeMin ? formatDuree(b.dureeMin) : "—", "Temps")}
+    ${col(b.seances ? vol : "—", "Volume")}
+    ${col(b.kcal ? `≈ ${b.kcal.toLocaleString("fr-FR")}` : "—", "kcal estimées")}
+  </span>`));
+  let ecart;
+  if (!b.seances && !b.precedente.seances) ecart = "Enregistre une séance pour voir ta semaine ici.";
+  else if (b.ecartVolumePct == null) ecart = b.seances ? "Première semaine enregistrée : la comparaison arrive la semaine prochaine." : "Rien cette semaine pour l'instant.";
+  else {
+    const signe = b.ecartVolumePct > 0 ? "+" : "";
+    const sc = b.ecartSeances === 0 ? "autant de séances" : `${b.ecartSeances > 0 ? "+" : ""}${b.ecartSeances} séance${Math.abs(b.ecartSeances) > 1 ? "s" : ""}`;
+    ecart = `<b class="${b.ecartVolumePct >= 0 ? "sb-up" : "sb-down"}">${signe}${b.ecartVolumePct} %</b> de volume vs semaine dernière · ${sc}`;
+  }
+  c.append(h(`<span class="sb-ecart small">${ecart}</span>`));
+  c.title = `Dépense estimée : MET ${MET_MUSCULATION} × poids × durée des séances. Ce n'est pas une mesure.`;
+  c.addEventListener("click", () => nav("stats"));
+  return c;
+}
+
 function semaineStrip(logs) {
   const iso = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
   const noms = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
@@ -850,6 +882,7 @@ function vDash(v) {
   // Ma semaine — bande compacte, juste sous l'action principale.
   v.append(h(`<div class="eyebrow dash-lbl">Ma semaine</div>`));
   v.append(semaineStrip(logs));
+  v.append(carteBilanSemaine(logs, p));
 
   // Raccourcis vers ce qui n'est PAS dans la barre de navigation
   // (elle donne déjà Programme, Séance, Progrès, Profil).
@@ -1432,7 +1465,7 @@ function ligneExoEditor(s, e, i) {
   const enTemps = !!t.dureeSec;
   const nom = exo ? exo.nom : e.exerciceId;
   const muscle = exo && (exo.musclesPrincipaux || [])[0];
-  const niv = exo ? Math.max(1, Math.min(5, exo.difficulte || 1)) : 1;
+  const niv = exo ? Math.max(1, Math.min(4, exo.difficulte || 1)) : 1;
   const resume = `${e.series.length} série${e.series.length > 1 ? "s" : ""} × `
     + (enTemps ? `${t.dureeSec || 40} s` : (t.repsCible || [8, 12]).join("-") + " reps")
     + ` ; ${formatRepos(t.reposSec || 90)} de repos`;
@@ -1449,8 +1482,8 @@ function ligneExoEditor(s, e, i) {
   row.append(h(`<span class="red-vig">${vignetteHTML(exo, "sm")}</span>`));
 
   const mid = h(`<div class="red-mid"></div>`);
-  mid.append(h(`<span class="lx-niv" role="img" aria-label="Niveau ${niv} sur 5">${
-    [1, 2, 3, 4, 5].map((k) => `<i${k <= niv ? ' class="on"' : ""}></i>`).join("")}</span>`));
+  mid.append(h(`<span class="lx-niv" role="img" aria-label="Niveau ${niv} sur 4 : ${DIFF_LABEL[niv]}">${
+    [1, 2, 3, 4].map((k) => `<i${k <= niv ? ' class="on"' : ""}></i>`).join("")}</span>`));
   mid.append(h(`<b class="red-nom">${esc(nom)}</b>`));
   mid.append(h(`<span class="red-meta">${esc(resume)}</span>`));
   const actions = h(`<div class="red-act"></div>`);
@@ -1799,7 +1832,9 @@ function controlesMedia(media, el, estVideo) {
    CATALOGUE / RECHERCHE D'EXERCICES
    ====================================================================== */
 let CAT_SIL = false; // silhouette de recherche dépliée dans le catalogue
-let CAT_FILTRE = { q: "", muscle: "", equip: "" };
+let CAT_FILTRE = { q: "", muscle: "", equip: "", niveau: "", type: "" };
+/** Types d'exercice tels que l'utilisateur les nomme. */
+const TYPE_EXO_LABELS = { force: "Force", hypertrophie: "Hypertrophie", isolation: "Isolation", gainage: "Gainage", cardio: "Cardio", mobilite: "Mobilité" };
 /** Grille ou liste. La grille met les démonstrations en avant, la liste tient
  *  plus d'exercices à l'écran : les deux ont leur usage, aucun n'est « le bon ». */
 // Liste par défaut, comme l'onglet Exercices de FitAI : une ligne montre le
@@ -1816,6 +1851,11 @@ function vCatalogue(v) {
 
   const muscles = [...new Set(CATALOGUE.flatMap((e) => e.musclesPrincipaux))].sort();
   const equips = [...new Set(CATALOGUE.flatMap((e) => e.equipement))].sort();
+  // Seules les valeurs réellement présentes dans le catalogue deviennent des
+  // pastilles : un filtre qui mène toujours à « aucun résultat » est un piège.
+  const niveaux = [...new Set(CATALOGUE.map((e) => String(e.difficulte || "")).filter(Boolean))].sort();
+  const NIV_LABELS = { 1: DIFF_LABEL[1], 2: DIFF_LABEL[2], 3: DIFF_LABEL[3], 4: DIFF_LABEL[4] };
+  const types = Object.keys(TYPE_EXO_LABELS).filter((t) => CATALOGUE.some((e) => e.typeExercice === t));
   const filtreLigne = (items, cle, labels) => {
     const box = h(`<div class="row cat-fline"></div>`);
     const tout = h(`<button class="chip ${!CAT_FILTRE[cle] ? "on" : ""}">Tous</button>`);
@@ -1843,6 +1883,10 @@ function vCatalogue(v) {
     hote.append(filtreLigne(muscles, "muscle", MUSCLE_LABELS));
     hote.append(h(`<div class="eyebrow" style="margin-top:12px">Matériel</div>`));
     hote.append(filtreLigne(equips, "equip", EQUIPMENT_LABELS));
+    hote.append(h(`<div class="eyebrow" style="margin-top:12px">Niveau</div>`));
+    hote.append(filtreLigne(niveaux, "niveau", NIV_LABELS));
+    hote.append(h(`<div class="eyebrow" style="margin-top:12px">Type d'exercice</div>`));
+    hote.append(filtreLigne(types, "type", TYPE_EXO_LABELS));
   };
 
   // Recherche par silhouette : toucher un muscle sur le corps filtre la liste.
@@ -1895,7 +1939,7 @@ function vCatalogue(v) {
   // Barre d'outils : affichage, tri, favoris. Trois décisions qui changent la
   // lecture de la liste, réunies au même endroit plutôt que dispersées.
   const outils = h(`<div class="cat-outils"></div>`);
-  const nbFiltres = (CAT_FILTRE.muscle ? 1 : 0) + (CAT_FILTRE.equip ? 1 : 0);
+  const nbFiltres = ["muscle", "equip", "niveau", "type"].filter((k) => CAT_FILTRE[k]).length;
   const bFiltre = h(`<button class="chip cat-filtrer${nbFiltres ? " on" : ""}" aria-haspopup="dialog">${IC.sliders || IC.layers}<span>Filtrer${nbFiltres ? ` · ${nbFiltres}` : ""}</span></button>`);
   bFiltre.addEventListener("click", () => ouvrirFiltresCatalogue(construireFiltres));
   outils.append(bFiltre);
@@ -1925,6 +1969,8 @@ function vCatalogue(v) {
     };
     if (CAT_FILTRE.muscle) actifs.append(puce("muscle", MUSCLE_LABELS[CAT_FILTRE.muscle] || CAT_FILTRE.muscle));
     if (CAT_FILTRE.equip) actifs.append(puce("equip", EQUIPMENT_LABELS[CAT_FILTRE.equip] || CAT_FILTRE.equip));
+    if (CAT_FILTRE.niveau) actifs.append(puce("niveau", NIV_LABELS[CAT_FILTRE.niveau] || CAT_FILTRE.niveau));
+    if (CAT_FILTRE.type) actifs.append(puce("type", TYPE_EXO_LABELS[CAT_FILTRE.type] || CAT_FILTRE.type));
     v.append(actifs);
   }
 
@@ -1944,9 +1990,9 @@ function vCatalogue(v) {
     if (!tous.length) {
       res.append(etatVide(illustration("recherche"),
         CAT_FAVORIS_SEUL ? "Aucun favori pour l'instant" : "Aucun exercice ne correspond",
-        CAT_FAVORIS_SEUL ? "Touche l'étoile sur un exercice pour le retrouver ici." : "Les filtres se cumulent : retire le matériel ou le muscle pour élargir.",
+        CAT_FAVORIS_SEUL ? "Touche l'étoile sur un exercice pour le retrouver ici." : "Les filtres se cumulent : retire le matériel, le muscle, le niveau ou le type pour élargir.",
         { action: { label: CAT_FAVORIS_SEUL ? "Voir tous les exercices" : "Réinitialiser les filtres",
-          onClick: () => { CAT_FAVORIS_SEUL = false; CAT_FILTRE = { q: "", muscle: "", equip: "" }; render(); } } }));
+          onClick: () => { CAT_FAVORIS_SEUL = false; CAT_FILTRE = { q: "", muscle: "", equip: "", niveau: "", type: "" }; render(); } } }));
       return;
     }
     const barreRes = h(`<div class="cat-resbar"><span class="muted small">${tous.length} résultat${tous.length > 1 ? "s" : ""}</span></div>`);
@@ -1992,13 +2038,15 @@ function vCatalogue(v) {
         // muscle, puis la barre de niveau à cinq segments. Le chevron disparaît
         // — toute la ligne est déjà cliquable, il ne faisait que prendre la
         // place où l'étoile de favori doit se trouver.
-        const niv = Math.max(1, Math.min(5, e.difficulte || 1));
+        // Échelle 1 à 4, la même que la fiche d'exercice (DIFF_LABEL) : cinq
+        // points laissaient croire qu'aucun exercice n'était « avancé ».
+        const niv = Math.max(1, Math.min(4, e.difficulte || 1));
         const row = h(`<button class="exline">
           <span class="lx-vig">${vignetteHTML(e, "sm")}</span>
           <span class="meta"><span class="nm">${esc(e.nom)}</span>
             <span class="muted small">${e.musclesPrincipaux.map((m) => MUSCLE_LABELS[m] || m).join(", ")} · ${e.equipement.map((q) => EQUIPMENT_LABELS[q] || q).join(", ")}${e.source === "wger" ? ` · <span class="tag">wger</span>` : ""}</span>
-            <span class="lx-niv" role="img" aria-label="Niveau ${niv} sur 5">${
-              [1, 2, 3, 4, 5].map((i) => `<i${i <= niv ? ' class="on"' : ""}></i>`).join("")}</span></span>
+            <span class="lx-niv" role="img" aria-label="Niveau ${niv} sur 4 : ${DIFF_LABEL[niv]}">${
+              [1, 2, 3, 4].map((i) => `<i${i <= niv ? ' class="on"' : ""}></i>`).join("")}</span></span>
           </button>`);
         const img = row.querySelector("img.exo-gif");
         if (img) { const c = chargementMedia(i); img.loading = c.loading; img.setAttribute("fetchpriority", c.fetchpriority); }
@@ -2039,7 +2087,7 @@ function ouvrirFiltresCatalogue(remplir) {
     if (ev.target.closest(".cat-fline .chip") || ev.target.closest("g[data-m]")) sheet.remove();
   });
   const raz = h(`<button class="secondary" style="width:100%;margin-top:18px">Tout réinitialiser</button>`);
-  raz.addEventListener("click", () => { CAT_FILTRE = { q: CAT_FILTRE.q, muscle: "", equip: "" }; render(); });
+  raz.addEventListener("click", () => { CAT_FILTRE = { q: CAT_FILTRE.q, muscle: "", equip: "", niveau: "", type: "" }; render(); });
   inner.append(raz);
   sheet.querySelector("#cfX").addEventListener("click", () => sheet.remove());
   sheet.addEventListener("click", (ev) => { if (ev.target === sheet) sheet.remove(); });
@@ -3224,7 +3272,26 @@ function reprendreRepos() {
 
 // Revenir dans l'app doit montrer le temps JUSTE immédiatement : la limitation
 // des minuteurs en arrière-plan a pu faire sauter des tics d'affichage.
+/**
+ * APK : quand l'app passe en arrière-plan pendant un repos, la fin du repos est
+ * programmée comme notification Android (elle sonnera même écran verrouillé,
+ * même si la WebView est suspendue). Au retour, on l'annule : l'écran prend le
+ * relais. Sans effet sur le web.
+ */
+function synchroReposNatif(arrierePlan) {
+  if (!estNatif()) return;
+  if (arrierePlan && REPOS && REPOS.finAt && !estEcoule(REPOS) && Etat.data.reglages.notifsRepos !== false) {
+    programmerFinRepos(REPOS.finAt, "Repos terminé", (REPOS_LABEL ? REPOS_LABEL + " · " : "") + "Série suivante");
+  } else {
+    annulerFinRepos();
+  }
+}
+// Capacitor émet « pause » / « resume » sur le document ; la visibilité couvre le reste.
+document.addEventListener("pause", () => synchroReposNatif(true));
+document.addEventListener("resume", () => synchroReposNatif(false));
+
 document.addEventListener("visibilitychange", () => {
+  synchroReposNatif(document.visibilityState !== "visible");
   if (document.visibilityState !== "visible") return;
   // Une notification « repos terminé » encore affichée alors qu'on pousse déjà
   // la série suivante est du bruit — et elle rend les suivantes moins crédibles.
@@ -3243,6 +3310,7 @@ async function amorcerNotifsRepos() {
   if (NOTIFS_DEMANDEES) return;
   NOTIFS_DEMANDEES = true;
   if (Etat.data.reglages.notifsRepos === false) return;
+  if (notifsNativesDispo()) { await autoriserNotifs(); return; }
   const e = etatNotifs();
   if (!e.supporte || e.permission !== "default") return;
   await demanderNotifs();
@@ -4024,7 +4092,7 @@ function grilleChiffres(logs) {
 
   const petites = h(`<div class="bento-trio"></div>`);
   petites.append(statCard(IC.dumbbell, String(nb), "Séances"));
-  petites.append(statCard(IC.activity, `${regularite} %`, "Régularité"));
+  petites.append(statCard(IC.activity, `${regularite}\u202F%`, "Régularité")); // espace fine insécable : « 100 % » ne se coupe plus
   petites.append(statCard(IC.trophy, String(records), "Records"));
   g.append(petites);
   return g;
@@ -4116,9 +4184,9 @@ function ligneExoFitai(o) {
   if (o.meta) mid.append(h(`<span class="lx-meta">${esc(o.meta)}</span>`));
   // Cinq cases, comme FitAI. Le catalogue cote de 1 à 4 : la cinquième reste
   // vide plutôt que d'étirer artificiellement l'échelle.
-  const niv = Math.max(1, Math.min(5, exo.difficulte || 1));
-  mid.append(h(`<span class="lx-niv" role="img" aria-label="Niveau ${niv} sur 5">${
-    [1, 2, 3, 4, 5].map((i) => `<i${i <= niv ? ' class="on"' : ""}></i>`).join("")}</span>`));
+  const niv = Math.max(1, Math.min(4, exo.difficulte || 1));
+  mid.append(h(`<span class="lx-niv" role="img" aria-label="Niveau ${niv} sur 4 : ${DIFF_LABEL[niv]}">${
+    [1, 2, 3, 4].map((i) => `<i${i <= niv ? ' class="on"' : ""}></i>`).join("")}</span>`));
   row.append(mid);
 
   if (muscle) {
@@ -5758,7 +5826,7 @@ function ouvrirFicheMuscle(muscle) {
   });
 
   const bCat = h(`<button class="secondary" style="width:100%;margin-top:12px">Voir tous les exercices de ce muscle</button>`);
-  bCat.addEventListener("click", () => { fermer(); CAT_FILTRE = { q: "", muscle, equip: "" }; CAT_FAVORIS_SEUL = false; nav("cat"); });
+  bCat.addEventListener("click", () => { fermer(); CAT_FILTRE = { q: "", muscle, equip: "", niveau: "", type: "" }; CAT_FAVORIS_SEUL = false; nav("cat"); });
   inner.append(bCat);
 
   sheet.querySelector("#mX").addEventListener("click", fermer);
@@ -6798,7 +6866,11 @@ function vStats(v) {
    RÉGLAGES
    ====================================================================== */
 /** Déclenche le téléchargement d'un fichier texte (CSV) dans le navigateur. */
-function telechargerCSV(contenu, nomFichier) {
+async function telechargerCSV(contenu, nomFichier) {
+  // Dans l'APK, une WebView ne sait pas télécharger : on partage le fichier.
+  if (estNatif()) {
+    try { if (await partagerFichier(nomFichier, contenu, "Export CSV")) return; } catch (e) { toast("Export impossible sur cet appareil"); return; }
+  }
   const blob = new Blob([contenu], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob); a.download = nomFichier; a.click();
@@ -6966,7 +7038,10 @@ function vSet(v) {
 
     // Notification de fin de repos — le seul canal qui traverse l'écran
     // verrouillé, puisque son et vibration exigent que la page tourne.
-    const en = etatNotifs();
+    // Dans l'APK, ce sont des notifications Android natives (programmées à
+    // l'heure exacte de fin du repos) : l'API web n'y existe pas.
+    const natifNotifs = notifsNativesDispo();
+    const en = natifNotifs ? { actif: true, permission: "native", raison: "" } : etatNotifs();
     c.append(h(`<div class="spread" style="margin-top:12px"><span class="small">Prévenir écran verrouillé</span></div>`));
     c.append(h(`<div class="hint" style="margin-top:0">Pendant le repos, le téléphone est posé et l'écran s'éteint : le navigateur gèle la page et le son ne part pas. Une notification, elle, s'affiche sur l'écran de verrouillage.</div>`));
     c.append(chipsInline([[true, "Activé"], [false, "Désactivé"]],
@@ -6974,7 +7049,9 @@ function vSet(v) {
       async (val) => {
         Etat.data.reglages.notifsRepos = val; Etat.sauver();
         // La permission ne peut se demander que depuis un geste : c'en est un.
-        if (val && etatNotifs().permission === "default") {
+        if (val && natifNotifs) {
+          if (!(await autoriserNotifs())) toast("Notifications refusées — le son et la vibration restent actifs");
+        } else if (val && etatNotifs().permission === "default") {
           const ok = await demanderNotifs();
           if (!ok) toast("Notifications refusées — le son et la vibration restent actifs");
         }
@@ -7037,10 +7114,14 @@ function vSet(v) {
   section(v, "p-med", "Démonstrations & sources", (b) => b.append(cwx));
 
   const don = h(`<div class="card stack">
-    <div class="small muted">Tout est stocké localement sur cet appareil. Aucune donnée n'est envoyée à un serveur.</div></div>`);
+    <div class="small muted">Tout est stocké localement sur cet appareil, sans compte ni serveur. Seule exception, si tu l'actives : les questions posées au coach IA connecté partent chez le fournisseur choisi (Compte → Coach). Exporte régulièrement une sauvegarde.</div></div>`);
   const bExp = h(`<button><span class="cic">${IC.download || IC.cornerDown}</span>Sauvegarde complète (JSON)</button>`);
-  bExp.addEventListener("click", () => {
+  bExp.addEventListener("click", async () => {
     const contenu = JSON.stringify(construireExport(Etat.data), null, 1);
+    if (estNatif()) {
+      try { if (await partagerFichier(nomFichierBackup(), contenu, "Sauvegarde Coach Perso")) return; }
+      catch (e) { toast("Sauvegarde impossible sur cet appareil"); return; }
+    }
     const blob = new Blob([contenu], { type: "application/json" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = nomFichierBackup(); a.click();
     URL.revokeObjectURL(a.href);
