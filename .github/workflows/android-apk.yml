@@ -2,7 +2,8 @@ name: APK Android
 
 # Compile l'application Android (Capacitor) sur les serveurs GitHub, qui
 # disposent du SDK Android et de Gradle. Lancement manuel (onglet Actions →
-# « APK Android » → Run workflow) ou automatique sur une étiquette v*.
+# « APK Android » → Run workflow), à chaque push sur fitai-premium, ou sur une
+# étiquette v*.
 #
 # Résultat : un APK téléchargeable dans les « Artifacts » du run.
 #  - coach-perso-debug.apk   : installable directement (signé avec la clé de debug)
@@ -18,10 +19,19 @@ name: APK Android
 on:
   workflow_dispatch:
   push:
+    # La branche de test : chaque push recompile l'APK et met à jour la
+    # pré-version « apk-test-fitai-premium » (lien de téléchargement stable).
+    # main n'est PAS listée : rien ne se passe sur la branche du site en ligne.
+    branches: ["fitai-premium"]
     tags: ["v*"]
 
+# Écriture nécessaire uniquement pour publier la pré-version de test.
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   apk:
@@ -79,6 +89,29 @@ jobs:
 
       - name: Empreintes SHA-256
         run: sha256sum coach-perso-*.apk | tee SHA256SUMS.txt
+
+      - name: Pré-version de test — lien de téléchargement direct
+        if: github.ref == 'refs/heads/fitai-premium'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: apk-test-fitai-premium
+        run: |
+          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+          {
+            echo "APK de **test** de la branche \`fitai-premium\` — ce n'est pas une mise en ligne : le site GitHub Pages et la branche \`main\` ne sont pas modifiés."
+            echo
+            echo "- Commit : \`${GITHUB_SHA::7}\` · build n° ${{ github.run_number }}"
+            echo "- SHA-256 :"
+            echo '```'
+            cat SHA256SUMS.txt
+            echo '```'
+            echo
+            echo "Installation : ouvrir \`coach-perso-debug.apk\` sur le téléphone Android, autoriser l'installation depuis cette source, installer."
+          } > notes.md
+          gh release create "$TAG" coach-perso-debug.apk SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "Coach Perso — APK de test (fitai-premium, build ${{ github.run_number }})" \
+            --notes-file notes.md
 
       - uses: actions/upload-artifact@v4
         with:
