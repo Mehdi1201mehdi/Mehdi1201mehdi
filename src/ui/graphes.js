@@ -60,9 +60,14 @@ export function svgLine(points, label = "") {
   if (points.length < 2) return etatVideHTML(illustration("courbe"), "Ta courbe arrive bientôt", "Enregistre au moins 2 séances pour voir ta tendance se dessiner.");
   // 600 × 150 donnait un ruban de 90 px de haut sur un téléphone : la tendance
   // s'y écrasait. 600 × 195 laisse la courbe respirer sans coûter un écran.
-  const W = 600, H = 195, pad = 30;
+  // Le SVG s'affiche à ~300 px de large : un texte de 12 unités y faisait
+  // 6 px, illisible. Textes à 19–21 unités (≈ 10 px à l'écran) et marge
+  // gauche réservée aux bornes, qui ne chevauchent plus la courbe.
+  const W = 600, H = 210, padG = 64, padD = 16, padH = 44, padB = 22;
   const ys = points.map((p) => p.v), ymin = Math.min(...ys), ymax = Math.max(...ys), yr = (ymax - ymin) || 1;
-  const X = (i) => pad + (W - 2 * pad) * i / (points.length - 1), Y = (val) => H - pad - (H - 2 * pad) * (val - ymin) / yr;
+  const X = (i) => padG + (W - padG - padD) * i / (points.length - 1), Y = (val) => H - padB - (H - padH - padB) * (val - ymin) / yr;
+  const pad = padB; // base de l'aire sous la courbe
+  const fmt = (n) => (Math.round(n * 10) / 10).toLocaleString("fr-FR", { maximumFractionDigits: 1 });
   const pts = points.map((p, i) => [X(i), Y(p.v)]);
   // Courbe lissée (Catmull-Rom → Bézier cubique) façon « Workout Tracker »
   let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
@@ -89,9 +94,9 @@ export function svgLine(points, label = "") {
       <filter id="${uid}h" x="-20%" y="-40%" width="140%" height="180%">
         <feGaussianBlur stdDeviation="3.4" result="f"/>
         <feMerge><feMergeNode in="f"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-    <text x="${pad}" y="15" font-size="12" fill="var(--ink-soft)">${esc(label)}</text>
-    <text x="2" y="${(Y(ymax) + 4).toFixed(1)}" font-size="11" fill="var(--ink-soft)">${ymax.toFixed(1)}</text>
-    <text x="2" y="${(Y(ymin) + 4).toFixed(1)}" font-size="11" fill="var(--ink-soft)">${ymin.toFixed(1)}</text>
+    <text x="0" y="22" font-size="21" font-weight="600" fill="var(--ink-soft)">${esc(label)}</text>
+    <text x="0" y="${(Y(ymax) + 7).toFixed(1)}" font-size="19" fill="var(--ink-soft)">${fmt(ymax)}</text>
+    <text x="0" y="${(Y(ymin) + 7).toFixed(1)}" font-size="19" fill="var(--ink-soft)">${fmt(ymin)}</text>
     <path class="line-area" d="${aire}" fill="url(#${uid})" stroke="none"/>
     <path class="line-draw" pathLength="1" stroke-dasharray="1" d="${d}" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" filter="url(#${uid}h)"/>${dots}</svg>`;
 }
@@ -122,14 +127,18 @@ export function gaugeIMC(imc, taille = 96) {
 
 export function svgBars(bars, label = "") {
   if (!bars.length) return etatVideHTML(illustration("volumes"), "Rien à afficher pour l'instant", "Tes volumes apparaîtront ici après ta première séance.");
-  const W = 600, H = 155, pad = 30, n = bars.length, gap = (W - 2 * pad) / n, bw = gap * 0.6;
+  // Mêmes tailles de texte que la courbe : ≈ 10 px à l'écran, pas 5. Les
+  // libellés se réduisent si les barres sont nombreuses, pour ne pas se toucher.
+  const W = 600, H = 190, padX = 8, padH = 40, padB = 30, n = bars.length, gap = (W - 2 * padX) / n, bw = gap * 0.6;
+  const lgMax = Math.max(1, ...bars.map((b) => String(b.x ?? "").length));
+  const fsX = Math.max(12, Math.min(18, Math.floor(gap / (lgMax * 0.58))));
   const vmax = Math.max(...bars.map((b) => b.v), 1);
   const rects = bars.map((b, i) => {
-    const x = pad + i * gap + (gap - bw) / 2, bh = (H - 2 * pad) * (b.v / vmax);
-    return `<rect class="bar-grow" style="--i:${i};transform-origin:${(x + bw / 2).toFixed(1)}px ${(H - pad).toFixed(1)}px" x="${x.toFixed(1)}" y="${(H - pad - bh).toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="3" fill="var(--accent)"/>`
-      + `<text x="${(x + bw / 2).toFixed(1)}" y="${H - pad + 14}" font-size="10" fill="var(--ink-soft)" text-anchor="middle">${esc(b.x)}</text>`;
+    const x = padX + i * gap + (gap - bw) / 2, bh = (H - padH - padB) * (b.v / vmax);
+    return `<rect class="bar-grow" style="--i:${i};transform-origin:${(x + bw / 2).toFixed(1)}px ${(H - padB).toFixed(1)}px" x="${x.toFixed(1)}" y="${(H - padB - bh).toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="4" fill="var(--accent)"/>`
+      + `<text x="${(x + bw / 2).toFixed(1)}" y="${H - padB + 22}" font-size="${fsX}" fill="var(--ink-soft)" text-anchor="middle">${esc(b.x)}</text>`;
   }).join("");
-  return `<svg viewBox="0 0 ${W} ${H + 4}" style="width:100%;height:auto" role="img" aria-label="${esc(label)}"><text x="${pad}" y="15" font-size="12" fill="var(--ink-soft)">${esc(label)}</text>${rects}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H + 6}" style="width:100%;height:auto" role="img" aria-label="${esc(label)}"><text x="${padX}" y="22" font-size="21" font-weight="600" fill="var(--ink-soft)">${esc(label)}</text>${rects}</svg>`;
 }
 
 /**

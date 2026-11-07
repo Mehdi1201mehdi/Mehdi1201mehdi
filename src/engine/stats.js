@@ -3,7 +3,8 @@
  * Statistiques d'entraînement — fonctions PURES (aucun DOM/stockage).
  * Volume = somme de (charge × répétitions) sur toutes les séries.
  */
-import { e1rmEpley } from "./records.js";
+import { e1rmFiable } from "./records.js";
+import { vitesseKmh } from "./mesures.js";
 
 /** Lundi (YYYY-MM-DD) de la semaine ISO contenant `dateStr`. */
 export function lundiDe(dateStr) {
@@ -102,20 +103,44 @@ export function recuperationParMuscle(logs, getExercise, now = Date.now(), jours
   }).sort((a, b) => b.pct - a.pct);
 }
 
-/** Métriques disponibles pour un exercice dans les graphiques. */
+/**
+ * Métriques disponibles pour un exercice dans les graphiques. `unite` indique
+ * si la valeur est une masse (convertie en lb à l'affichage) ; `agregat` dit
+ * comment regrouper plusieurs séances d'un même mois (meilleure valeur ou total).
+ */
 export const METRIQUES_EXO = /** @type {const} */ ([
-  { cle: "1rm", label: "1RM estimé (kg)" },
-  { cle: "poids", label: "Poids max (kg)" },
-  { cle: "volume", label: "Volume (kg)" },
-  { cle: "reps", label: "Reps max" },
+  { cle: "1rm", label: "1RM estimé (kg)", unite: "kg", agregat: "max" },
+  { cle: "poids", label: "Poids max (kg)", unite: "kg", agregat: "max" },
+  { cle: "volume", label: "Tonnage (kg × reps)", unite: "kg", agregat: "somme" },
+  { cle: "reps", label: "Reps max", unite: "", agregat: "max" },
+  { cle: "distance", label: "Distance (km)", unite: "km", agregat: "somme" },
+  { cle: "vitesse", label: "Vitesse max (km/h)", unite: "km/h", agregat: "max" },
+  { cle: "dureeTotale", label: "Durée totale (min)", unite: "min", agregat: "somme" },
+  { cle: "maintien", label: "Maintien max (s)", unite: "s", agregat: "max" },
 ]);
 
 /**
+ * Métriques PERTINENTES pour un exercice, d'après ce qu'il mesure (cf.
+ * mesures.js) : on ne propose jamais un « 1RM » de course à pied.
+ * @param {{charge:boolean, reps:boolean, distance:boolean, duree:boolean, isometrique:boolean}} mesures
+ * @returns {string[]}
+ */
+export function metriquesPour(mesures) {
+  const m = mesures || { charge: true, reps: true };
+  if (m.distance) return ["distance", "vitesse", "dureeTotale"];
+  if (m.isometrique) return ["maintien", "poids"];
+  if (!m.charge) return ["reps", "volume"];
+  return ["1rm", "poids", "volume", "reps"];
+}
+
+/**
  * Série temporelle d'un exercice pour une métrique donnée : un point par séance
- * où l'exercice apparaît.
+ * où l'exercice apparaît. Le 1RM ne retient que les séries de 1 à 12 reps
+ * (records.js#e1rmFiable) ; la distance est rendue en km, la durée totale en
+ * minutes, le maintien en secondes.
  * @param {any[]} logs
  * @param {string} exerciceId
- * @param {"1rm"|"poids"|"volume"|"reps"} metrique
+ * @param {string} metrique  clé de METRIQUES_EXO
  * @returns {{iso:string, v:number}[]}
  */
 export function serieExercice(logs, exerciceId, metrique) {
@@ -123,16 +148,25 @@ export function serieExercice(logs, exerciceId, metrique) {
   for (const l of logs || []) {
     const exs = (l.exercices || []).filter((e) => e.exerciceId === exerciceId);
     if (!exs.length) continue;
-    let v = 0;
+    let v = 0, porte = false;
     for (const e of exs) {
       for (const s of e.series || []) {
         const kg = Number(s.chargeKg) || 0, reps = Number(s.reps) || 0;
+        const dist = Number(s.distanceM) || 0, duree = Number(s.dureeSec) || 0;
         if (metrique === "poids") v = Math.max(v, kg);
         else if (metrique === "reps") v = Math.max(v, reps);
-        else if (metrique === "1rm") v = Math.max(v, e1rmEpley(kg, reps));
-        else v += kg * reps; // volume
+        else if (metrique === "1rm") v = Math.max(v, e1rmFiable(kg, reps));
+        else if (metrique === "distance") v += dist / 1000;
+        else if (metrique === "vitesse") v = Math.max(v, vitesseKmh(dist, duree) || 0);
+        else if (metrique === "dureeTotale") v += duree / 60;
+        else if (metrique === "maintien") v = Math.max(v, reps ? 0 : duree);
+        else v += kg * reps; // tonnage (clé historique « volume »)
+        if (v > 0) porte = true;
       }
     }
+    // Les métriques propres au cardio ou au maintien n'ajoutent pas de point
+    // nul pour une séance qui ne les porte pas (ex. ancienne saisie en reps).
+    if (!porte && ["distance", "vitesse", "dureeTotale", "maintien"].includes(metrique)) continue;
     pts.push({ iso: l.date, v: Math.round(v * 10) / 10 });
   }
   return pts.sort((a, b) => (a.iso < b.iso ? -1 : 1));

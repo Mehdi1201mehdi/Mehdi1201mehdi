@@ -14,6 +14,7 @@
  */
 
 import { arrondir } from "./powerlifting.js";
+import { REPS_MAX_1RM } from "./records.js";
 
 /* ============================ FORMULES DE 1RM ============================ */
 
@@ -32,8 +33,8 @@ export const FORMULES = [
   { cle: "mayhew", nom: "Mayhew", formule: "100 kg / (52,2 + 41,9 e^−0,055 reps)", fn: (k, r) => 100 * k / (52.2 + 41.9 * Math.exp(-0.055 * r)) },
 ];
 
-/** Au-delà, une estimation de 1RM n'a plus de valeur pratique. */
-export const REPS_FIABLES_MAX = 12;
+/** Au-delà, une estimation de 1RM n'a plus de valeur pratique (même seuil que les records). */
+export const REPS_FIABLES_MAX = REPS_MAX_1RM;
 
 /** Médiane d'une liste de nombres (robuste aux formules aberrantes). */
 export function mediane(valeurs) {

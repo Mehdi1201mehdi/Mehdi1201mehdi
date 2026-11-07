@@ -66,7 +66,7 @@ import {
   supprimerExerciceIndex, deplacerExercice, definirSeries, dupliquerRoutine,
   seanceDepuisLog, estimerDureeSeance,
 } from "../engine/routines.js";
-import { FORMULE_1RM, classementRecords, detecterRecords } from "../engine/records.js";
+import { FORMULE_1RM, classementRecords, detecterRecords, e1rmFiable } from "../engine/records.js";
 import { construireExport, validerImport, appliquerImport, nomFichierBackup } from "../engine/backup.js";
 import { disquesParCote, echauffement } from "../engine/powerlifting.js";
 import {
@@ -75,8 +75,9 @@ import {
 } from "../engine/force.js";
 import {
   volumeLog, volumeTotal, volumeParSemaine, dureeMoyenneMin, volumeParMuscle, recuperationParMuscle, statsSemaine,
-  METRIQUES_EXO, serieExercice, serieCorps, filtrerDepuis,
+  METRIQUES_EXO, serieExercice, serieCorps, filtrerDepuis, metriquesPour,
 } from "../engine/stats.js";
+import { chargeParPeriode, progressionMensuelle, DEFINITIONS_CHARGE, variationPct, comparaisonMemeStade } from "../engine/analyse.js";
 
 /** Nom lisible d'un exercice (pour records/stats). */
 const nomExo = (id) => (getExercise(id) ? getExercise(id).nom : id);
@@ -86,7 +87,9 @@ const nomExo = (id) => (getExercise(id) ? getExercise(id).nom : id);
 const uImp = () => estImperial(Etat.data.reglages);
 const uUnite = () => uniteCharge(uImp());
 const uAff = (kg) => versAffichage(kg, uImp());
-const uCharge = (kg, o) => texteCharge(kg, uImp(), o);
+// Virgule décimale française partout à l'écran (« 62,5 kg », pas « 62.5 kg »),
+// au dixième près : un 1RM estimé n'a pas de sens au centième.
+const uCharge = (kg, o) => texteCharge(kg == null || kg === "" ? kg : Math.round(Number(kg) * 10) / 10, uImp(), { fr: true, ...o });
 const uVolume = (kg, o) => texteVolume(kg, uImp(), o);
 /** Unité de la séance en cours : figée au démarrage, pour que changer le réglage
  *  en pleine séance ne mélange pas kg et lb dans les champs déjà saisis. */
@@ -1647,7 +1650,7 @@ function historiqueExercice(exId) {
       totalSeries++;
       const c = Number(s.chargeKg) || 0, r = Number(s.reps) || 0;
       if (c > maxCharge) maxCharge = c;
-      if (c && r) { const e1 = c * (1 + r / 30); if (e1 > best1rm) best1rm = e1; }
+      const e1 = e1rmFiable(c, r); if (e1 > best1rm) best1rm = e1;
     }
   }
   return { seances: seances.reverse(), maxCharge, totalSeries, nbSeances: seances.length, best1rm: Math.round(best1rm) };
@@ -6255,7 +6258,7 @@ const CHAMPS_CORPS = [
   { cle: "cuisse", label: "Cuisse (cm)" },
 ];
 const PERIODES = [{ j: 0, label: "Tout" }, { j: 30, label: "30 j" }, { j: 90, label: "90 j" }, { j: 180, label: "6 mois" }];
-/** @type {{type:string, exerciceId:string|null, metrique:"1rm"|"poids"|"reps"|"volume", champCorps:string, periode:number}} */
+/** @type {{type:string, exerciceId:string|null, metrique:string, champCorps:string, periode:number}} */
 let PROG_CHART = { type: "exercice", exerciceId: null, metrique: "1rm", champCorps: "poidsKg", periode: 0 };
 
 function carteProgression(v) {
@@ -6288,7 +6291,12 @@ function carteProgression(v) {
     if (PROG_CHART.type === "exercice") {
       const selExo = h(`<select class="selchip" aria-label="Exercice">${exos.map((id) => opt(id, nomExo(id), id === PROG_CHART.exerciceId)).join("")}</select>`);
       selExo.addEventListener("change", () => { PROG_CHART.exerciceId = selExo.value; rebuild(); });
-      const selMet = h(`<select class="selchip" aria-label="Métrique">${METRIQUES_EXO.map((m) => opt(m.cle, m.label, m.cle === PROG_CHART.metrique)).join("")}</select>`);
+      // Seules les métriques que l'exercice MESURE : distance et vitesse pour
+      // une course, maintien pour une planche, 1RM et tonnage pour un développé.
+      const mets = metriquesPour(mesuresExercice(getExercise(PROG_CHART.exerciceId)));
+      if (!mets.includes(PROG_CHART.metrique)) PROG_CHART.metrique = mets[0];
+      const defs = mets.map((k) => METRIQUES_EXO.find((m) => m.cle === k)).filter(Boolean);
+      const selMet = h(`<select class="selchip" aria-label="Métrique">${defs.map((m) => opt(m.cle, m.label, m.cle === PROG_CHART.metrique)).join("")}</select>`);
       selMet.addEventListener("change", () => { PROG_CHART.metrique = selMet.value; rebuild(); });
       ctr.append(selExo, selMet);
     } else {
@@ -6316,16 +6324,109 @@ function carteProgression(v) {
     points = filtrerDepuis(points, PROG_CHART.periode);
     // Livres : on convertit les séries exprimées en kg (charges, volume, poids
     // du corps) au moment du tracé — les données restent en kg.
+    // Seules les masses se convertissent : ni les reps, ni les km, ni les secondes.
+    const metDef = METRIQUES_EXO.find((m) => m.cle === PROG_CHART.metrique);
     const enKg = PROG_CHART.type === "exercice" && PROG_CHART.exerciceId
-      ? PROG_CHART.metrique !== "reps" : PROG_CHART.champCorps === "poidsKg";
+      ? !!metDef && metDef.unite === "kg" : PROG_CHART.champCorps === "poidsKg";
     if (uImp() && enKg) {
       points = points.map((pt) => ({ ...pt, v: PROG_CHART.metrique === "volume" && PROG_CHART.type === "exercice" ? Math.round(pt.v * 2.20462) : uAff(pt.v) }));
       label = label.replace(/\(kg\)/g, "(lb)").replace(/\bkg\b/g, "lb");
     }
     zone.innerHTML = svgLine(points, label);
+    if (PROG_CHART.type === "exercice" && PROG_CHART.exerciceId) zone.append(listeMensuelle(PROG_CHART.exerciceId, PROG_CHART.metrique));
   };
 
   rebuild();
+}
+
+/** Valeur d'une métrique d'exercice, dans son unité (kg/lb, km, km/h, min, s). */
+function texteMetrique(cle, v) {
+  const n = Number(v) || 0;
+  if (cle === "1rm" || cle === "poids") return uCharge(n);
+  if (cle === "volume") return uVolume(n);
+  if (cle === "reps") return `${Math.round(n)} reps`;
+  if (cle === "distance") return `${n.toLocaleString("fr-FR", { maximumFractionDigits: 1 })}\u00A0km`;
+  if (cle === "vitesse") return texteVitesse(n);
+  if (cle === "dureeTotale") return `${Math.round(n)}\u00A0min`;
+  if (cle === "maintien") return texteDuree(n);
+  return String(n);
+}
+/**
+ * Progression MOIS PAR MOIS sous la courbe : meilleure valeur (ou total) et
+ * écart au mois précédent. La courbe montre la forme, ce tableau répond à la
+ * question qu'on se pose vraiment : « est-ce que j'avance ce mois-ci ? ».
+ */
+function listeMensuelle(exId, metrique) {
+  const mois = progressionMensuelle(Etat.data.logs || [], exId, metrique).slice(-6).reverse();
+  const box = h(`<div class="mois-liste"></div>`);
+  if (!mois.length) return box;
+  const def = METRIQUES_EXO.find((m) => m.cle === metrique);
+  box.append(h(`<div class="eyebrow">Mois par mois · ${def && def.agregat === "somme" ? "total du mois" : "meilleure valeur du mois"}</div>`));
+  mois.forEach((m) => {
+    const d = m.delta;
+    const ecart = d == null ? `<span class="ml-d muted">premier mois</span>`
+      : d === 0 ? `<span class="ml-d muted">stable</span>`
+      : `<span class="ml-d ${d > 0 ? "up" : "down"}">${d > 0 ? "+" : "−"}${texteMetrique(metrique, Math.abs(d))}${m.deltaPct != null ? ` (${d > 0 ? "+" : "−"}${Math.abs(m.deltaPct)}\u00A0%)` : ""}</span>`;
+    box.append(h(`<div class="ml-row"><span class="ml-m">${esc(m.label)}<span class="muted"> · ${m.seances} séance${m.seances > 1 ? "s" : ""}</span></span><b class="num">${texteMetrique(metrique, m.v)}</b>${ecart}</div>`));
+  });
+  return box;
+}
+
+/* ---------- Charge d'entraînement : tonnage, volume, intensité ---------- */
+let CHARGE_VUE = { unite: "semaine", mesure: "tonnage" };
+function carteChargeEntrainement(b) {
+  const logs = Etat.data.logs || [];
+  const mois = CHARGE_VUE.unite === "mois";
+  const per = chargeParPeriode(logs, CHARGE_VUE.unite, mois ? 6 : 8);
+  // Chiffres et écarts : période en cours vs MÊME STADE de la précédente
+  // (1–7 nov. contre 1–7 oct.), sinon chaque début de mois affiche « −70 % ».
+  const cmp = comparaisonMemeStade(logs, CHARGE_VUE.unite);
+  const cur = cmp.actuelle, prev = cmp.precedente;
+  const chips = h(`<div class="row ct-chips" role="group" aria-label="Période"></div>`);
+  [["semaine", "Semaine"], ["mois", "Mois"]].forEach(([val, lab]) => {
+    const c = h(`<button class="chip ${CHARGE_VUE.unite === val ? "on" : ""}" aria-pressed="${CHARGE_VUE.unite === val}">${lab}</button>`);
+    c.addEventListener("click", () => { CHARGE_VUE.unite = val; render(); });
+    chips.append(c);
+  });
+  b.append(chips);
+  const quand = mois ? "ce mois-ci" : "cette semaine";
+  const varTxt = (avant, apres) => {
+    const pct = variationPct(avant, apres);
+    return pct == null ? "" : `${pct > 0 ? "+" : pct < 0 ? "−" : "±"}${Math.abs(pct)}\u00A0%`;
+  };
+  const relVar = cur.intensiteRelPct != null && prev && prev.intensiteRelPct != null
+    ? `${cur.intensiteRelPct - prev.intensiteRelPct >= 0 ? "+" : "−"}${Math.abs(cur.intensiteRelPct - prev.intensiteRelPct)}\u00A0pts` : "";
+  const trio = h(`<div class="ct-trio">
+    <div class="ct"><span class="ct-lab">Tonnage</span><b class="ct-val num">${cur.tonnageKg ? uVolume(cur.tonnageKg) : "—"}</b><span class="ct-sub">${esc(varTxt(prev && prev.tonnageKg, cur.tonnageKg)) || "charge × reps"}</span></div>
+    <div class="ct"><span class="ct-lab">Volume</span><b class="ct-val num">${cur.series} série${cur.series > 1 ? "s" : ""}</b><span class="ct-sub">${cur.reps} reps${prev && varTxt(prev.series, cur.series) ? ` · ${esc(varTxt(prev.series, cur.series))}` : ""}</span></div>
+    <div class="ct"><span class="ct-lab">Intensité</span><b class="ct-val num">${cur.intensiteRelPct != null ? `${cur.intensiteRelPct}\u00A0% 1RM` : "—"}</b><span class="ct-sub">${cur.intensiteKgRep != null ? `${uCharge(cur.intensiteKgRep)}/rép.` : "aucune charge"}${relVar ? ` · ${esc(relVar)}` : ""}</span></div>
+  </div>`);
+  const jj = (d) => d.toLocaleDateString("fr-FR", { day: "numeric", month: "short", ...(mois ? {} : { timeZone: "UTC" }) });
+  const finP = new Date(cmp.finPrec.getTime() - 1);
+  b.append(h(`<div class="small muted">${cur.seances} séance${cur.seances > 1 ? "s" : ""} ${quand}${cur.distanceM ? ` · cardio ${texteDistance(cur.distanceM)} en ${texteDuree(cur.dureeCardioSec)}` : ""}<br>Écarts comparés au même stade : ${jj(cmp.debutPrec)} → ${jj(finP)}</div>`));
+  b.append(trio);
+  // Une mesure à la fois sur l'histogramme : trois séries d'échelles
+  // différentes sur un même graphique ne se lisent pas.
+  const mesures = [["tonnage", "Tonnage"], ["series", "Séries"], ["intensite", "Intensité"]];
+  const chM = h(`<div class="row ct-chips" role="group" aria-label="Mesure du graphique"></div>`);
+  mesures.forEach(([val, lab]) => {
+    const c = h(`<button class="chip ${CHARGE_VUE.mesure === val ? "on" : ""}" aria-pressed="${CHARGE_VUE.mesure === val}">${lab}</button>`);
+    c.addEventListener("click", () => { CHARGE_VUE.mesure = val; render(); });
+    chM.append(c);
+  });
+  b.append(chM);
+  const court = (p) => (mois ? p.label.split(" ")[0] : p.label);
+  const barres = per.map((p) => ({
+    x: court(p),
+    v: CHARGE_VUE.mesure === "series" ? p.series
+      : CHARGE_VUE.mesure === "intensite" ? (p.intensiteRelPct || 0)
+      : (uImp() ? Math.round(p.tonnageKg * 2.20462) : p.tonnageKg),
+  }));
+  const titre = CHARGE_VUE.mesure === "series" ? `Séries par ${mois ? "mois" : "semaine"}`
+    : CHARGE_VUE.mesure === "intensite" ? "Intensité moyenne (% du 1RM estimé)"
+    : `Tonnage par ${mois ? "mois" : "semaine"} (${uUnite()})`;
+  b.append(h(`<div class="card">${barres.some((x) => x.v) ? svgBars(barres, titre) : `<div class="muted small">Aucune série chargée sur la période.</div>`}</div>`));
+  b.append(h(`<div class="hint">${esc(DEFINITIONS_CHARGE.tonnage)}<br>${esc(DEFINITIONS_CHARGE.volume)}<br>${esc(DEFINITIONS_CHARGE.intensite)}</div>`));
 }
 
 /* ---------- Calculateurs de force ----------
@@ -6909,18 +7010,40 @@ function vStats(v) {
     if (!sem2.length && !parMuscle.length) b.append(h(`<div class="muted small">Aucune séance enregistrée pour l'instant.</div>`));
   }, { resume: uVolume(volP) });
 
+  const semC = chargeParPeriode(logs, "semaine", 1)[0];
+  section(v, "charge", "Charge d'entraînement", (b) => carteChargeEntrainement(b), {
+    resume: semC && semC.series ? `${semC.series} séries cette semaine` : "",
+  });
+
   section(v, "muscles", "Muscles & récupération", (b) => {
     carteMuscleHeatmap(b);
     carteRecup(b);
   });
 
-  if (prs.length) {
+  // Records des exercices qui ne se jugent pas au 1RM : distance et vitesse
+  // pour le cardio, durée de maintien pour le gainage. Jamais mélangés.
+  const bpTous = meilleuresPerfs(logs);
+  const autresRecs = Object.entries(bpTous).flatMap(([id, bp]) => {
+    const mes = mesuresExercice(getExercise(id));
+    if (mes.distance && bp.distanceMax) return [{ id, nom: nomExo(id), val: texteDistance(bp.distanceMax), sub: bp.vitesseMax ? `${texteVitesse(bp.vitesseMax)} max` : "distance max", tri: bp.distanceMax }];
+    if (mes.isometrique && bp.dureeMax) return [{ id, nom: nomExo(id), val: texteDuree(bp.dureeMax), sub: bp.chargeMax ? `lest max ${uCharge(bp.chargeMax)}` : "maintien max", tri: bp.dureeMax }];
+    return [];
+  }).sort((a, b) => b.tri - a.tri).slice(0, 6);
+  if (prs.length || autresRecs.length) {
     section(v, "records", "Records personnels", (b) => {
-      const rg = h(`<div class="recgrid"></div>`);
-      prs.slice(0, 6).forEach((r) => rg.append(h(`<div class="reccard"><div class="rc-name">${esc(r.nom)}</div><div class="rc-val num">${uAff(r.e1rm)}<span> ${uUnite()}</span></div><div class="rc-sub muted">${uAff(r.charge)}${uUnite()} × ${r.reps}</div></div>`)));
-      b.append(rg);
-      b.append(h(`<div class="hint">${esc(FORMULE_1RM)}. Estimation indicative — ne teste jamais un vrai maximum en reprise.</div>`));
-    }, { resume: `${prs.length}` });
+      if (prs.length) {
+        const rg = h(`<div class="recgrid"></div>`);
+        prs.slice(0, 6).forEach((r) => rg.append(h(`<div class="reccard"><div class="rc-name">${esc(r.nom)}</div><div class="rc-val num">${uAff(r.e1rm)}<span> ${uUnite()}</span></div><div class="rc-sub muted">${uCharge(r.charge)} × ${r.reps}</div></div>`)));
+        b.append(rg);
+        b.append(h(`<div class="hint">${esc(FORMULE_1RM)}. Estimation indicative — ne teste jamais un vrai maximum en reprise.</div>`));
+      }
+      if (autresRecs.length) {
+        b.append(h(`<div class="eyebrow" style="margin-top:var(--space-3)">Cardio et gainage</div>`));
+        const rg2 = h(`<div class="recgrid"></div>`);
+        autresRecs.forEach((r) => rg2.append(h(`<div class="reccard"><div class="rc-name">${esc(r.nom)}</div><div class="rc-val num">${esc(r.val)}</div><div class="rc-sub muted">${esc(r.sub)}</div></div>`)));
+        b.append(rg2);
+      }
+    }, { resume: `${prs.length + autresRecs.length}` });
   }
 
   section(v, "force", "Calculateurs de force", (b) => carteForce(b));

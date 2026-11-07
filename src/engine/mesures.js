@@ -16,7 +16,7 @@
  *
  * Fonctions PURES.
  */
-import { e1rmEpley } from "./records.js";
+import { e1rmFiable } from "./records.js";
 
 /** @typedef {{charge:boolean, reps:boolean, distance:boolean, duree:boolean, isometrique:boolean}} Mesures */
 
@@ -220,7 +220,7 @@ export function meilleuresPerfs(logs) {
         const dist = Number(s.distanceM) || 0, duree = Number(s.dureeSec) || 0;
         if (kg > 0 && reps > 0) b.chargeMax = Math.max(b.chargeMax, kg);
         if (reps > 0) b.repsMax = Math.max(b.repsMax, reps);
-        b.e1rmMax = Math.max(b.e1rmMax, e1rmEpley(kg, reps));
+        b.e1rmMax = Math.max(b.e1rmMax, e1rmFiable(kg, reps));
         const v = kg * reps;
         b.volumeSerieMax = Math.max(b.volumeSerieMax, v);
         volSeance += v;

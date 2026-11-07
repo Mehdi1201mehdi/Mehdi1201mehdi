@@ -2718,3 +2718,22 @@ button.sem-bilan{display:flex;flex-direction:column;align-items:stretch;gap:10px
 .sb-ecart{color:var(--ink-soft);line-height:1.4;padding-top:9px;border-top:1px solid var(--hair)}
 .sb-up{color:var(--accent-ink)}
 .sb-down{color:var(--amber)}
+
+/* ---------- Charge d'entraînement (Progrès) : tonnage · volume · intensité ---------- */
+.ct-chips{gap:var(--space-2);margin:var(--space-2) 0}
+.ct-trio{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-2);margin:var(--space-2) 0 var(--space-3)}
+.ct{display:flex;flex-direction:column;gap:2px;min-width:0;padding:var(--space-3);border-radius:var(--radius-sm);background:var(--surface-2)}
+.ct-lab{font-size:var(--fs-label);font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)}
+.ct-val{font-size:clamp(.95rem,4.4vw,1.15rem);font-weight:850;color:var(--ink);overflow-wrap:anywhere;line-height:1.2}
+.ct-sub{font-size:.78rem;color:var(--ink-soft);line-height:1.3}
+@media (max-width:359px){.ct-trio{grid-template-columns:1fr}.ct{flex-direction:row;flex-wrap:wrap;align-items:baseline;column-gap:var(--space-2)}.ct-sub{flex-basis:100%}}
+
+/* Progression mois par mois sous la courbe d'un exercice. */
+.mois-liste{display:flex;flex-direction:column;margin-top:var(--space-3)}
+.mois-liste .eyebrow{margin-bottom:var(--space-1)}
+.ml-row{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:var(--space-2);align-items:baseline;padding:var(--space-2) 0;border-top:1px solid var(--line)}
+.ml-m{font-size:.9rem}
+.ml-row .num{text-align:right;font-weight:850}
+.ml-d{grid-column:1 / -1;font-size:.8rem;font-weight:700}
+.ml-d.up{color:var(--ok)}
+.ml-d.down{color:var(--ink-soft)}

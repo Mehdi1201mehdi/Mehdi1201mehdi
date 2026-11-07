@@ -9,12 +9,24 @@
  */
 
 /** Formule affichée à l'utilisateur. */
-export const FORMULE_1RM = "Epley : charge × (1 + répétitions / 30)";
+export const FORMULE_1RM = "Epley : charge × (1 + répétitions / 30), séries de 1 à 12 répétitions";
 
 /** 1RM estimé (Epley). 0 si entrées non valides. */
 export function e1rmEpley(kg, reps) {
   const k = Number(kg), r = Number(reps);
   return (k > 0 && r > 0) ? k * (1 + r / 30) : 0;
+}
+
+/**
+ * Au-delà de 12 répétitions, toutes les formules divergent (endurance, fatigue,
+ * technique) : un 1RM « estimé » sur une série de 20 n'a plus de valeur. Les
+ * records et les courbes de 1RM ne retiennent donc que les séries de 1 à 12.
+ */
+export const REPS_MAX_1RM = 12;
+
+/** 1RM estimé pour les records et les courbes : 0 au-delà de REPS_MAX_1RM. */
+export function e1rmFiable(kg, reps) {
+  return Number(reps) <= REPS_MAX_1RM ? e1rmEpley(kg, reps) : 0;
 }
 
 /** Volume d'une série (charge × reps). Le poids du corps (0 kg) compte 0 en charge. */
@@ -40,7 +52,7 @@ export function meilleursParExercice(logs) {
         if (reps > b.repsMax) b.repsMax = reps;
         const v = volSerie(s);
         if (v > b.volMax) b.volMax = v;
-        const e1 = e1rmEpley(kg, reps);
+        const e1 = e1rmFiable(kg, reps);
         if (e1 > b.e1rmMax) { b.e1rmMax = e1; b.charge = kg; b.reps = reps; }
       }
       best[e.exerciceId] = b;
