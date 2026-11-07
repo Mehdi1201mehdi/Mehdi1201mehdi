@@ -383,7 +383,7 @@ export function genererProchaineSeance(logs, getExercise, catalogue, profil = {}
   // Calibration apprise sur l'historique : sans données suffisantes elle vaut
   // 1 partout et le moteur se comporte exactement comme avant.
   const facteurs = facteursRecuperation(logs, getExercise, maintenant);
-  const etat = etatMusculaire(logs, getExercise, maintenant, { ressenti: profil.ressenti, facteurs });
+  const etat = etatMusculaire(logs, getExercise, maintenant, { ressenti: profil.ressenti, facteurs, seuilPret: profil.seuilPret });
   const classement = prioriterMuscles(etat, profil, maintenant);
 
   const duree = profil.dureeMin || 60;

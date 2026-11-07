@@ -4162,7 +4162,7 @@ function calculerAuto(maintenant = Date.now()) {
   const p = Etat.data.profil || {};
   AUTO = genererProchaineSeance(
     Etat.data.logs || [], getExercise, catalogueDispo(),
-    { niveau: p.niveau, dureeMin: p.dureeSeanceMin || 60, ressenti: Etat.data.reglages.ressenti || 0 },
+    { niveau: p.niveau, dureeMin: p.dureeSeanceMin || 60, ressenti: Etat.data.reglages.ressenti || 0, seuilPret: seuilPret() },
     maintenant,
   );
   return AUTO;
@@ -4542,6 +4542,18 @@ function ouvrirDetailAuto(gen) {
   document.body.append(sheet);
 }
 
+/** Seuil de disponibilité à partir duquel un muscle est dit « prêt » (réglable : 60, 75 ou 90 %). */
+function seuilPret() {
+  const v = Number(Etat.data.reglages.seuilPret);
+  return [60, 75, 90].includes(v) ? v : 75;
+}
+/** « Prêt » ou « prêt dans 14 h » / « dans 2 j ». */
+function textePret(m) {
+  const hh = m && m.heuresAvantPret;
+  if (!hh) return "Prêt";
+  return hh < 48 ? `prêt dans ${hh} h` : `prêt dans ${Math.round(hh / 24)} j`;
+}
+
 /** Fiche d'un muscle : disponibilité, dernière sollicitation, volume. */
 function detailMuscle(cle, etat, profil) {
   const m = etat[cle];
@@ -4558,6 +4570,7 @@ function detailMuscle(cle, etat, profil) {
   inner.append(h(`<div class="bar" style="margin-bottom:14px"><div style="width:${Math.round(m.readiness)}%;background:${couleurDispo(m.readiness)}"></div></div>`));
   const g = h(`<div class="statgrid"></div>`);
   g.append(statCard(IC.calendar, quand, "Dernière sollicitation"));
+  g.append(statCard(IC.clock, m.heuresAvantPret ? (m.heuresAvantPret < 48 ? `${m.heuresAvantPret} h` : `${Math.round(m.heuresAvantPret / 24)} j`) : "Prêt", `Avant ${seuilPret()} %`));
   g.append(statCard(IC.bars, `${m.weeklyEquivalentSets}`, `Séries / ${cible}`));
   g.append(statCard(IC.dumbbell, `${m.weeklyDirectSets}`, "Dont directes"));
   g.append(statCard(IC.repeat, `${m.weeklyIndirectSets}`, "Indirectes"));
@@ -4626,10 +4639,11 @@ function vRecup(v) {
     .sort((a, b) => a.r - b.r)
     .forEach(({ cle, r }) => {
       const cat = FIN_VERS_CATALOGUE[cle];
+      const pret = textePret(etat[cle]);
       const row = h(`<button class="rcp-row" type="button">
         <span class="recup-vig">${cat ? miniSilhouette([cat]) : ""}</span>
         <span class="recup-txt"><b>${esc(LABELS_MOTEUR[cle])}</b>
-          <em class="num" style="color:${couleurDispo(r)}">${Math.round(r)} %</em></span>
+          <em class="num" style="color:${couleurDispo(r)}">${Math.round(r)} %</em>${pret !== "Prêt" ? `<small class="recup-pret">${esc(pret)}</small>` : ""}</span>
         <svg class="recup-fl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </button>`);
       row.addEventListener("click", () => detailMuscle(cle, etat, p));
@@ -4637,6 +4651,18 @@ function vRecup(v) {
     });
   grille.append(col);
   v.append(grille);
+
+  // Seuil « prêt » réglable, comme chez FitAI : prudent (90 %), standard
+  // (75 %) ou souple (60 %). Il règle les délais « prêt dans … » ; le choix
+  // automatique des muscles garde ses propres garde-fous (planner.js).
+  const reglSeuil = h(`<div class="card stack"><div class="spread small"><b>Seuil « prêt »</b><span class="muted">${seuilPret()} % de disponibilité</span></div><div class="row" role="group" aria-label="Seuil prêt"></div><div class="hint" style="margin:0">Règle le délai « prêt dans … » affiché pour chaque muscle : plus le seuil est haut, plus le repos indiqué est long. La séance automatique garde ses propres garde-fous.</div></div>`);
+  const rowS = reglSeuil.querySelector(".row");
+  [[60, "Souple · 60 %"], [75, "Standard · 75 %"], [90, "Prudent · 90 %"]].forEach(([val, lab]) => {
+    const b = h(`<button class="chip ${seuilPret() === val ? "on" : ""}" aria-pressed="${seuilPret() === val}">${lab}</button>`);
+    b.addEventListener("click", () => { Etat.data.reglages.seuilPret = val; Etat.sauver(); AUTO = null; render(); });
+    rowS.append(b);
+  });
+  v.append(reglSeuil);
 
   // ---- Action du bas : la séance que le moteur bâtit sur les muscles frais.
   const cta = h(`<button class="btn primary recup-cta" type="button"><span class="cic">${IC.spark}</span>Séance sur muscles reposés</button>`);
@@ -4696,13 +4722,14 @@ function ouvrirEtatMusculaire() {
     const row = h(`<div class="msc-row">
       <div class="spread small"><b>${esc(LABELS_MOTEUR[m.cle])}</b><span class="num" style="color:${couleurDispo(m.readiness)};font-weight:800">${Math.round(m.readiness)} %</span></div>
       <div class="bar msc-bar"><div style="width:${Math.round(m.readiness)}%;background:${couleurDispo(m.readiness)}"></div></div>
-      <div class="spread muted" style="font-size:.7rem;margin-top:3px"><span>${esc(z.nom)}</span><span>${m.weeklyEquivalentSets}/${cible} séries cette semaine</span></div>
+      <div class="spread muted" style="font-size:.7rem;margin-top:3px"><span>${esc(z.nom)} · ${esc(textePret(m))}</span><span>${m.weeklyEquivalentSets}/${cible} séries cette semaine</span></div>
     </div>`);
     row.classList.add("tap");
     row.addEventListener("click", () => detailMuscle(m.cle, etat, p));
     liste.append(row);
   });
   inner.append(liste);
+
 
   // Classement des priorités : ce que le moteur entraînerait ensuite
   inner.append(h(`<div class="eyebrow" style="margin:16px 0 8px">Priorités du moteur</div>`));

@@ -61,3 +61,25 @@ test("readinessGroupe : borné 0–100 et toujours entier", () => {
     assert.ok(Number.isInteger(r) && r >= 0 && r <= 100, `valeur ${r}`);
   }
 });
+
+import { heuresAvant } from "../src/engine/fatigue.js";
+test("heures avant le seuil « prêt » : décroissance exponentielle inversée", () => {
+  // 50 % de fatigue, demi-vie 24 h, seuil 75 % (fatigue ≤ 25) → une demi-vie
+  assert.equal(heuresAvant(50, 24, 75), 24);
+  assert.equal(heuresAvant(20, 24, 75), 0, "déjà prêt");
+  assert.equal(heuresAvant(80, 30, 90), Math.ceil(30 * Math.log2(80 / 10)));   // seuil plus exigeant → plus long
+  assert.ok(heuresAvant(80, 30, 60) < heuresAvant(80, 30, 75));
+});
+
+test("etatMusculaire : demi-vie et délai avant « prêt » exposés, seuil réglable", async () => {
+  const { etatMusculaire } = await import("../src/engine/fatigue.js");
+  const { getExercise } = await import("../src/data/exercises.js");
+  const t0 = Date.parse("2026-11-07T10:00:00Z");
+  const logs = [{ date: new Date(t0 - 2 * 36e5).toISOString(), exercices: [{ exerciceId: "developpe-couche-barre", series: Array(5).fill({ chargeKg: 80, reps: 8, rir: 1 }) }] }];
+  const e75 = etatMusculaire(logs, getExercise, t0);
+  const e90 = etatMusculaire(logs, getExercise, t0, { seuilPret: 90 });
+  assert.ok(e75.pectoraux.demiVieH > 0);
+  assert.ok(e75.pectoraux.heuresAvantPret > 0);
+  assert.ok(e90.pectoraux.heuresAvantPret > e75.pectoraux.heuresAvantPret);
+  assert.equal(e75.mollets.heuresAvantPret, 0, "muscle non sollicité : prêt");
+});

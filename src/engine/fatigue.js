@@ -317,9 +317,30 @@ export function etatMusculaire(logs, getExercise, maintenant = Date.now(), opts 
     m.weeklyDirectSets = Math.round(m.weeklyDirectSets * 10) / 10;
     m.weeklyIndirectSets = Math.round(m.weeklyIndirectSets * 10) / 10;
     m.weeklyEquivalentSets = Math.round(m.weeklyEquivalentSets * 10) / 10;
+    // Demi-vie courante et délai avant le seuil « prêt » (réglable, 75 % par
+    // défaut) : « prêt dans 14 h » se lit mieux qu'un pourcentage.
+    m.demiVieH = m._dernierT != null
+      ? Math.round(demiVie(m._dernierVolume, m._dernierEchec, DEF[cle]?.taille, fa(cle)) * 10) / 10 : null;
+    m.heuresAvantPret = m.demiVieH ? heuresAvant(m.fatigue, m.demiVieH, opts.seuilPret) : 0;
     delete m._dernierT; delete m._dernierVolume; delete m._dernierEchec;
   }
   return etat;
+}
+
+/**
+ * Heures avant qu'un muscle atteigne un seuil de disponibilité, d'après la
+ * décroissance exponentielle du modèle : fatigue(t) = f0 × 2^(−t / demi-vie).
+ * 0 si le seuil est déjà atteint. Arrondi à l'heure supérieure.
+ * @param {number} fatigue      fatigue actuelle (0–100)
+ * @param {number} demiVieH     demi-vie courante du muscle (h)
+ * @param {number} seuilPret    disponibilité visée (%), ex. 75
+ */
+export function heuresAvant(fatigue, demiVieH, seuilPret = 75) {
+  const f = Math.max(0, Math.min(100, Number(fatigue) || 0));
+  const cible = 100 - Math.max(1, Math.min(99, Number(seuilPret) || 75));
+  if (f <= cible) return 0;
+  const dv = Math.max(1, Number(demiVieH) || PARAMS.DEMI_VIE_H.moderee);
+  return Math.ceil(dv * Math.log2(f / cible));
 }
 
 /* ============================ ZONES ET OBJECTIFS ============================ */
