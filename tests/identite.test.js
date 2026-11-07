@@ -38,7 +38,7 @@ test("aucun champ affiché n'est vide, sauf le slogan qui a le droit de l'être"
 test("le nom n'est plus écrit en dur dans le code de l'interface", () => {
   // Le fichier de configuration ne sert à rien si une copie du nom subsiste
   // ailleurs : on renommerait l'application et il en resterait une trace.
-  for (const f of ["src/ui/app.js", "src/store/state.js", "src/engine/backup.js"]) {
+  for (const f of ["src/ui/app.js", "src/store/state.js", "src/engine/backup.js", "src/ui/dico.js", "src/ui/natif.js"]) {
     const src = readFileSync(new URL("../" + f, import.meta.url), "utf8");
     const lignes = src.split("\n").filter((l) =>
       l.includes(IDENTITE.nom) && !l.trimStart().startsWith("*") && !l.trimStart().startsWith("//"));

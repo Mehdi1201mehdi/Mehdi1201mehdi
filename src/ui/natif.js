@@ -14,6 +14,7 @@
  *    PROGRAMMÉE comme notification locale native quand l'app passe en
  *    arrière-plan, et annulée à son retour.
  */
+import { IDENTITE } from "../config/identite.js";
 
 /** @returns {any} */
 function cap() {
@@ -40,7 +41,7 @@ function plugin(nom) {
  * @param {string} [titre]  titre de la feuille de partage
  * @returns {Promise<boolean>}
  */
-export async function partagerFichier(nom, contenu, titre = "Coach Perso") {
+export async function partagerFichier(nom, contenu, titre = IDENTITE.nom) {
   const fs = plugin("Filesystem");
   const share = plugin("Share");
   if (!fs || !share) return false;

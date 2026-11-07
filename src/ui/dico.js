@@ -9,6 +9,7 @@
  * démarrage.
  */
 import { esc, h } from "./dom.js";
+import { IDENTITE } from "../config/identite.js";
 import {
   chercher, grouperParLettre, termesLies, compterParCategorie, termeDuJour, normaliser,
 } from "../engine/dictionnaire.js";
@@ -250,7 +251,7 @@ export function ouvrirTermeDico(t, ctx) {
 
     if (terme.app) {
       const app = h(`<div class="card dico-app"><span class="dico-app-ic" aria-hidden="true">${IC.marque || IC.spark}</span>
-        <div class="dico-app-txt"><span class="eyebrow accent">Dans Coach Perso</span><span class="small">${esc(terme.app.txt)}</span></div></div>`);
+        <div class="dico-app-txt"><span class="eyebrow accent">Dans ${esc(IDENTITE.nom)}</span><span class="small">${esc(terme.app.txt)}</span></div></div>`);
       if (terme.app.ecran) {
         const b = h(`<button class="secondary dico-app-go" type="button">${esc(LIBELLE_ECRAN[terme.app.ecran] || "Ouvrir")}</button>`);
         b.addEventListener("click", () => { fermer(); allerVers(ctx, terme.app.ecran); });

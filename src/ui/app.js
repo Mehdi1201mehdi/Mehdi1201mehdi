@@ -7119,7 +7119,7 @@ function vSet(v) {
   bExp.addEventListener("click", async () => {
     const contenu = JSON.stringify(construireExport(Etat.data), null, 1);
     if (estNatif()) {
-      try { if (await partagerFichier(nomFichierBackup(), contenu, "Sauvegarde Coach Perso")) return; }
+      try { if (await partagerFichier(nomFichierBackup(), contenu, `Sauvegarde ${IDENTITE.nom}`)) return; }
       catch (e) { toast("Sauvegarde impossible sur cet appareil"); return; }
     }
     const blob = new Blob([contenu], { type: "application/json" });
