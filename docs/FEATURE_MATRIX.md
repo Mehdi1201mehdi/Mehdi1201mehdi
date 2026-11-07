@@ -36,14 +36,14 @@ Légende : ✅ opérationnel · ⚠️ partiel · ❌ absent · 🔒 volontairem
 
 | Fonction | État | Où |
 |---|---|---|
-| Catalogue (343 exercices) | ✅ | Profil → Catalogue |
-| Recherche et filtres (muscle, matériel) | ✅ | Catalogue |
+| Catalogue (343 exercices) | ✅ | Onglet Exercices |
+| Recherche et filtres (muscle, matériel, niveau, type) | ✅ | Exercices → Filtrer |
 | Vignette d'identification | ✅ | Séance, alternatives |
 | Badges musculaires | ✅ | Séance |
 | Fiche : technique, erreurs, sécurité | ✅ | Toucher un exercice |
 | Démonstration animée maison | ✅ | Fiche, mode guidé |
 | Historique par exercice | ✅ | Fiche → Historique |
-| Favoris | ❌ | — |
+| Favoris | ✅ | Étoile sur chaque exercice, filtre « Favoris » |
 | Recherche par silhouette | ✅ | Catalogue → « Chercher sur le corps » |
 
 ## Programmes
@@ -68,6 +68,20 @@ Légende : ✅ opérationnel · ⚠️ partiel · ❌ absent · 🔒 volontairem
 | Défis et série de jours | ✅ | Progrès |
 | Poids et mensurations | ✅ | Progrès |
 | Bilan d'ajustement 2 semaines | ✅ | Progrès |
+
+## Dictionnaire
+
+| Fonction | État | Où |
+|---|---|---|
+| 146 termes, 9 catégories (bases, techniques, programmation, mesures, anatomie, équipement, nutrition, récupération, fonctions de l'app) | ✅ | Compte → Dictionnaire fitness |
+| Recherche instantanée (sans accents, synonymes anglais) | ✅ | Dictionnaire |
+| Favoris, terme du jour, renvois « Voir aussi », lien vers l'écran concerné | ✅ | Fiche d'un terme |
+
+## Accueil
+
+| Fonction | État | Où |
+|---|---|---|
+| Bilan de la semaine : temps, volume, kcal estimées, écart vs semaine précédente | ✅ | Accueil → Ma semaine |
 
 ## Nutrition et outils
 
@@ -99,9 +113,12 @@ Légende : ✅ opérationnel · ⚠️ partiel · ❌ absent · 🔒 volontairem
 
 | Fonction | État | Où |
 |---|---|---|
-| Assistant déterministe (questions) | ✅ | Accueil → Coach |
-| Coach IA local (Transformers.js) | ⚠️ | Profil, désactivé par défaut, non vérifié sur appareil réel |
-| Coach IA distant / abonnement | 🔒 | Hors périmètre du projet |
+| Assistant déterministe (questions, hors ligne) | ✅ | Bulle du coach |
+| Coach IA connecté : conversation à plusieurs tours | ✅ | Compte → Coach IA connecté (Claude, OpenAI, Gemini avec ta clé, ou relais) |
+| Relais sécurisé (clé côté serveur) | ✅ | `server/coach-relais/` (Cloudflare Worker, à déployer) |
+| Création de routine par le coach, validée par l'utilisateur | ✅ | Carte « Routine proposée » dans le chat |
+| Partage de l'historique avec l'IA (consentement séparé) | ✅ | Compte → Coach IA connecté |
+| Coach IA local (Transformers.js) | ⚠️ | Compte, désactivé par défaut, non vérifié sur appareil réel |
 
 ## Plateforme
 
@@ -115,4 +132,8 @@ Légende : ✅ opérationnel · ⚠️ partiel · ❌ absent · 🔒 volontairem
 | Thèmes clair / sombre / auto | ✅ |
 | Aucun serveur, aucun compte | ✅ |
 | Synchronisation multi-appareils | 🔒 | 
-| Notifications / rappels | ❌ |
+| Notification de fin de repos | ✅ (web : écran verrouillé si autorisé ; APK : notification Android programmée) |
+| Rappels d'entraînement planifiés | ❌ |
+| Unité de poids kg / lb | ✅ (affichage et saisie ; calculateurs en kg) |
+| Interface en anglais | ❌ (chantier dédié : toute l'interface est en français) |
+| Application Android (APK) | ⚠️ Projet Capacitor + workflow prêts ; APK compilé par GitHub Actions, non encore produit |

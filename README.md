@@ -8,7 +8,14 @@ utilisable sur téléphone **avec ou sans connexion**, données **stockées sur 
 - 🔄 **Remplacement** d'exercice par contraintes (matériel, limitations, niveau)
 - 🏋️ **Mode séance** : saisie charge/reps/RIR + minuteur de repos
 - 📴 **Hors ligne** complet (service worker) + installable sur l'écran d'accueil
-- 🔒 100 % local, aucune donnée envoyée à un serveur
+- 📖 **Dictionnaire fitness** : 146 termes, recherche, favoris
+- 💬 **Coach** hors ligne, et coach IA connecté facultatif (Claude, OpenAI,
+  Gemini avec ta clé, ou ton relais sécurisé) qui converse et propose des
+  routines que tu valides
+- ⚖️ Unité de poids kg ou lb
+- 🤖 Application **Android** (Capacitor) — voir `docs/ANDROID.md`
+- 🔒 Données sur l'appareil ; seules les questions au coach IA connecté (si tu
+  l'actives) partent chez le fournisseur choisi
 
 ## Utiliser l'app
 

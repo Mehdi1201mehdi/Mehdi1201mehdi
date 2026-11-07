@@ -6,13 +6,12 @@
  * Le site reste SANS BUILD : GitHub Pages sert toujours les fichiers du dépôt
  * tels quels. Ce script ne fait que COPIER les fichiers de l'application web
  * dans `www/` (ignoré par Git), que `npx cap sync android` place ensuite dans
- * l'APK. Rien n'est transpilé, minifié ni transformé, à une exception près :
- * le fichier de configuration d'environnement `src/config/plateforme.js` est
- * réécrit pour signaler à l'app qu'elle tourne dans l'APK.
+ * l'APK. Rien n'est transpilé, minifié ni transformé. Dans l'APK, l'app détecte
+ * d'elle-même qu'elle est native (window.Capacitor, cf. src/ui/natif.js).
  *
  * Usage : node scripts/preparer-android.mjs
  */
-import { cpSync, existsSync, mkdirSync, rmSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, rmSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -40,11 +39,6 @@ for (const d of DOSSIERS) {
     filter: (src) => !EXCLUS.some((re) => re.test(src)),
   });
 }
-
-// Signale la plateforme : l'app peut adapter ce qui diffère dans l'APK
-// (téléchargement des sauvegardes, notifications…).
-writeFileSync(join(SORTIE, "src/config/plateforme.js"),
-  "// Généré par scripts/preparer-android.mjs — ne pas modifier.\nexport const PLATEFORME = \"android\";\n");
 
 // Bilan
 let n = 0, octets = 0;

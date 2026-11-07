@@ -4,8 +4,9 @@
 
 **Coach Perso** — application française de musculation / transformation physique de
 Mehdi, **mono-utilisateur**, **PWA sans build**, déployée sur GitHub Pages
-(`https://mehdi1201mehdi.github.io/Mehdi1201mehdi/`). Déterministe (aucune IA
-embarquée), 100 % hors ligne.
+(`https://mehdi1201mehdi.github.io/Mehdi1201mehdi/`). Moteur déterministe et
+100 % hors ligne ; coach IA **facultatif** (clé de l'utilisateur ou relais
+serveur), éteint par défaut. Application Android via Capacitor (`android/`).
 
 ## Architecture (à respecter — non négociable)
 
@@ -23,7 +24,18 @@ embarquée), 100 % hors ligne.
   vNutrition / vAnatoly / vCatalogue / vSet`.
 - **Offline** : `sw.js` — réseau d'abord pour l'app, cache d'abord pour les médias.
   **Incrémenter `CACHE` (`coachperso-ia-vNN`) à chaque changement d'assets.**
-- **Tests** : `node --test tests/*.test.js` (138) + smokes Playwright dans le scratchpad.
+- **Tests** : `node --test tests/*.test.js` (600) + smokes Playwright dans le scratchpad.
+- **Coach IA** : `src/integrations/coachCloud.js` (fournisseurs, flux, historique),
+  `src/engine/coachRoutine.js` (proposition de routine vérifiée, rendu sûr),
+  `server/coach-relais/` (Worker Cloudflare, clé en variable d'environnement).
+  Aucune clé dans le dépôt ; la sauvegarde JSON n'exporte jamais la clé.
+  La CSP de `index.html` (connect-src) liste les fournisseurs et `*.workers.dev`.
+- **Unités** : `src/engine/unites.js`. Tout est STOCKÉ en kg ; kg/lb ne change
+  que l'affichage et la saisie (aides `uCharge`, `uVolume`, `uAff` dans app.js).
+- **Android** : `capacitor.config.json`, `android/`, `scripts/preparer-android.mjs`
+  (copie sans build vers `www/`), `src/ui/natif.js` (partage de fichier,
+  notification de repos — inertes hors APK), workflow `android-apk.yml`.
+  Voir `docs/ANDROID.md`.
 
 ## Rôle
 
@@ -39,11 +51,14 @@ cohérent et crédible, **sans casser ses fonctions** et **sans introduire de bu
 ## Règles absolues (ne jamais enfreindre)
 
 - **NE JAMAIS** supprimer une fonctionnalité existante qui marche.
-- **NE JAMAIS** ajouter de coach IA / chatbot.
+- Coach IA : **uniquement facultatif** (désactivé par défaut), sans clé dans le code,
+  et toute modification de données proposée par l'IA passe par une validation
+  explicite de l'utilisateur. (Règle assouplie à la demande de Mehdi, nov. 2026.)
 - **NE JAMAIS** modifier les programmes ou données de l'utilisateur sans demande explicite.
 - **NE JAMAIS** casser le déploiement GitHub Pages (chemins relatifs `./`, pas de base
   absolue).
 - **NE JAMAIS** introduire une étape de build ou un framework lourd (React, bundler...).
+  Capacitor ne fait que COPIER l'app pour l'APK : le site reste sans build.
 - **NE JAMAIS** committer de secret (ex. clés RapidAPI) ni l'identifiant de modèle.
 - **Aucun `git push` sans autorisation explicite de l'utilisateur.**
 
