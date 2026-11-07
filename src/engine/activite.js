@@ -57,11 +57,13 @@ function dureeTotaleSec(logs) {
  * @param {any[]} logs
  * @param {number} poidsKg
  * @param {Date} [ref]
+ * @param {((log:any)=>number)|null} [kcalSeance]  estimation par séance (calories.js#caloriesLog) ;
+ *   à défaut, MET musculation × durée.
  * @returns {{seances:number, dureeMin:number, volume:number, kcal:number,
  *   precedente:{seances:number, dureeMin:number, volume:number},
  *   ecartVolumePct:number|null, ecartSeances:number}}
  */
-export function bilanSemaine(logs, poidsKg, ref = new Date()) {
+export function bilanSemaine(logs, poidsKg, ref = new Date(), kcalSeance = null) {
   const lundi = lundiLocal(ref);
   const avant = new Date(lundi); avant.setDate(avant.getDate() - 7);
   const cur = seancesSemaine(logs, lundi);
@@ -73,7 +75,7 @@ export function bilanSemaine(logs, poidsKg, ref = new Date()) {
     seances: cur.length,
     dureeMin: Math.round(dureeSec / 60),
     volume,
-    kcal: cur.reduce((s, l) => s + caloriesSeance(l.dureeSec, poidsKg), 0),
+    kcal: cur.reduce((s, l) => s + (kcalSeance ? kcalSeance(l) : caloriesSeance(l.dureeSec, poidsKg)), 0),
     precedente: { seances: prev.length, dureeMin: Math.round(dureeTotaleSec(prev) / 60), volume: volPrev },
     // Pas de pourcentage sans base : +∞ % ne veut rien dire.
     ecartVolumePct: volPrev > 0 ? Math.round(((volume - volPrev) / volPrev) * 100) : null,

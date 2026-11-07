@@ -64,3 +64,13 @@ test("detecterRecords : premier passage d'un exercice = record", () => {
   assert.equal(prs[0].exerciceId, "nouveau-exo");
   assert.equal(prs[0].ancien, 0);
 });
+
+import { estSerieTravail } from "../src/engine/records.js";
+test("séries d'échauffement : gardées, mais hors records", () => {
+  assert.equal(estSerieTravail({ type: "echauffement" }), false);
+  assert.equal(estSerieTravail({ type: "drop" }), true);
+  assert.equal(estSerieTravail({}), true);
+  const histo = [{ exercices: [{ exerciceId: "dc", series: [{ chargeKg: 80, reps: 8 }] }] }];
+  const nouveau = { exercices: [{ exerciceId: "dc", series: [{ chargeKg: 100, reps: 12, type: "echauffement" }, { chargeKg: 80, reps: 8 }] }] };
+  assert.deepEqual(detecterRecords(histo, nouveau), [], "une approche (même mal saisie) n'est pas un record");
+});

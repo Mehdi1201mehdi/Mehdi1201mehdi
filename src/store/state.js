@@ -14,6 +14,7 @@
 import { idbGet, idbSet, idbDisponible } from "./db.js";
 import { IDENTITE } from "../config/identite.js";
 import { etatVide, normaliserEtat, choisirEtat } from "./migrate.js";
+import { estSerieTravail } from "../engine/records.js";
 
 // La clé vient de src/config/identite.js — un identifiant TECHNIQUE, séparé du
 // nom affiché : renommer l'application ne doit jamais couper l'accès à
@@ -113,7 +114,9 @@ export const Etat = {
     const out = [];
     for (let i = this.data.logs.length - 1; i >= 0 && out.length < 2; i--) {
       const ex = (this.data.logs[i].exercices || []).find((e) => e.exerciceId === exerciceId);
-      if (ex) out.push({ series: ex.series, douleur: !!ex.douleur });
+      // Séries de travail seulement : les approches fausseraient la charge
+      // conseillée et décaleraient la colonne « Précédent ».
+      if (ex) out.push({ series: (ex.series || []).filter(estSerieTravail), douleur: !!ex.douleur, note: ex.note || null });
     }
     return out; // [derniere, avantDerniere]
   },

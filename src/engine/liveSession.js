@@ -38,6 +38,11 @@ export const TYPES_SERIE = {
   normale: { label: "Normale", court: "", reposSec: null },
   drop: { label: "Drop set", court: "D", reposSec: 15 },
   rest_pause: { label: "Rest-pause", court: "RP", reposSec: 20 },
+  // Le plus de répétitions possible, à la charge prévue : repos normal ensuite.
+  amrap: { label: "AMRAP (max de reps)", court: "MAX", reposSec: null },
+  // Série d'approche : enregistrée, mais exclue des records, du tonnage et de
+  // la progression (records.js#estSerieTravail). Repos court et fixe.
+  echauffement: { label: "Échauffement", court: "É", reposSec: 45 },
 };
 export const CLES_TYPE_SERIE = Object.keys(TYPES_SERIE);
 
@@ -110,7 +115,7 @@ export function groupeSupersetLibre(live) {
 export function reposApresSerie(opts = {}) {
   const type = typeValide(opts.type);
   const prescrit = Number.isFinite(opts.reposSec) && opts.reposSec > 0 ? opts.reposSec : 60;
-  if (type !== "normale") {
+  if (type !== "normale" && TYPES_SERIE[type].reposSec != null) {
     return { sec: TYPES_SERIE[type].reposSec, enchainer: false, raison: TYPES_SERIE[type].label };
   }
   if (opts.suivantSuperset) {
@@ -370,6 +375,8 @@ export function restaurer(brut) {
       // l'écran sous les doigts de l'utilisateur.
       showRir: st.showRir == null ? null : !!st.showRir,
       supersetGroupe: GROUPES_SUPERSET.includes(st.supersetGroupe) ? st.supersetGroupe : null,
+      // Note libre sur l'exercice (sensation, réglage machine…), si présente.
+      ...(typeof st.note === "string" && st.note.trim() ? { note: st.note.slice(0, 500) } : {}),
       series: st.series.map((s) => ({
         charge: s && s.charge != null ? s.charge : "",
         reps: s && s.reps != null ? s.reps : "",

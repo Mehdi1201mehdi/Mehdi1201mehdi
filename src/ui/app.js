@@ -34,7 +34,9 @@ import { estImperial, uniteCharge, versAffichage, depuisSaisie, texteCharge, tex
 import { CHAMPS_MESURES, CHAMPS_SAISIE, GROUPES_MESURES, champMesure, construireReleve, etatAu,
   joursDeMesure, comparerMesures, asymetries, jourLocal } from "../engine/corps.js";
 import { estNatif, partagerFichier, notifsNativesDispo, autoriserNotifs, programmerFinRepos, annulerFinRepos } from "./natif.js";
-import { bilanSemaine, formatDuree, MET_MUSCULATION, caloriesSeance } from "../engine/activite.js";
+import { bilanSemaine, formatDuree, MET_MUSCULATION } from "../engine/activite.js";
+import { caloriesLog } from "../engine/calories.js";
+import { PRESETS_INTERVALLES, normaliserIntervalle, etatIntervalle, dureeTotaleIntervalle } from "../engine/intervalles.js";
 import { catalogueCompact, extraireProposition, routineDepuisProposition, htmlLeger, demandeDePlan } from "../engine/coachRoutine.js";
 import { $, esc, h } from "./dom.js";
 import { urlDemo, vignetteExo, vignetteHTML, REDUIRE_MOTION } from "./vignettes.js";
@@ -80,7 +82,8 @@ import {
   volumeLog, volumeTotal, volumeParSemaine, dureeMoyenneMin, volumeParMuscle, recuperationParMuscle, statsSemaine,
   METRIQUES_EXO, serieExercice, serieCorps, filtrerDepuis, metriquesPour,
 } from "../engine/stats.js";
-import { chargeParPeriode, progressionMensuelle, DEFINITIONS_CHARGE, variationPct, comparaisonMemeStade } from "../engine/analyse.js";
+import { chargeParPeriode, progressionMensuelle, DEFINITIONS_CHARGE, variationPct, comparaisonMemeStade,
+  effortMoyen, seriesDe } from "../engine/analyse.js";
 
 /** Nom lisible d'un exercice (pour records/stats). */
 const nomExo = (id) => (getExercise(id) ? getExercise(id).nom : id);
@@ -94,6 +97,8 @@ const uAff = (kg) => versAffichage(kg, uImp());
 // au dixième près : un 1RM estimé n'a pas de sens au centième.
 const uCharge = (kg, o) => texteCharge(kg == null || kg === "" ? kg : Math.round(Number(kg) * 10) / 10, uImp(), { fr: true, ...o });
 const uVolume = (kg, o) => texteVolume(kg, uImp(), o);
+/** Dépense estimée d'une séance enregistrée (calories.js : MET par exercice). */
+const kcalLog = (log) => caloriesLog(log, (Etat.data.profil || {}).poidsKg, getExercise).total;
 /** Unité de la séance en cours : figée au démarrage, pour que changer le réglage
  *  en pleine séance ne mélange pas kg et lb dans les champs déjà saisis. */
 const uLive = () => !!(LIVE && LIVE.unite === "lb");
@@ -645,7 +650,7 @@ function serieJours(logs) {
  * enregistrées ; la dépense est une estimation et l'écran le dit.
  */
 function carteBilanSemaine(logs, p) {
-  const b = bilanSemaine(logs, p && p.poidsKg);
+  const b = bilanSemaine(logs, p && p.poidsKg, new Date(), (l) => kcalLog(l));
   const c = h(`<button class="card sem-bilan tap" type="button" aria-label="Voir mes progrès"></button>`);
   const col = (val, lab) => `<span class="sb-col"><b class="num">${val}</b><span>${lab}</span></span>`;
   const vol = uVolume(b.volume, { tonnes: true });
@@ -663,7 +668,7 @@ function carteBilanSemaine(logs, p) {
     ecart = `<b class="${b.ecartVolumePct >= 0 ? "sb-up" : "sb-down"}">${signe}${b.ecartVolumePct} %</b> de volume vs semaine dernière · ${sc}`;
   }
   c.append(h(`<span class="sb-ecart small">${ecart}</span>`));
-  c.title = `Dépense estimée : MET ${MET_MUSCULATION} × poids × durée des séances. Ce n'est pas une mesure.`;
+  c.title = `Dépense estimée : MET × poids × durée (Compendium 2024) — cardio au MET de sa vitesse, musculation ${MET_MUSCULATION} MET. Ce n'est pas une mesure.`;
   c.addEventListener("click", () => nav("stats"));
   return c;
 }
@@ -1648,7 +1653,7 @@ function historiqueExercice(exId) {
     const ex = (l.exercices || []).find((e) => e.exerciceId === exId);
     if (!ex) continue;
     const series = ex.series || [];
-    seances.push({ date: l.date, series });
+    seances.push({ date: l.date, series, note: ex.note || null });
     for (const s of series) {
       totalSeries++;
       const c = Number(s.chargeKg) || 0, r = Number(s.reps) || 0;
@@ -1765,8 +1770,10 @@ function ouvrirDetail(exo) {
       f.append(h(`<div class="eyebrow" style="margin-top:10px">Dernières séances</div>`));
       hh.seances.slice(0, 8).forEach((s) => {
         const d = new Date(s.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
-        const detail = s.series.map((x) => texteSerieLog(x, (kg) => uCharge(kg))).join(" · ");
-        f.append(h(`<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="eyebrow" style="color:var(--ink-soft)">${d}</div><div class="num small" style="margin-top:2px">${esc(detail)}</div></div>`));
+        const eff = effortMoyen(s.series);
+        const detail = s.series.map((x) => texteSerieLog(x, (kg) => uCharge(kg))).join(" · ")
+          + (eff.n ? ` · RPE moy. ${String(eff.rpe).replace(".", ",")}` : "");
+        f.append(h(`<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="eyebrow" style="color:var(--ink-soft)">${d}</div><div class="num small" style="margin-top:2px">${esc(detail)}</div>${s.note ? `<div class="small muted" style="margin-top:2px">« ${esc(s.note)} »</div>` : ""}</div>`));
       });
       return f;
     },
@@ -2651,7 +2658,9 @@ function carteExoLive(e, seance) {
   const metaTxt = `<span class="cic">${IC.clock}</span>repos ${formatRepos(t?.reposSec || 60)}`
     + (objectif ? ` · <span class="cic">${IC.dumbbell}</span>objectif <b class="sug">${objectif}</b>` : "")
     + (tempo ? ` · tempo <b class="sug">${esc(tempo)}</b>` : "");
-  const meta = h(`<button class="exometa muted small" aria-expanded="false">${metaTxt}<span class="cic exometa-i">${IC.info}</span></button>`);
+  // Le texte dans UNE boîte qui coule en ligne : posés directement dans le
+  // bouton flex, chaque morceau devenait une colonne (« 2- / 0- / 1 ») à 360 px.
+  const meta = h(`<button class="exometa muted small" aria-expanded="false"><span class="exometa-t">${metaTxt}</span><span class="cic exometa-i">${IC.info}</span></button>`);
   const conseil = h(`<div class="notice small" hidden>${esc(sug.message)}</div>`);
   meta.addEventListener("click", () => {
     const ouvert = conseil.hidden;
@@ -2659,6 +2668,8 @@ function carteExoLive(e, seance) {
     meta.setAttribute("aria-expanded", String(ouvert));
   });
   c.append(meta, conseil);
+  if (st.note) c.append(h(`<div class="exo-note small"><span class="cic">${IC.message}</span>${esc(st.note)}</div>`));
+  else if (derniere && derniere.note) c.append(h(`<div class="exo-note small muted"><span class="cic">${IC.message}</span>La dernière fois : ${esc(derniere.note)}</div>`));
   // Tableau des séries : Série · Précédent (ou RIR/RPE) · Kg · Reps · Validé.
   // En mode avancé la colonne d'effort est affichée d'emblée ; en débutant, la
   // colonne « Précédent » suffit et l'écran reste à quatre informations.
@@ -2895,6 +2906,8 @@ function menuExoLive(e, exo, st, seance) {
       item(IC.swap, "Grouper en superset", () => choisirPartenaireSuperset(e.exerciceId, seance));
     }
   }
+  item(IC.message, st.note ? "Modifier la note" : "Ajouter une note", () => noterExerciceLive(st, exo));
+  item(IC.clock, "Minuteur EMOM / Tabata", () => ouvrirOutils("intervalles"));
   item(IC.swap, "Remplacer l'exercice", () => remplacer(e.exerciceId));
   item(IC.alert, st.douleur ? "Retirer la douleur signalée" : "Signaler une douleur", () => {
     st.douleur = !st.douleur; persistLive(true);
@@ -2943,6 +2956,29 @@ function choisirPartenaireSuperset(exId, seance) {
   sheet.querySelector("#ssX").addEventListener("click", fermer);
   sheet.addEventListener("click", (ev) => { if (ev.target === sheet) fermer(); });
   document.body.append(sheet);
+}
+
+/**
+ * Note libre sur un exercice de la séance : réglage de la machine, prise,
+ * sensation. Enregistrée avec la séance, et rappelée la fois suivante.
+ */
+async function noterExerciceLive(st, exo) {
+  let zone;
+  const v = await dialogue({
+    titre: `Note — ${exo.nom}`,
+    message: "Réglage machine, prise, sensation… Elle te sera rappelée à la prochaine séance.",
+    cancelVal: null,
+    actions: [{ label: "Annuler", valeur: null }, { label: "Enregistrer", primary: true, valeur: () => zone.value }],
+    onMount: (inner) => {
+      zone = h(`<textarea rows="3" maxlength="500" style="width:100%" aria-label="Note sur l'exercice" placeholder="Ex. : siège cran 4, prise serrée"></textarea>`);
+      zone.value = st.note || "";
+      inner.insertBefore(zone, inner.querySelector(".row"));
+      setTimeout(() => zone.focus(), 0);
+    },
+  });
+  if (v == null) return;
+  st.note = String(v).trim().slice(0, 500);
+  persistLive(true); render();
 }
 
 /** Ajoute un exercice au vol pendant la séance (choix dans le catalogue). */
@@ -3046,6 +3082,7 @@ async function terminer() {
       exercices.push({
         exerciceId: exId, series, douleur: st.douleur,
         supersetGroupe: st.supersetGroupe || undefined,
+        note: st.note ? String(st.note).slice(0, 500) : undefined,
       });
     }
   }
@@ -3095,7 +3132,8 @@ function ecranFinSeance(log, prs) {
   const volume = Math.round(volumeLog(log));
   // Même estimation que l'accueil et Progrès : MET × poids × durée (et non
   // plus 8 kcal/min pour tout le monde, quel que soit le poids).
-  const kcal = caloriesSeance(log.dureeSec, (Etat.data.profil || {}).poidsKg);
+  const cal = caloriesLog(log, (Etat.data.profil || {}).poidsKg, getExercise);
+  const kcal = cal.total;
   const sheet = h(`<div class="sheet finseance"><div class="inner"></div></div>`);
   const inner = sheet.querySelector(".inner");
   // « Excellent travail, continue comme ça ! » ne disait rien, et on cesse de le
@@ -3116,6 +3154,16 @@ function ecranFinSeance(log, prs) {
   g.append(statCard(IC.flame, kcal ? `≈ ${kcal}` : "—", "kcal estimées"));
   g.append(statCard(IC.trophy, `${prs.length}`, prs.length > 1 ? "Records" : "Record"));
   inner.append(g);
+  // Effort perçu moyen : RPE saisi, ou déduit du RIR (et dit comme tel).
+  const eff = effortMoyen(seriesDe(log));
+  if (eff.n) inner.append(h(`<div class="small muted" style="margin-top:var(--space-2)">Effort moyen : <b>RPE ${String(eff.rpe).replace(".", ",")}</b> sur ${eff.n} série${eff.n > 1 ? "s" : ""} notée${eff.n > 1 ? "s" : ""}${eff.deduites ? ` (dont ${eff.deduites} déduite${eff.deduites > 1 ? "s" : ""} du RIR)` : ""}.</div>`));
+  // Le détail de l'estimation, quand la séance contient du cardio ou des
+  // maintiens : on montre d'où vient le chiffre plutôt que de le donner à croire.
+  if (cal.exercices.length) {
+    const parts = cal.exercices.map((x) => `${nomExo(x.exerciceId)} ${String(x.met).replace(".", ",")} MET${x.base && x.base !== "maintien" ? ` (${x.base})` : ""} ≈ ${x.kcal} kcal`);
+    if (cal.musculation.kcal) parts.push(`musculation et repos ${cal.musculation.met} MET ≈ ${cal.musculation.kcal} kcal`);
+    inner.append(h(`<div class="hint">${esc(parts.join(" · "))}. MET du Compendium 2024 des activités physiques ; estimation, pas une mesure.</div>`));
+  }
   if (prs.length) {
     const rc = h(`<div class="card stack" style="margin-top:14px"><b class="fin-pr">${medaille({ rang: Math.min(5, prs.length + 2), taille: 26 })}${prs.length > 1 ? "Nouveaux records" : "Nouveau record"}</b></div>`);
     prs.forEach((r) => rc.append(h(`<div class="small">• ${esc(r.nom)} : ${esc(etiquettePR(r))}</div>`)));
@@ -3160,6 +3208,18 @@ function ecranFinSeance(log, prs) {
   const bFin = h(`<button class="primary big" style="flex:1">Terminer</button>`);
   bFin.addEventListener("click", () => { sheet.remove(); nav("dash"); });
   acts.append(bVoir, bFin);
+  // Note de séance : contexte qu'aucun chiffre ne porte (sommeil, énergie,
+  // douleur). Enregistrée au fil de la frappe avec la séance.
+  const noteS = h(`<label class="fin-note small muted">Note de séance (facultatif)<textarea rows="2" maxlength="500" placeholder="Énergie, sommeil, contexte…" aria-label="Note de séance"></textarea></label>`);
+  const zoneNote = noteS.querySelector("textarea");
+  zoneNote.value = log.note || "";
+  let tNote = null;
+  zoneNote.addEventListener("input", () => {
+    clearTimeout(tNote);
+    tNote = setTimeout(() => { const t = zoneNote.value.trim().slice(0, 500); if (t) log.note = t; else delete log.note; Etat.sauver(); }, 400);
+  });
+  zoneNote.addEventListener("blur", () => { clearTimeout(tNote); const t = zoneNote.value.trim().slice(0, 500); if (t) log.note = t; else delete log.note; Etat.sauver(); });
+  inner.append(noteS);
   inner.append(acts);
   document.body.append(sheet);
 }
@@ -4688,6 +4748,7 @@ function ouvrirOutils(cleInitiale = null) {
     { cle: "max", nom: "Estimation du maximum", sous: "Ton 1RM à partir d'une série réalisée", ic: IC.dumbbell, cls: "mi-indigo", vue: outilMax },
     { cle: "compo", nom: "Composition corporelle", sous: "Masse grasse et masse maigre, avec ou sans balance", ic: IC.user, cls: "mi-orange", vue: outilComposition },
     { cle: "velo", nom: "Test cardio vélo", sous: "Protocole à paliers, à refaire chaque mois", ic: IC.bars, cls: "mi-blue", vue: outilTestVelo },
+    { cle: "intervalles", nom: "Minuteur EMOM / Tabata", sous: "Tours chronométrés, bips au changement de phase", ic: IC.clock, cls: "mi-red", vue: outilIntervalles },
   ];
 
   const liste = h(`<div class="stack" style="margin-top:12px"></div>`);
@@ -4714,6 +4775,79 @@ function ouvrirOutils(cleInitiale = null) {
   document.body.append(sheet);
   const dep = OUTILS.find((o) => o.cle === cleInitiale);
   if (dep) ouvrir(dep);
+}
+
+/* ---------- Minuteur d'intervalles (EMOM, Tabata, libre) ---------- */
+let INTERVALLE = { ...PRESETS_INTERVALLES[0] };
+function outilIntervalles() {
+  const box = h(`<div class="stack itv"></div>`);
+  let debut = null, tick = null, dernierePhase = null, dernierBip = null;
+  const presets = h(`<div class="row" role="group" aria-label="Préréglages"></div>`);
+  PRESETS_INTERVALLES.forEach((p) => {
+    const b = h(`<button class="chip ${INTERVALLE.cle === p.cle ? "on" : ""}">${esc(p.nom)}</button>`);
+    b.addEventListener("click", () => { if (debut) return; INTERVALLE = { ...p }; remplir(); presets.querySelectorAll(".chip").forEach((x) => x.classList.toggle("on", x === b)); });
+    presets.append(b);
+  });
+  const champs = h(`<div class="itv-champs">
+    <label class="small">Tours<input inputmode="numeric" data-k="tours"></label>
+    <label class="small">Travail (s)<input inputmode="numeric" data-k="travailSec"></label>
+    <label class="small">Repos (s)<input inputmode="numeric" data-k="reposSec"></label></div>`);
+  const remplir = () => champs.querySelectorAll("input").forEach((i) => { i.value = String(INTERVALLE[i.dataset.k]); });
+  champs.addEventListener("input", (ev) => {
+    const k = ev.target.dataset.k; if (!k) return;
+    INTERVALLE = { cle: "libre", nom: "Libre", ...normaliserIntervalle({ ...INTERVALLE, [k]: ev.target.value }) };
+    presets.querySelectorAll(".chip").forEach((x) => x.classList.remove("on"));
+    majAffichage();
+  });
+  const ecran = h(`<div class="itv-ecran" aria-live="polite"><span class="itv-phase eyebrow"></span><b class="itv-temps num"></b><span class="itv-tour small muted"></span></div>`);
+  const bGo = h(`<button class="primary big"></button>`);
+  const fmt = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+  function majAffichage() {
+    const c = normaliserIntervalle(INTERVALLE);
+    if (!debut) {
+      ecran.dataset.phase = "attente";
+      ecran.querySelector(".itv-phase").textContent = "Prêt";
+      ecran.querySelector(".itv-temps").textContent = fmt(dureeTotaleIntervalle(c));
+      ecran.querySelector(".itv-tour").textContent = `${c.tours} tour${c.tours > 1 ? "s" : ""} · ${c.travailSec} s${c.reposSec ? ` / ${c.reposSec} s` : ""}`;
+      bGo.innerHTML = `<span class="btn-ico">${IC.play}</span>Démarrer`;
+      return;
+    }
+    const e = etatIntervalle(c, debut, Date.now());
+    ecran.dataset.phase = e.phase;
+    ecran.querySelector(".itv-phase").textContent = e.phase === "travail" ? "Travail" : e.phase === "repos" ? "Repos" : "Terminé";
+    ecran.querySelector(".itv-temps").textContent = fmt(e.restantSec);
+    ecran.querySelector(".itv-tour").textContent = e.phase === "fini" ? `${e.tours} tours faits` : `Tour ${e.tour} / ${e.tours}`;
+    // Bips : changement de phase, puis les 3 dernières secondes de chaque phase.
+    const cle = `${e.phase}:${e.tour}`;
+    if (cle !== dernierePhase) {
+      if (dernierePhase) jouer(e.phase === "travail" ? "reprise" : e.phase === "repos" ? "valider" : "termine", Etat.data.reglages);
+      try { if (Etat.data.reglages.vibrations !== false) navigator.vibrate?.(e.phase === "fini" ? [80, 60, 80] : 40); } catch (er) {}
+      dernierePhase = cle;
+    }
+    if (e.phase !== "fini" && e.restantSec <= 3 && dernierBip !== `${cle}:${e.restantSec}`) { dernierBip = `${cle}:${e.restantSec}`; jouer("compte", Etat.data.reglages); }
+    if (e.phase === "fini") arreter(false);
+  }
+  function arreter(reinit = true) {
+    clearInterval(tick); tick = null;
+    if (reinit) { debut = null; dernierePhase = null; majAffichage(); }
+    else { debut = null; bGo.innerHTML = `<span class="btn-ico">${IC.repeat}</span>Recommencer`; }
+    champs.querySelectorAll("input").forEach((i) => { i.disabled = false; });
+  }
+  bGo.addEventListener("click", () => {
+    if (tick) { arreter(); return; }
+    amorcerSon();
+    debut = Date.now(); dernierePhase = null; dernierBip = null;
+    champs.querySelectorAll("input").forEach((i) => { i.disabled = true; });
+    bGo.innerHTML = `<span class="btn-ico">${IC.x}</span>Arrêter`;
+    jouer("reprise", Etat.data.reglages);
+    // Le minuteur s'arrête seul quand sa carte quitte l'écran (feuille fermée).
+    tick = setInterval(() => { if (!box.isConnected) { clearInterval(tick); tick = null; return; } majAffichage(); }, 250);
+    majAffichage();
+  });
+  box.append(presets, champs, ecran, bGo,
+    h(`<div class="hint">EMOM : au top de chaque minute, fais tes répétitions ; le reste de la minute est ton repos. Garde l'écran allumé pendant le minuteur.</div>`));
+  remplir(); majAffichage();
+  return box;
 }
 
 /* ---------- 1. Fréquence cardiaque cible ---------- */
@@ -5043,9 +5177,9 @@ function contexteUtilisateur(opts = {}) {
           const best = (e.series || []).reduce((m, x) => (!m || score(x) > score(m) ? x : m), null);
           const txt = best ? texteSerieLog(best, (kg) => `${kg} kg`) : "";
           const effort = best && best.rpe != null ? `, RPE ${best.rpe}` : best && best.rir != null ? `, RIR ${best.rir}` : "";
-          return `${nomExo(e.exerciceId)} ${(e.series || []).length} séries${txt && txt !== "—" ? ` (max ${txt}${effort})` : ""}${e.douleur ? " [douleur signalée]" : ""}`;
+          return `${nomExo(e.exerciceId)} ${(e.series || []).length} séries${txt && txt !== "—" ? ` (max ${txt}${effort})` : ""}${e.douleur ? " [douleur signalée]" : ""}${e.note ? ` [note : ${String(e.note).slice(0, 120)}]` : ""}`;
         }).join(" ; ");
-        l.push(`- ${String(lg.date).slice(0, 10)} ${lg.seanceNom || "séance"} (${Math.round((lg.dureeSec || 0) / 60)} min) : ${ex}`);
+        l.push(`- ${String(lg.date).slice(0, 10)} ${lg.seanceNom || "séance"} (${Math.round((lg.dureeSec || 0) / 60)} min) : ${ex}${lg.note ? ` — note de séance : ${String(lg.note).slice(0, 160)}` : ""}`);
       });
     }
     const recs = classementRecords(logs, nomExo, 8);
@@ -6993,7 +7127,7 @@ function vStats(v) {
   g.append(statCard(IC.dumbbell, `${lp.length}`, "Séances"));
   g.append(statCard(IC.clock, `${Math.floor(dureeP / 60)}h${String(dureeP % 60).padStart(2, "0")}`, "Temps total"));
   g.append(statCard(IC.bars, uVolume(volP).replace(/ (kg|lb)$/, ""), `Volume ${uUnite()}`));
-  const kcalP = lp.reduce((a, l) => a + caloriesSeance(l.dureeSec, (p || {}).poidsKg), 0);
+  const kcalP = lp.reduce((a, l) => a + kcalLog(l), 0);
   g.append(statCard(IC.flame, kcalP.toLocaleString("fr-FR"), "kcal estimées"));
   v.append(g);
 

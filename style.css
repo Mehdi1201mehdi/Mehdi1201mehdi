@@ -579,6 +579,9 @@ button.linklike{background:transparent;border:none;min-height:44px;display:inlin
 .setrow .sertag{display:block;font-size:.55rem;letter-spacing:.05em;font-weight:800;line-height:1;margin-top:1px}
 .setrow.serie-drop:not(.vdone){background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 12%,transparent),transparent 58%)}
 .setrow.serie-rest_pause:not(.vdone){background:linear-gradient(90deg,var(--amber-soft),transparent 58%)}
+.setrow.serie-amrap:not(.vdone){background:linear-gradient(90deg,color-mix(in srgb,var(--ok) 14%,transparent),transparent 58%)}
+.setrow.serie-echauffement:not(.vdone) input{opacity:.75}
+.setrow.serie-echauffement .serie{color:var(--ink-soft)}
 .ss-tag{display:inline-block;margin-top:3px;padding:1px 7px;border-radius:999px;font-size:var(--fs-caption);
   font-weight:800;letter-spacing:.04em;background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent)}
 
@@ -1051,7 +1054,8 @@ body.guide-open{overflow:hidden}
 /* Ligne de contexte unique, dépliable d'un tap pour lire le conseil complet */
 .exometa{display:flex;align-items:center;gap:6px;width:100%;text-align:left;padding:11px 0;min-height:44px;
   background:none;border:0;color:var(--ink-soft);font-size:.78rem;font-weight:600}
-.exometa .sug{color:var(--accent-ink)}
+.exometa .sug{color:var(--accent-ink);white-space:nowrap}
+.exometa-t{flex:1 1 auto;min-width:0;line-height:1.5}
 .exometa-i{width:14px;height:14px;margin:0 0 0 auto;flex:0 0 auto;opacity:.65}
 .exometa[aria-expanded="true"] .exometa-i{opacity:1;color:var(--accent)}
 /* Une seule rangée d'actions : le reste passe dans le menu ⋯ */
@@ -2765,3 +2769,20 @@ button.sem-bilan{display:flex;flex-direction:column;align-items:stretch;gap:10px
 .mes-in i{position:absolute;right:.8em;top:50%;transform:translateY(-50%);font-style:normal;font-size:.8rem;color:var(--ink-soft);pointer-events:none}
 .mes-saisie > .primary.big{margin-top:var(--space-4);width:100%}
 .mes-ancien{color:var(--ink-soft)}
+
+/* Notes : exercice (séance active) et séance (écran de fin). */
+.exo-note{display:flex;gap:var(--space-2);align-items:flex-start;padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);background:var(--surface-2);overflow-wrap:anywhere}
+.exo-note .cic{flex:none;margin-top:2px}
+.fin-note{display:flex;flex-direction:column;gap:var(--space-1);margin-top:var(--space-4)}
+.fin-note textarea{width:100%;resize:vertical;min-height:64px}
+
+/* ---------- Minuteur d'intervalles ---------- */
+.itv-champs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-2)}
+.itv-champs label{display:flex;flex-direction:column;gap:4px;font-weight:700}
+.itv-champs input{min-height:var(--tap);text-align:center;font-weight:800;font-variant-numeric:tabular-nums}
+.itv-ecran{display:flex;flex-direction:column;align-items:center;gap:var(--space-1);padding:var(--space-5) var(--space-3);border-radius:var(--radius);background:var(--surface-2);transition:background .25s var(--ease)}
+.itv-temps{font-size:clamp(3rem,18vw,4.5rem);font-weight:900;line-height:1;letter-spacing:-.02em;color:var(--ink)}
+.itv-ecran[data-phase="travail"]{background:color-mix(in srgb,var(--accent) 22%,var(--surface-2))}
+.itv-ecran[data-phase="travail"] .itv-phase{color:var(--accent-ink)}
+.itv-ecran[data-phase="repos"] .itv-phase{color:var(--ok)}
+@media (prefers-reduced-motion:reduce){.itv-ecran{transition:none}}

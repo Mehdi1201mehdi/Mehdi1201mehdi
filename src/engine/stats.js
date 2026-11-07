@@ -3,7 +3,7 @@
  * Statistiques d'entraînement — fonctions PURES (aucun DOM/stockage).
  * Volume = somme de (charge × répétitions) sur toutes les séries.
  */
-import { e1rmFiable } from "./records.js";
+import { e1rmFiable, estSerieTravail } from "./records.js";
 import { vitesseKmh } from "./mesures.js";
 
 /** Lundi (YYYY-MM-DD) de la semaine ISO contenant `dateStr`. */
@@ -18,7 +18,7 @@ export function lundiDe(dateStr) {
 export function volumeLog(log) {
   let v = 0;
   for (const e of (log && log.exercices) || []) {
-    for (const s of e.series || []) v += (Number(s.chargeKg) || 0) * (Number(s.reps) || 0);
+    for (const s of e.series || []) if (estSerieTravail(s)) v += (Number(s.chargeKg) || 0) * (Number(s.reps) || 0);
   }
   return v;
 }
@@ -151,6 +151,7 @@ export function serieExercice(logs, exerciceId, metrique) {
     let v = 0, porte = false;
     for (const e of exs) {
       for (const s of e.series || []) {
+        if (!estSerieTravail(s)) continue;
         const kg = Number(s.chargeKg) || 0, reps = Number(s.reps) || 0;
         const dist = Number(s.distanceM) || 0, duree = Number(s.dureeSec) || 0;
         if (metrique === "poids") v = Math.max(v, kg);

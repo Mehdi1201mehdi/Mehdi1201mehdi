@@ -128,7 +128,10 @@ test("reconcilier : complète l'état live si la séance a changé pendant la s�
 test("cyclerType : normale → drop → rest-pause → normale, valeur inconnue ramenée à normale", () => {
   assert.equal(cyclerType("normale"), "drop");
   assert.equal(cyclerType("drop"), "rest_pause");
-  assert.equal(cyclerType("rest_pause"), "normale");
+  // Types ajoutés en fin de cycle : le premier tap donne toujours un drop set.
+  assert.equal(cyclerType("rest_pause"), "amrap");
+  assert.equal(cyclerType("amrap"), "echauffement");
+  assert.equal(cyclerType("echauffement"), "normale");
   assert.equal(cyclerType(undefined), "drop");   // undefined ≡ normale
   assert.equal(cyclerType("n'importe quoi"), "drop");
 });

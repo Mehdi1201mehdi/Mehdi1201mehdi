@@ -16,7 +16,7 @@
  *
  * Fonctions PURES, testées (tests/analyse.test.js).
  */
-import { e1rmFiable } from "./records.js";
+import { e1rmFiable, estSerieTravail } from "./records.js";
 import { METRIQUES_EXO, serieExercice, lundiDe } from "./stats.js";
 
 /** Définitions affichées dans l'app (une phrase chacune, sans jargon). */
@@ -38,6 +38,7 @@ export function references1RM(logs) {
   for (const l of logs || []) {
     for (const e of (l && l.exercices) || []) {
       for (const s of e.series || []) {
+        if (!estSerieTravail(s)) continue;
         const v = e1rmFiable(s.chargeKg, s.reps);
         if (v > (ref[e.exerciceId] || 0)) ref[e.exerciceId] = v;
       }
@@ -60,6 +61,7 @@ export function chargeEntrainement(logs, refs) {
   for (const l of logs || []) {
     for (const e of (l && l.exercices) || []) {
       for (const s of e.series || []) {
+        if (!estSerieTravail(s)) continue;
         const kg = Number(s.chargeKg) || 0, n = Number(s.reps) || 0;
         const dm = Number(s.distanceM) || 0, ds = Number(s.dureeSec) || 0;
         series++;
@@ -213,4 +215,44 @@ export function progressionMensuelle(logs, exerciceId, metrique) {
     prec = val;
   }
   return out;
+}
+
+/**
+ * RPE d'une série : celui SAISI (0–10) s'il existe, sinon déduit du RIR par la
+ * correspondance usuelle RPE = 10 − RIR (Zourdos et al., 2016), signalée comme
+ * déduite. null si aucun effort n'a été noté.
+ * @param {any} s
+ * @returns {{rpe:number, deduit:boolean}|null}
+ */
+export function rpeSerie(s) {
+  if (!s) return null;
+  const r = Number(s.rpe);
+  if (s.rpe != null && s.rpe !== "" && Number.isFinite(r)) return { rpe: r, deduit: false };
+  const rir = Number(s.rir);
+  if (s.rir != null && s.rir !== "" && Number.isFinite(rir)) return { rpe: Math.max(0, Math.min(10, 10 - rir)), deduit: true };
+  return null;
+}
+
+/**
+ * Effort moyen d'une liste de séries (RPE moyen, au demi-point), avec le nombre
+ * de séries notées et la part déduite du RIR.
+ * @param {any[]} series
+ * @returns {{rpe:number|null, n:number, deduites:number}}
+ */
+export function effortMoyen(series) {
+  let somme = 0, n = 0, deduites = 0;
+  for (const s of series || []) {
+    const e = rpeSerie(s);
+    if (!e) continue;
+    somme += e.rpe; n++;
+    if (e.deduit) deduites++;
+  }
+  return { rpe: n ? Math.round((somme / n) * 2) / 2 : null, n, deduites };
+}
+
+/** Toutes les séries d'une séance (ou d'un exercice de la séance). */
+export function seriesDe(log, exerciceId = null) {
+  return ((log && log.exercices) || [])
+    .filter((e) => !exerciceId || e.exerciceId === exerciceId)
+    .flatMap((e) => e.series || []);
 }

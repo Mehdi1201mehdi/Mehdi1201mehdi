@@ -16,7 +16,7 @@
  *
  * Fonctions PURES.
  */
-import { e1rmFiable } from "./records.js";
+import { e1rmFiable, estSerieTravail } from "./records.js";
 
 /** @typedef {{charge:boolean, reps:boolean, distance:boolean, duree:boolean, isometrique:boolean}} Mesures */
 
@@ -216,6 +216,7 @@ export function meilleuresPerfs(logs) {
       const b = out[e.exerciceId] || (out[e.exerciceId] = { chargeMax: 0, repsMax: 0, e1rmMax: 0, volumeSerieMax: 0, volumeSeanceMax: 0, distanceMax: 0, dureeMax: 0, vitesseMax: 0 });
       let volSeance = 0;
       for (const s of e.series || []) {
+        if (!estSerieTravail(s)) continue;
         const kg = Number(s.chargeKg) || 0, reps = Number(s.reps) || 0;
         const dist = Number(s.distanceM) || 0, duree = Number(s.dureeSec) || 0;
         if (kg > 0 && reps > 0) b.chargeMax = Math.max(b.chargeMax, kg);

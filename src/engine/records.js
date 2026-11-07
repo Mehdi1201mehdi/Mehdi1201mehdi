@@ -29,6 +29,16 @@ export function e1rmFiable(kg, reps) {
   return Number(reps) <= REPS_MAX_1RM ? e1rmEpley(kg, reps) : 0;
 }
 
+/**
+ * Série de TRAVAIL ? Les séries d'échauffement (type « echauffement ») sont
+ * gardées dans l'historique mais n'entrent ni dans les records, ni dans le
+ * tonnage, ni dans les courbes : 5 × 60 kg d'approche ne sont pas un record de
+ * répétitions, et gonfleraient le volume.
+ */
+export function estSerieTravail(s) {
+  return !!s && s.type !== "echauffement";
+}
+
 /** Volume d'une série (charge × reps). Le poids du corps (0 kg) compte 0 en charge. */
 function volSerie(s) {
   return (Number(s.chargeKg) || 0) * (Number(s.reps) || 0);
@@ -46,6 +56,7 @@ export function meilleursParExercice(logs) {
     for (const e of l.exercices || []) {
       const b = best[e.exerciceId] || { poidsMax: 0, repsMax: 0, e1rmMax: 0, volMax: 0, charge: 0, reps: 0 };
       for (const s of e.series || []) {
+        if (!estSerieTravail(s)) continue;
         const kg = Number(s.chargeKg) || 0, reps = Number(s.reps) || 0;
         if (reps <= 0 && !s.dureeSec) continue;
         if (kg > b.poidsMax) b.poidsMax = kg;

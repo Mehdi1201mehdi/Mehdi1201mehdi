@@ -108,3 +108,15 @@ test("comparaison à même stade : le début du mois n'est pas comparé au mois 
   assert.equal(s.actuelle.seances, 1);
   assert.equal(s.precedente.seances, 0);
 });
+
+import { rpeSerie, effortMoyen, seriesDe } from "../src/engine/analyse.js";
+test("RPE : saisi en priorité, sinon déduit du RIR (10 − RIR), moyenne au demi-point", () => {
+  assert.deepEqual(rpeSerie({ rpe: 8.5, rir: 1.5 }), { rpe: 8.5, deduit: false });
+  assert.deepEqual(rpeSerie({ rir: 2 }), { rpe: 8, deduit: true });
+  assert.equal(rpeSerie({ chargeKg: 80, reps: 8 }), null);
+  assert.deepEqual(effortMoyen([{ rpe: 9 }, { rir: 3 }, { reps: 5 }]), { rpe: 8, n: 2, deduites: 1 });
+  assert.deepEqual(effortMoyen([]), { rpe: null, n: 0, deduites: 0 });
+  const log = { exercices: [{ exerciceId: "a", series: [{ rpe: 7 }] }, { exerciceId: "b", series: [{ rpe: 9 }] }] };
+  assert.equal(seriesDe(log).length, 2);
+  assert.equal(effortMoyen(seriesDe(log, "b")).rpe, 9);
+});
