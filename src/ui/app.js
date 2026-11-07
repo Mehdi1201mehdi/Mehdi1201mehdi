@@ -36,6 +36,7 @@ import { CHAMPS_MESURES, CHAMPS_SAISIE, GROUPES_MESURES, champMesure, construire
 import { estNatif, partagerFichier, notifsNativesDispo, autoriserNotifs, programmerFinRepos, annulerFinRepos } from "./natif.js";
 import { bilanSemaine, formatDuree, MET_MUSCULATION } from "../engine/activite.js";
 import { caloriesLog } from "../engine/calories.js";
+import * as SanteConnect from "../integrations/santeConnect.js";
 import { PRESETS_INTERVALLES, normaliserIntervalle, etatIntervalle, dureeTotaleIntervalle } from "../engine/intervalles.js";
 import { catalogueCompact, extraireProposition, routineDepuisProposition, htmlLeger, demandeDePlan, differenceRoutines } from "../engine/coachRoutine.js";
 import { $, esc, h } from "./dom.js";
@@ -1785,7 +1786,7 @@ function ouvrirDetail(exo) {
       // Les tuiles suivent ce que l'exercice MESURE : une course n'a ni charge
       // maximale ni 1RM, une planche se juge à sa durée de maintien.
       const mes = mesuresExercice(exo);
-      const bp = meilleuresPerfs(Etat.data.logs)[exo.id] || {};
+      const bp = /** @type {any} */ (meilleuresPerfs(Etat.data.logs)[exo.id] || {});
       if (mes.distance) {
         g.append(statCard(IC.activity, bp.distanceMax ? texteDistance(bp.distanceMax) : "—", "Distance max"));
         // L'unité passe dans le libellé : « 13,3 km/h » ne tient pas dans une
@@ -6627,6 +6628,7 @@ function listeMensuelle(exId, metrique) {
 }
 
 /* ---------- Charge d'entraînement : tonnage, volume, intensité ---------- */
+/** @type {{unite:"semaine"|"mois", mesure:string}} */
 let CHARGE_VUE = { unite: "semaine", mesure: "tonnage" };
 function carteChargeEntrainement(b) {
   const logs = Etat.data.logs || [];
@@ -6639,7 +6641,7 @@ function carteChargeEntrainement(b) {
   const chips = h(`<div class="row ct-chips" role="group" aria-label="Période"></div>`);
   [["semaine", "Semaine"], ["mois", "Mois"]].forEach(([val, lab]) => {
     const c = h(`<button class="chip ${CHARGE_VUE.unite === val ? "on" : ""}" aria-pressed="${CHARGE_VUE.unite === val}">${lab}</button>`);
-    c.addEventListener("click", () => { CHARGE_VUE.unite = val; render(); });
+    c.addEventListener("click", () => { CHARGE_VUE.unite = /** @type {"semaine"|"mois"} */ (val); render(); });
     chips.append(c);
   });
   b.append(chips);
@@ -7386,6 +7388,76 @@ function vStats(v) {
   }
 }
 
+/* ---------- Santé Connect : lecture seule, import sur demande ---------- */
+function carteSanteConnect(b) {
+  const lien = `<a href="privacypolicy.html" target="_blank" rel="noopener">règles de confidentialité</a>`;
+  if (!estNatif()) {
+    b.append(h(`<div class="small muted">Dans l'application Android, ${esc(IDENTITE.nom)} peut <b>lire</b> dans Santé Connect ton poids, ta taille, ta masse grasse et tes activités (distance, calories, séances). Rien n'est écrit, rien n'est envoyé : voir les ${lien}.</div>`));
+    return;
+  }
+  const statut = h(`<div class="small muted">Vérification de Santé Connect…</div>`);
+  const zone = h(`<div class="stack sc-zone"></div>`);
+  const acts = h(`<div class="sc-actions"></div>`);
+  const bAut = h(`<button class="primary sc-large">Autoriser la lecture</button>`);
+  const bMes = h(`<button>Mes mesures</button>`);
+  const bAct = h(`<button>Activités 7 j</button>`);
+  const bReg = h(`<button class="secondary sc-large">Gérer les autorisations</button>`);
+  acts.append(bAut, bMes, bAct, bReg);
+  b.append(statut, acts, zone, h(`<div class="hint">Lecture seule de 6 types de données, à ta demande. Tu peux retirer l'accès à tout moment dans Santé Connect. Voir les ${lien}.</div>`));
+  SanteConnect.disponibilite().then((d) => {
+    statut.textContent = d.ok ? "Santé Connect est disponible sur ce téléphone."
+      : "Santé Connect n'est pas disponible : installe ou mets à jour l'application « Santé Connect » (Android 13 et moins), puis réessaie.";
+    [bAut, bMes, bAct].forEach((x) => { x.disabled = !d.ok; });
+  });
+  bAut.addEventListener("click", async () => {
+    try {
+      const r = await SanteConnect.autoriser();
+      const ok = (r && r.readAuthorized) || [];
+      toast(ok.length ? `${ok.length} type${ok.length > 1 ? "s" : ""} autorisé${ok.length > 1 ? "s" : ""}` : "Aucune autorisation accordée");
+    } catch (e) { toast("Autorisation impossible"); }
+  });
+  bReg.addEventListener("click", () => SanteConnect.ouvrirReglages());
+  bMes.addEventListener("click", async () => {
+    zone.innerHTML = `<div class="small muted">Lecture…</div>`;
+    const m = await SanteConnect.lireMesures();
+    zone.innerHTML = "";
+    /** @type {[string, string, (x:number)=>string][]} */
+    const champs = [["poidsKg", "Poids", (x) => uCharge(x)], ["masseGrassePct", "Masse grasse", (x) => `${String(x).replace(".", ",")} %`], ["tailleCm", "Taille", (x) => `${Math.round(x)} cm`]];
+    const lignes = champs.filter(([k]) => m[k]);
+    if (!lignes.length) { zone.append(h(`<div class="notice small">Aucune mesure lisible (autorisation refusée, ou rien d'enregistré dans Santé Connect sur l'année).</div>`)); return; }
+    lignes.forEach(([k, lab, fmt]) => {
+      const x = m[k];
+      const deja = k === "tailleCm" ? Math.round(Etat.data.profil?.tailleCm || 0) === Math.round(x.v)
+        : (Etat.data.metrics || []).some((r) => r[k] === x.v && jourLocal(r.date) === jourLocal(x.date));
+      const ligne = h(`<div class="spread sc-ligne"><span><b>${lab}</b> <span class="num">${fmt(x.v)}</span><br><span class="muted small">${esc(new Date(x.date).toLocaleDateString("fr-FR"))} · ${esc(x.source)}</span></span></div>`);
+      if (deja) ligne.append(h(`<span class="badge ok">déjà enregistré</span>`));
+      else {
+        const bAdd = h(`<button class="chip" aria-label="${k === "tailleCm" ? "Mettre cette taille dans mon profil" : `Ajouter ce ${lab === "Poids" ? "poids" : "taux de masse grasse"} à mes mesures`}">${k === "tailleCm" ? "Au profil" : "Ajouter"}</button>`);
+        bAdd.addEventListener("click", () => {
+          if (k === "tailleCm") { Etat.data.profil.tailleCm = Math.round(x.v); Etat.sauver(); }
+          else {
+            const r = construireReleve({ [k]: x.v }, new Date(x.date).toISOString(), Etat.uid());
+            if (r.ok === false) { toast(r.erreurs[0]); return; }
+            Etat.data.metrics.push(r.releve); Etat.sauver();
+          }
+          bAdd.replaceWith(h(`<span class="badge ok">ajouté</span>`));
+          toast(`${lab} importé de Santé Connect`);
+        });
+        ligne.append(bAdd);
+      }
+      zone.append(ligne);
+    });
+  });
+  bAct.addEventListener("click", async () => {
+    zone.innerHTML = `<div class="small muted">Lecture…</div>`;
+    const a = await SanteConnect.lireActivites(7);
+    zone.innerHTML = "";
+    if (!a.liste.length) { zone.append(h(`<div class="notice small">Aucune séance dans Santé Connect sur 7 jours (ou lecture non autorisée).</div>`)); return; }
+    zone.append(h(`<div class="small"><b>${a.total.seances} séance${a.total.seances > 1 ? "s" : ""}</b> · ${texteDuree(a.total.dureeSec)}${a.total.distanceM ? ` · ${texteDistance(a.total.distanceM)}` : ""}${a.total.kcal ? ` · ${a.total.kcal} kcal (selon la source)` : ""}</div>`));
+    a.liste.slice(0, 10).forEach((x) => zone.append(h(`<div class="spread sc-ligne small"><span><b>${esc(x.type)}</b> · ${esc(new Date(x.date).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" }))}<br><span class="muted">${esc(x.source)}</span></span><span class="num">${texteDuree(x.dureeSec)}${x.distanceM ? ` · ${texteDistance(x.distanceM)}` : ""}</span></div>`)));
+  });
+}
+
 /* ---------- Mensurations : 16 mesures, comparaison de dates, asymétries ---------- */
 let MES_CMP = { a: null, b: null };
 /** Valeur d'une mesure dans l'unité de l'utilisateur. */
@@ -7489,6 +7561,7 @@ function ouvrirSaisieMesures() {
   const bOk = h(`<button class="primary big">Enregistrer la mesure</button>`);
   inner.append(err, bOk);
   bOk.addEventListener("click", () => {
+    /** @type {Record<string, number>} */
     const valeurs = {};
     inner.querySelectorAll("input[data-cle]").forEach((inp) => {
       const c = champMesure(inp.dataset.cle);
@@ -7512,7 +7585,7 @@ function ouvrirSaisieMesures() {
     // Aujourd'hui : l'heure réelle ; un autre jour : midi local (ordre stable).
     const dateISO = jour === auj ? new Date().toISOString() : new Date(jour + "T12:00:00").toISOString();
     const r = construireReleve(valeurs, dateISO, Etat.uid());
-    if (!r.ok) { err.hidden = false; err.textContent = r.erreurs.join(" "); return; }
+    if (r.ok === false) { err.hidden = false; err.textContent = r.erreurs.join(" "); return; }
     Etat.data.metrics.push(r.releve);
     Etat.sauver();
     fermer();
@@ -7843,6 +7916,7 @@ function vSet(v) {
   const bDel = h(`<button class="danger">Tout effacer</button>`);
   bDel.addEventListener("click", async () => { if (await confirmer("Effacer TOUTES les données (profil, programme, historique) ? Cette action est irréversible.", { danger: true, ok: "Tout effacer" })) { Etat.reset(); DRAFT = null; STEP = 0; $("#tabs").hidden = true; render(); } });
   don.append(bExp, bImp, file, bExpCsvSeances, bExpCsvPoids, bDel);
+  section(v, "p-sante", "Santé Connect", (b) => carteSanteConnect(b), { resume: estNatif() ? "lecture seule" : "Android" });
   section(v, "p-data", "Mes données & sauvegarde", (b) => b.append(don));
 
   v.append(h(`<div class="card flat small muted">${esc(IDENTITE.nom)} — ${esc(IDENTITE.signature)}</div>`));

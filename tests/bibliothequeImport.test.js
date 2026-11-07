@@ -3,7 +3,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { CATALOGUE, chargerCatalogueEtendu, chercherCatalogue, getExercise } from "../src/data/exercises.js";
 import { FEDB_EXERCISES } from "../src/data/exercises-fedb.js";
-import { MUSCLES, EQUIPMENTS, EQUIPMENT_LABELS, MOVEMENT_PATTERNS } from "../src/models.js";
+import * as M from "../src/models.js";
+
+// Listes vues comme des chaînes : on teste justement des valeurs venues d'un import.
+const MUSCLES = /** @type {readonly string[]} */ (M.MUSCLES);
+const EQUIPMENTS = /** @type {readonly string[]} */ (M.EQUIPMENTS);
+const MOVEMENT_PATTERNS = /** @type {readonly string[]} */ (M.MOVEMENT_PATTERNS);
+const { EQUIPMENT_LABELS } = M;
 
 test("free-exercise-db : métadonnées seules, licence et source sur chaque fiche", () => {
   assert.ok(FEDB_EXERCISES.length > 800, `${FEDB_EXERCISES.length} exercices importés`);

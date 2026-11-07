@@ -69,7 +69,7 @@ export function validerMesure(cle, v) {
 /**
  * Construit un relevé à partir de valeurs DÉJÀ converties (kg, cm, %).
  * Les champs vides sont ignorés ; un relevé sans aucune mesure est refusé.
- * @param {Record<string, number|null|undefined>} valeurs
+ * @param {Record<string, number|string|null|undefined>} valeurs
  * @param {string} dateISO
  * @param {string} id
  * @returns {{ok:true, releve:any}|{ok:false, erreurs:string[]}}
@@ -80,7 +80,7 @@ export function construireReleve(valeurs, dateISO, id) {
   for (const [cle, v] of Object.entries(valeurs || {})) {
     if (v === null || v === undefined || v === "") continue;
     const r = validerMesure(cle, v);
-    if (r.ok) releve[cle] = r.v; else erreurs.push(r.erreur);
+    if (r.ok === true) releve[cle] = r.v; else erreurs.push(r.erreur);
   }
   if (erreurs.length) return { ok: false, erreurs };
   if (Object.keys(releve).length <= 2) return { ok: false, erreurs: ["Aucune mesure saisie."] };

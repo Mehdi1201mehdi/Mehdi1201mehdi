@@ -108,7 +108,7 @@ test("séance cardio : km + minutes → mètres + secondes, sans charge, vitesse
   ];
   const gardees = live.filter((s) => serieAEnregistrer(s, "distance"));
   assert.equal(gardees.length, 1, "la série non faite n'est pas enregistrée");
-  const log = serieLogDepuisLive(gardees[0], { mode: "distance" });
+  const log = /** @type {any} */ (serieLogDepuisLive(gardees[0], { mode: "distance" }));
   assert.deepEqual([log.distanceM, log.dureeSec, log.chargeKg, log.reps], [5200, 1560, null, null]);
   assert.equal(texteSerieLog(log).replace(/\u00A0/g, " "), "5,2 km en 26:00 (12,0 km/h)");
   const tot = totauxDistance([log, { distanceM: 3000, dureeSec: 900 }]);

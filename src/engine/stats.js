@@ -126,7 +126,7 @@ export const METRIQUES_EXO = /** @type {const} */ ([
  * @returns {string[]}
  */
 export function metriquesPour(mesures) {
-  const m = mesures || { charge: true, reps: true };
+  const m = mesures || { charge: true, reps: true, distance: false, duree: false, isometrique: false };
   if (m.distance) return ["distance", "vitesse", "dureeTotale"];
   if (m.isometrique) return ["maintien", "poids"];
   if (!m.charge) return ["reps", "volume"];

@@ -566,7 +566,7 @@ function norm(s) {
 
 /**
  * Recherche/filtre dans le catalogue.
- * @param {{q?:string, muscle?:string, equip?:string}} [filtres]
+ * @param {{q?:string, muscle?:string, equip?:string, niveau?:string|number, type?:string}} [filtres]
  * @param {any[]} [list]
  */
 export function chercherCatalogue(filtres = {}, list = CATALOGUE) {

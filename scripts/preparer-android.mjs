@@ -20,7 +20,8 @@ const SORTIE = join(RACINE, "www");
 
 // Ce qui compose l'application web. Tout le reste (tests, docs, audits, outils
 // d'import, serveur relais, projet Android) n'a rien à faire dans l'APK.
-const FICHIERS = ["index.html", "boot.js", "style.css", "manifest.webmanifest", "sw.js"];
+// privacypolicy.html : affichée par Santé Connect (bouton « Règles de confidentialité »).
+const FICHIERS = ["index.html", "boot.js", "style.css", "manifest.webmanifest", "sw.js", "privacypolicy.html"];
 const DOSSIERS = ["assets", "src"];
 // Scripts Node d'import de données (exécutés en CI, pas dans le navigateur).
 const EXCLUS = [/\.mjs$/];

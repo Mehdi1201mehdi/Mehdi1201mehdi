@@ -24,7 +24,36 @@
     dans une WebView ; quand l'app passe en arrière-plan pendant un repos, la fin
     est programmée comme **notification Android à l'heure exacte**, annulée au
     retour dans l'app.
+- `src/integrations/santeConnect.js` — **Santé Connect (Health Connect), lecture
+  seule**, via le plugin `@capgo/capacitor-health` (MPL-2.0). Voir plus bas.
+- `privacypolicy.html` — règles de confidentialité, copiées dans l'APK
+  (`assets/public/`) : Santé Connect les affiche depuis sa feuille d'autorisation.
 - `.github/workflows/android-apk.yml` — compile l'APK sur les serveurs GitHub.
+
+## Santé Connect (lecture seule)
+
+Compte → **Santé Connect**. Rien ne se passe sans geste de l'utilisateur :
+
+| Étape | Ce que fait l'app |
+|---|---|
+| « Autoriser la lecture » | Ouvre la feuille d'autorisation de Santé Connect pour **6 lectures** : poids, taille, masse grasse, distance, calories actives, séances d'exercice. **Aucune écriture demandée.** |
+| « Mes mesures » | Lit la dernière valeur de chaque mesure sur un an (Santé Connect limite à 30 jours avant l'autorisation sans permission d'historique), l'affiche avec sa **date et sa source**. Une valeur aberrante est écartée. |
+| « Ajouter » / « Au profil » | **Seul ce bouton enregistre** : un relevé de mensurations (poids ou masse grasse) ou la taille du profil. Une valeur déjà présente le même jour est signalée « déjà enregistré ». |
+| « Activités 7 j » | Liste les séances lues (type, durée, distance, calories annoncées par la source). Affichage seulement : rien n'est importé dans l'historique d'entraînement. |
+| « Gérer les autorisations » | Ouvre les réglages de Santé Connect pour retirer l'accès. |
+
+Choix techniques :
+
+- **Permissions minimales** : le plugin déclare une quarantaine de permissions de
+  santé ; le manifeste de l'app les retire toutes (`tools:node="remove"`) sauf
+  `READ_WEIGHT`, `READ_HEIGHT`, `READ_BODY_FAT`, `READ_DISTANCE`,
+  `READ_ACTIVE_CALORIES_BURNED`, `READ_EXERCISE`.
+- **Pas d'écriture des séances** : le plugin ne sait pas écrire une séance
+  d'exercice, et écrire des calories *estimées* (MET) dans Santé Connect
+  polluerait les données de santé de l'utilisateur avec des approximations.
+- `minSdkVersion` passe de 24 à **26** (Android 8), minimum exigé par la
+  bibliothèque Health Connect. Le Poco M6 (Android 13/14) n'est pas concerné.
+- Sur le web (GitHub Pages), la carte explique la fonction et ne tente rien.
 
 ## Obtenir l'APK
 
@@ -82,6 +111,10 @@ npm run android:ouvrir     # ouvre Android Studio
 - Notification exacte de fin de repos : sur Android 14+, l'autorisation
   « Alarmes et rappels » peut être désactivée par défaut ; sans elle, Android
   peut la décaler de quelques minutes. Réglages → Applis → Coach Perso.
+- Santé Connect : sur Android 13 et moins, l'application « Santé Connect » doit
+  être installée depuis le Play Store ; à partir d'Android 14 elle est intégrée
+  au système. Testé sur maquette du plugin dans un navigateur, **pas encore sur
+  un téléphone réel**.
 - Le coach IA connecté fonctionne dans l'APK comme sur le web (clé personnelle
   ou relais) ; un relais doit autoriser l'origine `https://localhost`
   (déjà prévu dans `server/coach-relais/wrangler.toml`).

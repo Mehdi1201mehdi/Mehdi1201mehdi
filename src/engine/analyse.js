@@ -50,7 +50,7 @@ export function references1RM(logs) {
 /**
  * Charge d'entraînement d'un ensemble de séances.
  * @param {any[]} logs   séances de la période
- * @param {Record<string, number>} [refs]  1RM de référence (tout l'historique, idéalement)
+ * @param {Record<string, number>} [refs] - 1RM de référence (tout l'historique, idéalement)
  * @returns {{seances:number, series:number, reps:number, tonnageKg:number, repsChargees:number,
  *   intensiteKgRep:number|null, intensiteRelPct:number|null, distanceM:number, dureeCardioSec:number}}
  */

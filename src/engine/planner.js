@@ -376,7 +376,7 @@ export function construireSeance(muscles, etat, catalogue, profil = {}) {
  * @param {any[]} logs historique des séances
  * @param {(id:string)=>any} getExercise
  * @param {any[]} catalogue exercices réalisables (filtrés matériel/limitations)
- * @param {{niveau?:string, dureeMin?:number, ressenti?:number}} profil
+ * @param {{niveau?:string, dureeMin?:number, ressenti?:number, seuilPret?:number}} profil
  * @param {number} [maintenant]
  */
 export function genererProchaineSeance(logs, getExercise, catalogue, profil = {}, maintenant = Date.now()) {

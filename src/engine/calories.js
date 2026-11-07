@@ -29,7 +29,10 @@ import { vitesseKmh } from "./mesures.js";
 
 const KMH_PAR_MPH = 1.609344;
 
-/** Course à pied (Running, 12028 → 12135) : vitesse minimale de la ligne (mph) → MET. */
+/** @typedef {[number, number, string]} PalierMet  [seuil, MET, code du Compendium] */
+
+/** Course à pied (Running, 12028 → 12135) : vitesse minimale de la ligne (mph) → MET.
+ * @type {PalierMet[]} */
 export const MET_COURSE = [
   [4.0, 6.5, "12028"], [4.3, 7.8, "12029"], [5.0, 8.5, "12030"], [5.5, 9.0, "12045"],
   [6.0, 9.3, "12050"], [6.7, 10.5, "12060"], [7.0, 11.0, "12070"], [7.5, 11.8, "12080"],
@@ -37,20 +40,21 @@ export const MET_COURSE = [
   [10.0, 14.8, "12120"], [11.0, 16.8, "12130"], [12.0, 18.5, "12132"], [13.0, 19.8, "12134"],
   [14.0, 23.0, "12135"],
 ];
-/** Marche, terrain plat et ferme (Walking, 17152 → 17231). */
+/** Marche, terrain plat et ferme (Walking, 17152 → 17231). @type {PalierMet[]} */
 export const MET_MARCHE = [
   [0, 2.8, "17152"], [2.5, 3.0, "17170"], [2.8, 3.8, "17190"], [3.5, 4.8, "17200"],
   [4.0, 5.5, "17220"], [4.5, 7.0, "17230"], [5.0, 8.5, "17231"],
 ];
-/** Natation, crawl, selon la vitesse en yards/min (18292, 18290, 18280, 18294). */
+/** Natation, crawl, selon la vitesse en yards/min (18292, 18290, 18280, 18294). @type {PalierMet[]} */
 export const MET_NATATION = [
   [0, 5.8, "18292"], [50, 8.0, "18290"], [75, 10.5, "18280"], [90, 14.5, "18294"],
 ];
-/** Rameur selon la puissance (watts) : 02071, 02072, 02073, 02074. */
+/** Rameur selon la puissance (watts) : 02071, 02072, 02073, 02074. @type {PalierMet[]} */
 export const MET_RAMEUR = [
   [0, 5.0, "02071"], [100, 7.5, "02072"], [150, 11.0, "02073"], [200, 14.0, "02074"],
 ];
 /** Valeurs quand la vitesse n'est pas connue (durée seule). */
+/** @type {Record<string, [number, string]>} */
 export const MET_PAR_DEFAUT = {
   course: [7.5, "12020"],      // Jogging, general, self-selected pace
   marche: [3.8, "17190"],      // Walking, 2.8–3.4 mph, moderate pace
@@ -61,7 +65,12 @@ export const MET_PAR_DEFAUT = {
   maintien: [2.8, "02024"],    // Calisthenics, light: curl-ups, crunches, planks
 };
 
-/** Ligne d'une table en escalier : la dernière dont le seuil est ≤ x. */
+/**
+ * Ligne d'une table en escalier : la dernière dont le seuil est ≤ x.
+ * @param {PalierMet[]} table
+ * @param {number} x
+ * @returns {PalierMet}
+ */
 function palier(table, x) {
   let ligne = table[0];
   for (const l of table) if (x >= l[0]) ligne = l;

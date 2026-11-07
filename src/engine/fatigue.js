@@ -242,7 +242,7 @@ export function analyserSeance(log, getExercise) {
  * @param {any[]} logs séances réalisées
  * @param {(id:string)=>any} getExercise
  * @param {number} [maintenant] timestamp
- * @param {{niveau?:string, ressenti?:number, facteurs?:Record<string,number>}} [opts]
+ * @param {{niveau?:string, ressenti?:number, facteurs?:Record<string,number>, seuilPret?:number}} [opts]
  *        ressenti : −1 (frais) à +1 (très fatigué) ;
  *        facteurs : calibration apprise par muscle (1 = modèle générique)
  * @returns {Record<string, any>} muscleState par clé

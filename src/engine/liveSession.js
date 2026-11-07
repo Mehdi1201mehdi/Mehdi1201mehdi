@@ -190,7 +190,7 @@ export function estEnCours(series, i) {
  * Ne touche à rien si l'utilisateur a déjà saisi quelque chose, et n'invente
  * jamais une valeur qu'on ne pouvait pas déduire.
  *
- * @returns {{charge:number|null, reps:number|null}} ce qui a été posé
+ * @returns {{charge?:number|null, reps?:number|null, distanceKm?:string|null, dureeMin?:string|null}} ce qui a été posé
  */
 export function completerSerie(series, i, opts = {}) {
   const s = (series || [])[i];

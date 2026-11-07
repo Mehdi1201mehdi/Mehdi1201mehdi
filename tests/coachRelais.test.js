@@ -11,7 +11,10 @@ const ORIGINE = "https://mehdi1201mehdi.github.io";
 const fetchOriginal = globalThis.fetch;
 afterEach(() => { globalThis.fetch = fetchOriginal; });
 
-/** Requête telle que l'application l'envoie réellement (mêmes fonctions). */
+/**
+ * Requête telle que l'application l'envoie réellement (mêmes fonctions).
+ * @param {{origine?:string, jeton?:string, corps?:string}} [o]
+ */
 function requeteApp({ origine = ORIGINE, jeton = "jeton-42", corps } = {}) {
   const cfg = { fournisseur: "relais", url: "https://relais.test", jeton };
   const body = corps ?? JSON.stringify(corpsRequete(cfg, construireMessages("Crée-moi une routine", "Objectif : force.")));
@@ -80,5 +83,5 @@ test("validerCorps : bornes et forme de la conversation", () => {
   const v = validerCorps({ messages: [{ role: "user", content: "a" }], max_tokens: 99999, temperature: 7, model: "claude-opus-cher" }, 1600);
   assert.equal(v.corps.max_tokens, 1600, "plafonné par le serveur");
   assert.equal(v.corps.temperature, 1);
-  assert.equal(v.corps.model, undefined, "le client ne choisit pas le modèle");
+  assert.equal(/** @type {any} */ (v.corps).model, undefined, "le client ne choisit pas le modèle");
 });

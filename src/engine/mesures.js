@@ -252,6 +252,7 @@ export function meilleuresPerfs(logs) {
 export function detecterRecordsMesures(logsAnterieurs, nouveauLog, resoudreNom = (id) => id) {
   const avant = meilleuresPerfs(logsAnterieurs);
   const maint = meilleuresPerfs([nouveauLog]);
+  /** @type {{exerciceId:string, nom:string, type:"distance"|"duree"|"vitesse"|"volume", valeur:number, ancien:number}[]} */
   const out = [];
   for (const [id, a] of Object.entries(maint)) {
     const h = avant[id];

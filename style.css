@@ -2800,3 +2800,14 @@ button.sem-bilan{display:flex;flex-direction:column;align-items:stretch;gap:10px
 .coach-diff .diff-plus{color:var(--ok)}
 .coach-diff .diff-moins{color:var(--danger)}
 .coach-diff .diff-mod{color:var(--ink)}
+
+/* Santé Connect : lectures affichées, import ligne par ligne */
+.sc-actions{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);margin:var(--space-3) 0}
+.sc-actions .sc-large{grid-column:1/-1}
+.sc-actions button{min-width:0}
+.sc-zone{margin-bottom:var(--space-3)}
+.sc-zone:empty{display:none}
+.sc-ligne{gap:var(--space-3);padding:var(--space-2) 0;border-top:1px solid var(--line)}
+.sc-ligne:first-child{border-top:0}
+.sc-ligne>span:first-child{min-width:0}
+.sc-ligne .num{white-space:nowrap}
