@@ -110,6 +110,9 @@ const uAffLive = (kg) => versAffichage(kg, uLive());
 /** Libellé court du niveau (évite la troncature dans les tuiles stat étroites). */
 const NIVEAU_COURT = { debutant: "Débutant", intermediaire: "Inter.", avance: "Avancé" };
 const niveauCourt = (niv) => NIVEAU_COURT[niv] || LEVEL_LABELS[niv] || niv;
+/** Libellés de muscle pour les vignettes étroites (« Ischio-jambiers » y était tronqué). */
+const MUSCLE_COURT = { ischios: "Ischios" };
+const muscleCourt = (m) => MUSCLE_COURT[m] || MUSCLE_LABELS[m] || m;
 
 /** Toutes les séances jouables : programme généré + routines perso. */
 function toutesSeances() {
@@ -1103,10 +1106,12 @@ function carteRoutineFitai(o) {
   for (const exo of exos) for (const m of (exo.musclesPrincipaux || [])) if (!muscles.includes(m)) muscles.push(m);
   if (muscles.length) {
     const bande = h(`<div class="rt-muscles" role="list"></div>`);
+    // Une vignette par muscle, tournée du bon côté et zoomée sur la zone : en
+    // corps entier, le muscle surligné ne faisait que quelques pixels.
     muscles.slice(0, 8).forEach((m) => {
-      bande.append(h(`<span class="rt-m" role="listitem">
-        <em>${esc(MUSCLE_LABELS[m] || m)}</em>
-        <span class="rt-mfig">${miniSilhouette([m])}</span></span>`));
+      bande.append(h(`<span class="rt-m" role="listitem" title="${esc(MUSCLE_LABELS[m] || m)}">
+        <em>${esc(muscleCourt(m))}</em>
+        <span class="rt-mfig">${miniSilhouette([m], "auto", { zoom: true, ratio: 0.8 })}</span></span>`));
     });
     card.append(bande);
   }
@@ -1537,7 +1542,7 @@ function ligneExoEditor(s, e, i) {
   if (muscle) {
     row.append(h(`<span class="red-mus">
       <em>${esc(MUSCLE_LABELS[muscle] || muscle)}</em>
-      <span class="red-mfig">${miniSilhouette([muscle])}</span></span>`));
+      <span class="red-mfig">${miniSilhouette([muscle], "auto", { zoom: true, ratio: 0.86 })}</span></span>`));
   }
 
   const bMenu = h(`<button class="red-menu" type="button" aria-label="Options de ${esc(nom)}">
@@ -4827,18 +4832,6 @@ function peindreCorps(racine, intensites) {
   }
 }
 
-/** Groupes visibles de face / de dos dans les silhouettes anatomiques. */
-const GROUPES_FACE = ["pectoraux", "abdominaux", "biceps", "triceps", "trapezes", "epaules", "quadriceps", "mollets", "avant_bras"];
-
-/**
- * Silhouette orientée selon les muscles ciblés : une séance de dos affichée de
- * face ne surlignerait rien du tout.
- */
-function silhouetteAuto(muscles) {
-  const face = (muscles || []).filter((m) => GROUPES_FACE.includes(m)).length;
-  return miniSilhouette(muscles, face >= (muscles || []).length - face ? "front" : "back");
-}
-
 /**
  * Sous-titre de la carte héro. Le moteur nomme souvent la séance par ses
  * muscles ; répéter la même liste juste en dessous n'apprend rien. On affiche
@@ -4897,7 +4890,7 @@ function ligneExoFitai(o) {
     const pct = o.dispo ? o.dispo[muscle] : null;
     row.append(h(`<span class="lx-mus">
       <em>${esc(MUSCLE_LABELS[muscle] || muscle)}</em>
-      <span class="lx-mfig">${miniSilhouette([muscle])}</span>
+      <span class="lx-mfig">${miniSilhouette([muscle], "auto", { zoom: true, ratio: 0.88 })}</span>
       ${pct != null ? `<b class="num" style="color:${couleurDispo(pct)}">${Math.round(pct)} %</b>` : ""}
     </span>`));
   }
@@ -5125,7 +5118,7 @@ function vRecup(v) {
       const cat = FIN_VERS_CATALOGUE[cle];
       const pret = textePret(etat[cle]);
       const row = h(`<button class="rcp-row" type="button">
-        <span class="recup-vig">${cat ? miniSilhouette([cat]) : ""}</span>
+        <span class="recup-vig">${cat ? miniSilhouette([cat], "auto", { zoom: true, ratio: 0.89 }) : ""}</span>
         <span class="recup-txt"><b>${esc(LABELS_MOTEUR[cle])}</b>
           <em class="num" style="color:${couleurDispo(r)}">${Math.round(r)} %</em>${pret !== "Prêt" ? `<small class="recup-pret">${esc(pret)}</small>` : ""}</span>
         <svg class="recup-fl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
@@ -7527,7 +7520,7 @@ function carteRecup(v) {
     const col = r.pct >= 80 ? "var(--ok)" : r.pct >= 40 ? "var(--amber)" : "var(--danger)";
     const quand = r.jours < 1 ? "aujourd'hui" : `il y a ${Math.round(r.jours)} j`;
     liste.append(h(`<div class="recup-row">
-      <span class="recup-sil">${miniSilhouette([r.muscle])}</span>
+      <span class="recup-sil">${miniSilhouette([r.muscle], "auto", { zoom: true, ratio: 0.67 })}</span>
       <div class="recup-main">
         <div class="spread"><b>${esc(MUSCLE_LABELS[r.muscle] || r.muscle)}</b><span class="num" style="color:${col};font-weight:800">${r.pct}%</span></div>
         <div class="bar"><div style="width:${r.pct}%;background:${col}"></div></div>
@@ -7616,7 +7609,7 @@ function bandeRecuperation(muscles, seance = null) {
       : z.cle === "frais" || z.cle === "pret" ? "ok"
         : z.cle === "prudence" ? "moyen" : "bas";
     const cell = h(`<button class="musc-cell recup-cell ton-${ton}" aria-label="${esc(MUSCLE_LABELS[m] || m)}${r == null ? "" : ` — ${r} % récupéré, ${esc(z.nom)}`}">
-      <span class="musc-sil">${miniSilhouette([m])}</span>
+      <span class="musc-sil">${miniSilhouette([m], "auto", { zoom: true, ratio: 0.61 })}</span>
       <span class="rc-nom">${esc(MUSCLE_LABELS[m] || m)}</span>
       <span class="rc-pct num">${r == null ? "—"
         : (apresParMuscle && apresParMuscle[m] != null
@@ -7640,7 +7633,7 @@ function rangeeMuscles(muscles) {
   const list = (muscles || []).filter((m) => m !== "corps_entier").slice(0, 6);
   if (!list.length) return null;
   const row = h(`<div class="musc-row"></div>`);
-  list.forEach((m) => row.append(h(`<div class="musc-cell"><span class="musc-sil">${miniSilhouette([m])}</span><span>${esc(MUSCLE_LABELS[m] || m)}</span></div>`)));
+  list.forEach((m) => row.append(h(`<div class="musc-cell"><span class="musc-sil">${miniSilhouette([m], "auto", { zoom: true, ratio: 0.55 })}</span><span>${esc(MUSCLE_LABELS[m] || m)}</span></div>`)));
   return row;
 }
 

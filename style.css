@@ -706,16 +706,19 @@ nav.tabs .ico{width:24px;height:24px;display:block;transition:transform .2s var(
   scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px}
 .rt-muscles::-webkit-scrollbar,.rt-rail::-webkit-scrollbar{display:none}
 .rt-muscles{margin-top:6px}
-.rt-m{flex:none;width:60px;display:flex;flex-direction:column;align-items:center;gap:3px}
-.rt-m em{font-style:normal;font-size:.62rem;font-weight:650;color:var(--ink);
+/* Vignettes muscle : silhouette zoomée sur la zone travaillée (anatomy.js,
+   option zoom), au format 4:5. Même largeur que les vignettes d'exercice
+   en dessous : les deux rangées tombent sur la même grille. */
+.rt-m{flex:none;width:72px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.rt-m em{font-style:normal;font-size:.68rem;font-weight:650;color:var(--ink);
   max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rt-mfig{display:block;width:60px;height:66px;border-radius:8px;overflow:hidden;
+.rt-mfig{display:block;width:72px;height:90px;border-radius:10px;overflow:hidden;
   background:var(--bg);border:1px solid var(--hair)}
 .rt-mfig .mini-silhouette{width:100%;height:100%;display:block}
 .rt-rail{margin-top:10px}
 /* La vignette blanche est la signature de FitAI : fond clair sous un dessin au
    trait, sur une application sombre. C'est ce qui rend la liste lisible. */
-.rt-vig{flex:none;width:62px;height:62px;border-radius:10px;overflow:hidden;background:var(--panel)}
+.rt-vig{flex:none;width:72px;height:72px;border-radius:10px;overflow:hidden;background:var(--panel)}
 /* La vignette standard porte son propre cadre et une pastille de matériel :
    utiles dans une liste, parasites dans un rail de 62 px où l'on ne cherche
    qu'à reconnaître le mouvement. On ne garde que le dessin. */
@@ -727,7 +730,7 @@ nav.tabs .ico{width:24px;height:24px;display:block;transition:transform .2s var(
 .rt-vig .exo-vign.sm .exo-gif,.rt-vig .exo-vign.sm .exo-gif.ok,
 .rt-vig .exo-vign.sm .mini-silhouette{position:absolute;inset:0;
   width:100%;height:100%;border-radius:0;background:none;object-fit:contain;display:block}
-@media (max-width:339px){.rt-m,.rt-mfig{width:54px}.rt-vig{width:54px;height:54px}}
+@media (max-width:339px){.rt-m,.rt-mfig{width:62px}.rt-mfig{height:78px}.rt-m em{font-size:.6rem}.rt-vig{width:62px;height:62px}}
 
 /* ---- Écran de séance : panneau de démonstration et tableau des séries -----
    Relevé sur la capture de séance de FitAI : un grand panneau CLAIR en haut
