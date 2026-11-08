@@ -65,13 +65,18 @@ export function supprimerSeance(routine, seanceId) {
 /** Série de travail par défaut adaptée à l'exercice (temps ou répétitions). */
 export function serieTemplateDefaut(exo, opts = {}) {
   const enTemps = exo && (exo.typeExercice === "gainage" || exo.typeExercice === "cardio");
-  return {
+  const num = (v) => (v === null || v === undefined || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
+  const t = {
     type: "travail",
-    repsCible: enTemps ? null : (opts.repsCible || [8, 12]),
-    dureeSec: enTemps ? (opts.dureeSec || 40) : null,
-    distanceM: null, rirCible: opts.rirCible ?? 2, rpeCible: null,
-    tempo: null, reposSec: opts.reposSec ?? 90, chargeKg: null,
+    repsCible: enTemps && !opts.repsCible ? null : (opts.repsCible || [8, 12]),
+    dureeSec: enTemps ? (opts.dureeSec || 40) : (num(opts.dureeSec) || null),
+    distanceM: num(opts.distanceM), rirCible: opts.rirCible ?? 2, rpeCible: num(opts.rpeCible),
+    tempo: opts.tempo || null, reposSec: opts.reposSec ?? 90, chargeKg: num(opts.chargeKg),
   };
+  // % du 1RM : consigne de charge relative, gardée telle quelle (la charge en kg
+  // est calculée à l'ajout quand un 1RM de référence existe).
+  if (num(opts.pct1RM)) t.pct1RM = num(opts.pct1RM);
+  return t;
 }
 
 /**
@@ -116,7 +121,12 @@ export function deplacerExercice(seance, index, sens) {
 export function definirSeries(exercice, params = {}) {
   const nb = clampInt(params.nbSeries, 1, 10, exercice.series.length || 3);
   const exo = getExercise(exercice.exerciceId);
-  const modele = serieTemplateDefaut(exo, params);
+  // Les réglages déjà posés (charge, tempo, RPE, % 1RM…) survivent à un
+  // changement du nombre de séries ou des répétitions.
+  const a = exercice.series[0] || {};
+  const anciens = { repsCible: a.repsCible || undefined, dureeSec: a.dureeSec, distanceM: a.distanceM, rirCible: a.rirCible ?? undefined,
+    rpeCible: a.rpeCible, tempo: a.tempo, reposSec: a.reposSec ?? undefined, chargeKg: a.chargeKg, pct1RM: a.pct1RM };
+  const modele = serieTemplateDefaut(exo, { ...anciens, ...params });
   exercice.series = Array.from({ length: nb }, () => ({ ...modele }));
   return exercice;
 }

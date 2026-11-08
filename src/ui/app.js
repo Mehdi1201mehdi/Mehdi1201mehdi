@@ -6,9 +6,12 @@
  */
 import {
   GOALS, GOAL_LABELS, LEVELS, LEVEL_LABELS, EQUIPMENTS, EQUIPMENT_LABELS,
-  MUSCLES, MUSCLE_LABELS,
+  MUSCLES, MUSCLE_LABELS, MOVEMENT_PATTERNS,
 } from "../models.js";
-import { getExercise, chercherCatalogue, CATALOGUE, catalogueEtenduCharge, chargerCatalogueEtendu, idsReferencesInconnus } from "../data/exercises.js";
+import { getExercise, chercherCatalogue, CATALOGUE, catalogueEtenduCharge, chargerCatalogueEtendu, idsReferencesInconnus, enregistrerExercicesPerso } from "../data/exercises.js";
+import { MACHINES, MACHINES_PAR_ID, GROUPES_EQUIPEMENT, machinesDe, exercicesDeMachine, estMachineReglable } from "../data/machines.js";
+import { mouvementsDe, LIB_MOUVEMENT, MOUVEMENTS, typeCharge, reperesDe } from "../engine/taxonomie.js";
+import { validerExercice, LIB_STATUT, nomAnglais } from "../engine/validationExo.js";
 import { GIFS } from "../data/gifs.js";
 import { ANATOLY_INFO, ANATOLY_SEMAINES } from "../data/anatoly.js";
 import { genererProgramme } from "../engine/generator.js";
@@ -137,7 +140,7 @@ import {
   TESTS_VELO, testVeloParCle, comparerTestsVelo,
 } from "../engine/outils.js";
 import { PROGRAMMES_SALLE } from "../data/programmes-salle.js";
-import { DUREES, FREQUENCES, MATERIELS, filtrerProgrammes, nbCriteresActifs, TRIS, basculerFavori, ajouterRecent, ordonner, resoudreIds } from "../engine/bibliotheque.js";
+import { DUREES, FREQUENCES, MATERIELS, filtrerProgrammes, nbCriteresActifs, TRIS, basculerFavori, ajouterRecent, ordonner, resoudreIds, compterUsage } from "../engine/bibliotheque.js";
 import { CLES_MOTEUR, LABELS_MOTEUR, DEF_MOTEUR, FIN_VERS_CATALOGUE } from "../data/muscles-moteur.js";
 import { coefficientsPour } from "../data/exercise-muscle-map.js";
 import { etatMusculaire, zoneDisponibilite, cibleVolumeHebdo, analyserSeance, readinessGroupe, saturation, combinerFatigue } from "../engine/fatigue.js";
@@ -1684,6 +1687,32 @@ function ouvrirDetail(exo) {
   const fermer = () => { if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {}); sheet.remove(); };
 
   inner.append(h(`<div class="sheet-top"><h2 style="margin:0">${esc(exo.nom)}</h2><button class="chip" id="x">✕ Fermer</button></div>`));
+  const nEn = nomAnglais(exo);
+  const val = validerExercice(exo);
+  // Identité et fiabilité de la fiche : nom d'origine, statut de validation, ce
+  // qui reste à compléter. Dire ce qu'on ne sait pas plutôt que l'inventer.
+  const idt = h(`<div class="fiche-idt"></div>`);
+  if (nEn && nEn.toLowerCase() !== String(exo.nom).toLowerCase()) idt.append(h(`<div class="muted small fiche-en">${esc(nEn)}</div>`));
+  const badges = h(`<div class="row fiche-badges"></div>`);
+  if (exo.perso) badges.append(h(`<span class="badge fb-perso">Mon exercice</span>`));
+  else badges.append(h(`<span class="badge fb-${val.statut}">${LIB_STATUT[val.statut]}</span>`));
+  if (exo.corrige) badges.append(h(`<span class="badge">Classement corrigé</span>`));
+  idt.append(badges);
+  if (!exo.perso && (val.manques.length || val.alertes.length)) {
+    idt.append(h(`<div class="small muted fiche-manques">${val.manques.length ? `À compléter : ${esc(val.manques.join(", "))}.` : ""}${val.alertes.length ? ` À vérifier : ${esc(val.alertes.join(" ; "))}.` : ""}</div>`));
+  }
+  inner.append(idt);
+  const actions = h(`<div class="row fiche-actions"></div>`);
+  const bAjout = h(`<button class="primary"><span class="btn-ico">${IC.plus}</span>Ajouter à ma séance</button>`);
+  bAjout.addEventListener("click", () => ouvrirAjoutSeance(exo));
+  actions.append(bAjout);
+  if (exo.perso) {
+    const bMod = h(`<button class="secondary">Modifier</button>`);
+    bMod.addEventListener("click", () => ouvrirEditeurExercice(exo));
+    const bSup = h(`<button class="secondary danger-txt">Supprimer</button>`);
+    bSup.addEventListener("click", () => supprimerExercicePerso(exo));
+    actions.append(bMod, bSup);
+  }
 
   const media = h(`<div class="media"><div class="spin"></div></div>`);
   inner.append(media);
@@ -1692,8 +1721,9 @@ function ouvrirDetail(exo) {
   inner.append(h(`<div class="det-sub muted">${esc(equipTxt || "Poids du corps")}</div>`));
   inner.append(h(`<div class="row" style="margin-top:10px">
     <span class="difbar" title="Difficulté">${[1, 2, 3, 4].map((i) => `<i class="${i <= diff ? "on" : ""}"></i>`).join("")}</span>
-    <span class="pill">${DIFF_LABEL[diff] || "—"}</span></div>`));
+    <span class="pill">${DIFF_LABEL[diff] || "—"}${exo.niveauEstime ? " · estimé" : ""}</span></div>`));
   if (!estRealisable(exo)) inner.append(h(`<div class="warn small" style="margin-top:10px">${mi(IC.alert, "mi-amber")}Pas réalisable avec ton matériel / tes limitations actuels.</div>`));
+  inner.append(actions);
 
   // Sections dépliables plutôt que des onglets : tout le contenu d'un exercice
   // est balayable d'un seul défilement, et l'état d'ouverture est mémorisé d'une
@@ -1716,9 +1746,16 @@ function ouvrirDetail(exo) {
       ligne("Niveau", DIFF_LABEL[diff]);
       ligne("Catégorie", TYPE_EXO_LABELS[exo.typeExercice] || exo.typeExercice);
       ligne("Mouvement", LIB_PATRON[exo.patron] || exo.patron);
+      ligne("Familles", mouvementsDe(exo).map((k) => LIB_MOUVEMENT[k]).join(", "));
+      ligne("Type de charge", typeCharge(exo));
+      ligne("Latéralité", exo.unilateral ? "Unilatéral (un côté à la fois)" : "Bilatéral");
+      ligne("Nom anglais", nomAnglais(exo));
       // Attribution : obligatoire pour wger (CC-BY-SA), utile pour tout import.
       if (exo.source === "wger") ligne("Source", "wger.de — licence CC-BY-SA 4.0");
       else if (exo.source === "free-exercise-db") ligne("Source", "free-exercise-db — domaine public");
+      else if (exo.source === "exercises-dataset") ligne("Source", "exercises-dataset (hasaneyldrm) — données MIT");
+      else if (exo.perso) ligne("Source", "Créé par toi, enregistré sur cet appareil");
+      if (exo.sourceInstructions) ligne("Consignes", exo.sourceInstructions);
       f.append(dl);
       return f;
     },
@@ -1730,13 +1767,38 @@ function ouvrirDetail(exo) {
       if (exo.respiration) f.append(h(`<div class="sec"><h3>Respiration</h3><div class="breath"><span class="in">↧ Inspirer</span><span class="out">↥ Expirer</span></div><div class="small muted" style="margin-top:6px">${esc(exo.respiration)}</div></div>`));
       if ((exo.erreurs || []).length) f.append(h(`<div class="sec"><h3>Erreurs fréquentes</h3><div class="small muted">✖ ${exo.erreurs.map(esc).join(" · ")}</div></div>`));
       if (exo.securite) f.append(h(`<div class="sec"><h3>Sécurité</h3><div class="warn small">${mi(IC.alert, "mi-amber")} ${esc(exo.securite)}</div></div>`));
+      if (exo.conseils) f.append(h(`<div class="sec"><h3>Conseils</h3><div class="small">${esc(exo.conseils)}</div></div>`));
+      // Repères GÉNÉRAUX de la famille de mouvement, quand la fiche n'a pas les
+      // siens : présentés comme tels, jamais comme propres à l'exercice.
+      const rep = !exo.respiration && !(exo.erreurs || []).length && !exo.securite ? reperesDe(exo) : null;
+      if (rep) {
+        f.append(h(`<div class="sec reperes"><h3>Repères généraux du mouvement</h3><div class="muted small" style="margin-bottom:6px">Valables pour toute la famille « ${esc(LIB_MOUVEMENT[rep.famille] || LIB_PATRON[rep.famille] || rep.famille)} », pas propres à cet exercice.</div>
+          <div class="small"><b>Respiration</b> — ${esc(rep.respiration)}</div>
+          <div class="small" style="margin-top:4px"><b>Erreurs fréquentes</b> — ${rep.erreurs.map(esc).join(" · ")}</div>
+          <div class="small" style="margin-top:4px"><b>Sécurité</b> — ${esc(rep.securite)}</div></div>`));
+      }
       if (!f.children.length) {
         // Fiches importées sans texte : on dit pourquoi, au lieu de renvoyer
         // vers une démonstration qui n'existe pas.
         const importe = exo.source === "free-exercise-db";
-        return h(`<div class="empty-state"><div class="es-ic">${IC.info}</div><b>Pas de consignes détaillées</b><div class="muted small">${importe
+        return h(`<div class="empty-state"><div class="es-ic">${IC.info}</div><b>Consignes à compléter</b><div class="muted small">${importe
           ? "Fiche importée de free-exercise-db (domaine public) : muscles, matériel et niveau sont fournis, pas les consignes, dont la provenance n'est pas documentée. Le schéma ci-dessus montre les muscles travaillés."
           : "Regarde la démonstration en haut de la fiche : elle montre l'amplitude et le rythme."}</div></div>`);
+      }
+      return f;
+    },
+    Machines: () => {
+      const ms = machinesDe(exo);
+      const f = h(`<div class="stack"></div>`);
+      const row = h(`<div class="row" style="gap:6px;flex-wrap:wrap"></div>`);
+      ms.forEach((m) => { const b = h(`<button class="chip">${esc(m.nom)}</button>`); b.addEventListener("click", () => ouvrirMachine(m.id)); row.append(b); });
+      f.append(row);
+      const reg = ms.find((m) => estMachineReglable(m) && m.reglages && m.type !== "banc" && m.type !== "cardio") || ms.find((m) => estMachineReglable(m));
+      if (reg && reg.reglages) {
+        const dl = h(`<div class="card flat stack mach-regl"><div class="eyebrow">Réglages — ${esc(reg.nom)}</div></div>`);
+        Object.entries(LIB_REGLAGES).forEach(([k, lab]) => { if (reg.reglages[k]) dl.append(h(`<div class="mr-l"><span class="muted small">${lab}</span><span class="small">${esc(reg.reglages[k])}</span></div>`)); });
+        dl.append(h(`<div class="hint">Consignes générales du type de machine : la notice de la machine prime.</div>`));
+        f.append(dl);
       }
       return f;
     },
@@ -1820,6 +1882,7 @@ function ouvrirDetail(exo) {
   const SECTIONS = [
     ["Technique", "Technique", (exo.instructions || []).length ? `${exo.instructions.length} étapes` : "", true],
     ["Muscles", "Muscles sollicités", (exo.musclesPrincipaux || []).map((m) => MUSCLE_LABELS[m] || m).join(", "), true],
+    ["Machines", "Machine et réglages", machinesDe(exo).slice(0, 2).map((m) => m.nom).join(", "), false],
     ["Progression", "Progression", nbSeances ? `${nbSeances} séance${nbSeances > 1 ? "s" : ""}` : "aucune donnée", false],
     ["Alternatives", "Alternatives", alts.length ? `${alts.length} proposée${alts.length > 1 ? "s" : ""}` : "aucune", false],
   ];
@@ -1854,8 +1917,14 @@ async function chargerMedia(exo, media) {
   };
   // Source PRINCIPALE : dataset GitHub (hasaneyldrm/exercises-dataset), puis
   // photo wger. Repli en ligne : ExerciseDB open-source gratuit (best-effort).
-  let url = Etat.data.mediaCache[exo.id] || GIFS[exo.id] || (exo.media && exo.media.miniature) || null;
-  if (!url) {
+  if (exo.media && exo.media.video && /^https:\/\//.test(exo.media.video)) {
+    const lien = h(`<a class="chip media-lien" href="${esc(exo.media.video)}" target="_blank" rel="noopener noreferrer">${IC.play}Voir ma vidéo</a>`);
+    media.after(lien);
+  }
+  let url = (exo.media && exo.media.image) || Etat.data.mediaCache[exo.id] || GIFS[exo.id] || (exo.media && exo.media.miniature) || null;
+  // Les fiches exercises-dataset reprennent les DONNÉES (MIT) mais pas les
+  // médias, propriété de Gym visual : pas de recherche d'animation pour elles.
+  if (!url && exo.source !== "exercises-dataset" && !exo.perso) {
     const res = await chercherDemonstration(exo.id, {});
     if (res && res.gifUrl) { url = res.gifUrl; Etat.data.mediaCache[exo.id] = url; Etat.sauver(); }
   }
@@ -1917,7 +1986,13 @@ function controlesMedia(media, el, estVideo) {
    CATALOGUE / RECHERCHE D'EXERCICES
    ====================================================================== */
 let CAT_SIL = false; // silhouette de recherche dépliée dans le catalogue
-let CAT_FILTRE = { q: "", muscle: "", equip: "", niveau: "", type: "" };
+/** Filtres vides (on garde éventuellement la recherche). @param {string} [q] */
+function filtresCatVides(q = "") {
+  return { q, muscle: "", equip: "", niveau: "", type: "", machine: "", groupe: "", muscle2: "", mouvement: "", poly: "", statut: "", sansMateriel: false, perso: false };
+}
+let CAT_FILTRE = filtresCatVides();
+/** Clés de filtre comptées comme « filtres actifs » (hors recherche). */
+const CLES_FILTRE = ["muscle", "equip", "niveau", "type", "machine", "groupe", "muscle2", "mouvement", "poly", "statut", "sansMateriel", "perso"];
 /** Types d'exercice tels que l'utilisateur les nomme. */
 const TYPE_EXO_LABELS = { force: "Force", hypertrophie: "Hypertrophie", isolation: "Isolation", gainage: "Gainage", cardio: "Cardio", mobilite: "Mobilité" };
 /** Grille ou liste. La grille met les démonstrations en avant, la liste tient
@@ -1930,9 +2005,20 @@ let CAT_TRI = "pertinence";
 let CAT_FAVORIS_SEUL = false;
 function vCatalogue(v) {
   if (!catalogueEtenduCharge()) chargerCatalogueEtendu().then(() => render());
-  v.append(h(`<div class="spread"><h1>Exercices</h1><span class="pill">${CATALOGUE.length.toLocaleString("fr-FR")} au total</span></div>`));
-  const inp = h(`<input id="catQ" placeholder="Rechercher (ex : rowing, squat, gainage…)" value="${esc(CAT_FILTRE.q)}">`);
+  const tete = h(`<div class="spread"><h1>Bibliothèque d'exercices</h1><span class="pill">${CATALOGUE.length.toLocaleString("fr-FR")} exercices</span></div>`);
+  v.append(tete);
+  const inp = h(`<input id="catQ" type="search" placeholder="Rechercher (ex : rowing, squat, presse…)" value="${esc(CAT_FILTRE.q)}" aria-label="Rechercher un exercice">`);
   v.append(inp);
+  // Trois portes d'entrée visuelles, comme dans les bibliothèques de coaching :
+  // on choisit un muscle, un équipement ou une machine, la liste suit.
+  const explo = h(`<div class="cat-explore"></div>`);
+  [["muscle", "Par muscle", IC.map, "Choisir sur le corps"], ["equip", "Par équipement", IC.dumbbell, `${GROUPES_EQUIPEMENT.length} familles`], ["machine", "Par machine", IC.layers, `${MACHINES.length} machines et équipements`]]
+    .forEach(([k, t, ic, sous]) => {
+      const b = h(`<button class="cat-explo-btn"><span class="cx-ic" aria-hidden="true">${ic}</span><span class="cx-t">${t}</span><span class="cx-s muted">${sous}</span></button>`);
+      b.addEventListener("click", () => (k === "muscle" ? ouvrirExplorerMuscles() : k === "equip" ? ouvrirExplorerEquipement() : ouvrirListeMachines()));
+      explo.append(b);
+    });
+  v.append(explo);
 
   const muscles = [...new Set(CATALOGUE.flatMap((e) => e.musclesPrincipaux))].sort();
   const equips = [...new Set(CATALOGUE.flatMap((e) => e.equipement))].sort();
@@ -1972,6 +2058,27 @@ function vCatalogue(v) {
     hote.append(filtreLigne(niveaux, "niveau", NIV_LABELS));
     hote.append(h(`<div class="eyebrow" style="margin-top:12px">Type d'exercice</div>`));
     hote.append(filtreLigne(types, "type", TYPE_EXO_LABELS));
+    hote.append(h(`<div class="eyebrow" style="margin-top:12px">Famille d'équipement</div>`));
+    hote.append(filtreLigne(GROUPES_EQUIPEMENT.map((g) => g.cle), "groupe", Object.fromEntries(GROUPES_EQUIPEMENT.map((g) => [g.cle, g.nom]))));
+    hote.append(h(`<div class="eyebrow" style="margin-top:12px">Machine</div>`));
+    const selM = h(`<select class="selchip cat-selm" aria-label="Filtrer par machine"><option value="">Toutes les machines</option>${MACHINES.map((m) => `<option value="${m.id}"${CAT_FILTRE.machine === m.id ? " selected" : ""}>${esc(m.nom)}</option>`).join("")}</select>`);
+    selM.addEventListener("change", () => { CAT_FILTRE.machine = selM.value; render(); });
+    hote.append(selM);
+    hote.append(h(`<div class="eyebrow" style="margin-top:12px">Mouvement</div>`));
+    hote.append(filtreLigne(MOUVEMENTS.filter((k) => k !== "isolation" && k !== "polyarticulaire"), "mouvement", LIB_MOUVEMENT));
+    hote.append(h(`<div class="eyebrow" style="margin-top:12px">Polyarticulaire ou isolation</div>`));
+    hote.append(filtreLigne(["poly", "iso"], "poly", { poly: "Polyarticulaires", iso: "Isolation" }));
+    hote.append(h(`<div class="eyebrow" style="margin-top:12px">Muscle secondaire</div>`));
+    hote.append(filtreLigne(muscles, "muscle2", MUSCLE_LABELS));
+    hote.append(h(`<div class="eyebrow" style="margin-top:12px">Fiabilité de la fiche</div>`));
+    hote.append(filtreLigne(["valide", "a_verifier", "incomplet"], "statut", LIB_STATUT));
+    const bascules = h(`<div class="row cat-fline" style="margin-top:12px"></div>`);
+    [["sansMateriel", "Sans matériel"], ["perso", "Mes exercices"]].forEach(([k, lab]) => {
+      const b = h(`<button class="chip ${CAT_FILTRE[k] ? "on" : ""}" aria-pressed="${!!CAT_FILTRE[k]}">${lab}</button>`);
+      b.addEventListener("click", () => { CAT_FILTRE[k] = !CAT_FILTRE[k]; render(); });
+      bascules.append(b);
+    });
+    hote.append(bascules);
   };
 
   // Recherche par silhouette : toucher un muscle sur le corps filtre la liste.
@@ -2024,11 +2131,11 @@ function vCatalogue(v) {
   // Barre d'outils : affichage, tri, favoris. Trois décisions qui changent la
   // lecture de la liste, réunies au même endroit plutôt que dispersées.
   const outils = h(`<div class="cat-outils"></div>`);
-  const nbFiltres = ["muscle", "equip", "niveau", "type"].filter((k) => CAT_FILTRE[k]).length;
+  const nbFiltres = CLES_FILTRE.filter((k) => CAT_FILTRE[k]).length;
   const bFiltre = h(`<button class="chip cat-filtrer${nbFiltres ? " on" : ""}" aria-haspopup="dialog">${IC.sliders || IC.layers}<span>Filtrer${nbFiltres ? ` · ${nbFiltres}` : ""}</span></button>`);
   bFiltre.addEventListener("click", () => ouvrirFiltresCatalogue(construireFiltres));
   outils.append(bFiltre);
-  const bVue = h(`<button class="chip" aria-pressed="${CAT_VUE === "grille"}" aria-label="Basculer entre grille et liste">${CAT_VUE === "grille" ? IC.layers : IC.bars}<span>${CAT_VUE === "grille" ? "Grille" : "Liste"}</span></button>`);
+  const bVue = h(`<button class="chip cat-vue" aria-pressed="${CAT_VUE === "grille"}" aria-label="Affichage : ${CAT_VUE === "grille" ? "grille" : "liste"} (toucher pour changer)" title="Grille ou liste">${CAT_VUE === "grille" ? IC.layers : IC.bars}</button>`);
   bVue.addEventListener("click", () => { CAT_VUE = CAT_VUE === "grille" ? "liste" : "grille"; render(); });
   const nbFav = (Etat.data.favoris || []).length;
   const bFav = h(`<button class="chip${CAT_FAVORIS_SEUL ? " on" : ""}" aria-pressed="${CAT_FAVORIS_SEUL}">${IC.star}<span>Favoris${nbFav ? " · " + nbFav : ""}</span></button>`);
@@ -2039,7 +2146,9 @@ function vCatalogue(v) {
   // la ligne et le sélecteur se retrouvait seul, au milieu de nulle part. Il
   // rejoint le compteur de résultats, avec qui il forme une paire naturelle —
   // « 343 résultats, triés par pertinence ».
-  outils.append(bVue, bFav);
+  const bCree = h(`<button class="chip cat-creer" aria-label="Créer un exercice" title="Créer un exercice">${IC.plus}</button>`);
+  bCree.addEventListener("click", () => ouvrirEditeurExercice(null));
+  outils.append(bVue, bFav, bCree);
   v.append(outils);
 
   // Les filtres actifs restent DANS la page, retirables d'un tap. Un filtre
@@ -2049,13 +2158,24 @@ function vCatalogue(v) {
     const actifs = h(`<div class="cat-actifs"></div>`);
     const puce = (cle, label) => {
       const b = h(`<button class="chip on cat-actif" aria-label="Retirer le filtre ${esc(label)}">${esc(label)}<span aria-hidden="true">✕</span></button>`);
-      b.addEventListener("click", () => { CAT_FILTRE[cle] = ""; render(); });
+      b.addEventListener("click", () => { CAT_FILTRE[cle] = typeof CAT_FILTRE[cle] === "boolean" ? false : ""; render(); });
       return b;
     };
     if (CAT_FILTRE.muscle) actifs.append(puce("muscle", MUSCLE_LABELS[CAT_FILTRE.muscle] || CAT_FILTRE.muscle));
     if (CAT_FILTRE.equip) actifs.append(puce("equip", EQUIPMENT_LABELS[CAT_FILTRE.equip] || CAT_FILTRE.equip));
     if (CAT_FILTRE.niveau) actifs.append(puce("niveau", NIV_LABELS[CAT_FILTRE.niveau] || CAT_FILTRE.niveau));
     if (CAT_FILTRE.type) actifs.append(puce("type", TYPE_EXO_LABELS[CAT_FILTRE.type] || CAT_FILTRE.type));
+    if (CAT_FILTRE.groupe) actifs.append(puce("groupe", (GROUPES_EQUIPEMENT.find((g) => g.cle === CAT_FILTRE.groupe) || {}).nom || CAT_FILTRE.groupe));
+    if (CAT_FILTRE.machine) actifs.append(puce("machine", (MACHINES_PAR_ID[CAT_FILTRE.machine] || {}).nom || CAT_FILTRE.machine));
+    if (CAT_FILTRE.mouvement) actifs.append(puce("mouvement", LIB_MOUVEMENT[CAT_FILTRE.mouvement] || CAT_FILTRE.mouvement));
+    if (CAT_FILTRE.poly) actifs.append(puce("poly", CAT_FILTRE.poly === "poly" ? "Polyarticulaires" : "Isolation"));
+    if (CAT_FILTRE.muscle2) actifs.append(puce("muscle2", `Secondaire : ${MUSCLE_LABELS[CAT_FILTRE.muscle2] || CAT_FILTRE.muscle2}`));
+    if (CAT_FILTRE.statut) actifs.append(puce("statut", LIB_STATUT[CAT_FILTRE.statut]));
+    if (CAT_FILTRE.sansMateriel) actifs.append(puce("sansMateriel", "Sans matériel"));
+    if (CAT_FILTRE.perso) actifs.append(puce("perso", "Mes exercices"));
+    const bRaz = h(`<button class="chip cat-raz">Réinitialiser</button>`);
+    bRaz.addEventListener("click", () => { CAT_FILTRE = filtresCatVides(CAT_FILTRE.q); render(); });
+    actifs.append(bRaz);
     v.append(actifs);
   }
 
@@ -2069,7 +2189,7 @@ function vCatalogue(v) {
     let tous = chercherCatalogue(CAT_FILTRE);
     const favs = Etat.data.favoris || [];
     if (CAT_FAVORIS_SEUL) tous = tous.filter((e) => favs.includes(e.id));
-    tous = ordonner(tous, { favoris: favs, tri: CAT_TRI });
+    tous = ordonner(tous, { favoris: favs, tri: CAT_TRI, usage: CAT_TRI === "populaire" ? usageExercices() : undefined });
     const list = tous.slice(0, montres);
     res.innerHTML = "";
     if (!tous.length) {
@@ -2077,7 +2197,7 @@ function vCatalogue(v) {
         CAT_FAVORIS_SEUL ? "Aucun favori pour l'instant" : "Aucun exercice ne correspond",
         CAT_FAVORIS_SEUL ? "Touche l'étoile sur un exercice pour le retrouver ici." : "Les filtres se cumulent : retire le matériel, le muscle, le niveau ou le type pour élargir.",
         { action: { label: CAT_FAVORIS_SEUL ? "Voir tous les exercices" : "Réinitialiser les filtres",
-          onClick: () => { CAT_FAVORIS_SEUL = false; CAT_FILTRE = { q: "", muscle: "", equip: "", niveau: "", type: "" }; render(); } } }));
+          onClick: () => { CAT_FAVORIS_SEUL = false; CAT_FILTRE = filtresCatVides(); render(); } } }));
       return;
     }
     const barreRes = h(`<div class="cat-resbar"><span class="muted small">${tous.length} résultat${tous.length > 1 ? "s" : ""}</span></div>`);
@@ -2129,7 +2249,7 @@ function vCatalogue(v) {
         const row = h(`<button class="exline">
           <span class="lx-vig">${vignetteHTML(e, "sm")}</span>
           <span class="meta"><span class="nm">${esc(e.nom)}</span>
-            <span class="muted small">${e.musclesPrincipaux.map((m) => MUSCLE_LABELS[m] || m).join(", ")} · ${e.equipement.map((q) => EQUIPMENT_LABELS[q] || q).join(", ")}${e.source === "wger" ? ` · <span class="tag">wger</span>` : ""}</span>
+            <span class="muted small">${e.musclesPrincipaux.map((m) => MUSCLE_LABELS[m] || m).join(", ")} · ${e.equipement.map((q) => EQUIPMENT_LABELS[q] || q).join(", ")}${e.perso ? ` · <span class="tag tag-perso">perso</span>` : e.source === "wger" ? ` · <span class="tag">wger</span>` : ""}${!e.perso && validerExercice(e).statut === "incomplet" ? ` · <span class="tag tag-inc">consignes à venir</span>` : ""}</span>
             <span class="lx-niv" role="img" aria-label="Niveau ${niv} sur 4 : ${DIFF_LABEL[niv]}">${
               [1, 2, 3, 4].map((i) => `<i${i <= niv ? ' class="on"' : ""}></i>`).join("")}</span></span>
           </button>`);
@@ -2172,11 +2292,352 @@ function ouvrirFiltresCatalogue(remplir) {
     if (ev.target.closest(".cat-fline .chip") || ev.target.closest("g[data-m]")) sheet.remove();
   });
   const raz = h(`<button class="secondary" style="width:100%;margin-top:18px">Tout réinitialiser</button>`);
-  raz.addEventListener("click", () => { CAT_FILTRE = { q: CAT_FILTRE.q, muscle: "", equip: "", niveau: "", type: "" }; render(); });
+  raz.addEventListener("click", () => { CAT_FILTRE = filtresCatVides(CAT_FILTRE.q); render(); sheet.remove(); });
   inner.append(raz);
   sheet.querySelector("#cfX").addEventListener("click", () => sheet.remove());
   sheet.addEventListener("click", (ev) => { if (ev.target === sheet) sheet.remove(); });
   document.body.append(sheet);
+}
+
+/* ---------------- Bibliothèque : popularité, exploration, machines ---------------- */
+let _usage = null, _usageN = -1;
+/** Nombre de séances par exercice, recalculé seulement quand l'historique change. */
+function usageExercices() {
+  const n = (Etat.data.logs || []).length;
+  if (n !== _usageN) { _usage = compterUsage(Etat.data.logs); _usageN = n; }
+  return _usage;
+}
+
+/** Feuille générique de la bibliothèque. Renvoie { inner, fermer }. */
+function feuilleBiblio(titre, sousTitre = "") {
+  const sheet = h(`<div class="sheet"><div class="inner"></div></div>`);
+  const inner = sheet.querySelector(".inner");
+  const fermer = () => sheet.remove();
+  const top = h(`<div class="sheet-top"><div style="min-width:0"><h2 style="margin:0">${esc(titre)}</h2>${sousTitre ? `<div class="muted small">${esc(sousTitre)}</div>` : ""}</div><button class="chip">✕ Fermer</button></div>`);
+  top.querySelector("button").addEventListener("click", fermer);
+  inner.append(top);
+  sheet.addEventListener("click", (ev) => { if (ev.target === sheet) fermer(); });
+  document.body.append(sheet);
+  return { inner, fermer };
+}
+
+/** Applique un filtre à la bibliothèque et l'affiche. */
+function filtrerBibliotheque(patch) {
+  CAT_FILTRE = { ...filtresCatVides(), ...patch };
+  CAT_FAVORIS_SEUL = false;
+  document.querySelectorAll(".sheet").forEach((x) => x.remove());
+  if (TAB !== "cat") nav("cat"); else render();
+}
+
+function ouvrirExplorerMuscles() {
+  const { inner } = feuilleBiblio("Par muscle", "Touche un muscle sur le corps ou dans la liste");
+  const corps = h(`<div class="cat-sil-body expl-corps"></div>`);
+  corps.innerHTML = muscleHeatmap({});
+  corps.addEventListener("click", (ev) => { const g = ev.target.closest("g[data-m]"); if (g) filtrerBibliotheque({ muscle: g.getAttribute("data-m") }); });
+  inner.append(corps);
+  const liste = h(`<div class="expl-liste"></div>`);
+  const muscles = [...new Set(CATALOGUE.flatMap((e) => e.musclesPrincipaux))]
+    .map((m) => [m, chercherCatalogue({ muscle: m }).length]).sort((a, b) => b[1] - a[1]);
+  muscles.forEach(([m, n]) => {
+    const b = h(`<button class="expl-ligne"><span>${esc(MUSCLE_LABELS[m] || m)}</span><span class="muted small num">${n.toLocaleString("fr-FR")}</span></button>`);
+    b.addEventListener("click", () => filtrerBibliotheque({ muscle: m }));
+    liste.append(b);
+  });
+  inner.append(liste);
+}
+
+const ICONE_GROUPE = { banc: "banc", halteres: "halteres", barre: "barre", machine: "machine_guidee", poulie: "poulie", smith: "smith", poids_du_corps: "poids_du_corps", cardio: "tapis_course", accessoire: "elastiques" };
+
+function ouvrirExplorerEquipement() {
+  const { inner } = feuilleBiblio("Par équipement", "Choisis une famille, puis une machine ou tous ses exercices");
+  const grille = h(`<div class="expl-grille"></div>`);
+  const detail = h(`<div class="expl-detail"></div>`);
+  GROUPES_EQUIPEMENT.forEach((g) => {
+    const n = chercherCatalogue({ groupe: g.cle }).length;
+    const b = h(`<button class="expl-tuile"><span class="ic" aria-hidden="true">${iconeMateriel(ICONE_GROUPE[g.cle])}</span><b>${esc(g.nom)}</b><span class="muted small num">${n.toLocaleString("fr-FR")} exercices</span></button>`);
+    b.addEventListener("click", () => {
+      grille.querySelectorAll(".expl-tuile").forEach((x) => x.classList.toggle("on", x === b));
+      detail.innerHTML = "";
+      const tout = h(`<button class="primary expl-tout">Voir les ${n.toLocaleString("fr-FR")} exercices « ${esc(g.nom)} »</button>`);
+      tout.addEventListener("click", () => filtrerBibliotheque({ groupe: g.cle }));
+      detail.append(tout);
+      MACHINES.filter((m) => m.groupe === g.cle).forEach((m) => detail.append(carteMachine(m)));
+      detail.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    grille.append(b);
+  });
+  inner.append(grille, detail);
+}
+
+/** Carte d'une machine (nom, type, nombre d'exercices). */
+function carteMachine(m) {
+  const n = exercicesDeMachine(m.id, CATALOGUE).length;
+  const b = h(`<button class="mach-carte"><span class="ic" aria-hidden="true">${iconeMateriel(ICONE_GROUPE[m.groupe])}</span><span class="mc-txt"><b>${esc(m.nom)}</b><span class="muted small">${esc(m.nomEn)} · ${n.toLocaleString("fr-FR")} exercice${n > 1 ? "s" : ""}</span></span><span class="mc-chev" aria-hidden="true">${IC.chevron}</span></button>`);
+  b.addEventListener("click", () => ouvrirMachine(m.id));
+  return b;
+}
+
+function ouvrirListeMachines() {
+  const { inner } = feuilleBiblio("Machines et équipements", `${MACHINES.length} entrées · recherche par nom français ou anglais`);
+  const q = h(`<input type="search" placeholder="Rechercher une machine (presse, pec deck, poulie…)" aria-label="Rechercher une machine">`);
+  const liste = h(`<div class="stack" style="margin-top:10px"></div>`);
+  const sansAcc = (x) => String(x).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const dessine = () => {
+    liste.innerHTML = "";
+    const t = sansAcc(q.value.trim());
+    GROUPES_EQUIPEMENT.forEach((g) => {
+      const ms = MACHINES.filter((m) => m.groupe === g.cle && (!t || sansAcc(`${m.nom} ${m.nomEn} ${m.description}`).includes(t)));
+      if (!ms.length) return;
+      liste.append(h(`<div class="eyebrow" style="margin-top:8px">${esc(g.nom)}</div>`));
+      ms.forEach((m) => liste.append(carteMachine(m)));
+    });
+    if (!liste.children.length) liste.append(h(`<div class="notice small">Aucune machine ne correspond à « ${esc(q.value)} ».</div>`));
+  };
+  q.addEventListener("input", dessine);
+  inner.append(q, liste);
+  dessine();
+}
+
+const LIB_REGLAGES = { siege: "Siège", dossier: "Dossier", pieds: "Pieds", mains: "Mains", amplitude: "Amplitude", depart: "Position de départ", trajectoire: "Trajectoire", fin: "Position finale", securite: "Sécurité" };
+
+function ouvrirMachine(id) {
+  const m = MACHINES_PAR_ID[id];
+  if (!m) return;
+  const exos = exercicesDeMachine(id, CATALOGUE);
+  const { inner } = feuilleBiblio(m.nom, m.nomEn);
+  inner.append(h(`<p class="small" style="margin:6px 0 10px">${esc(m.description)}</p>`));
+  if (m.muscles.length) inner.append(h(`<div class="row" style="gap:6px;flex-wrap:wrap">${m.muscles.map((x) => `<span class="pill">${esc(MUSCLE_LABELS[x] || x)}</span>`).join("")}</div>`));
+  if (m.reglages) {
+    const dl = h(`<div class="card flat stack mach-regl"><div class="eyebrow">Réglages et consignes</div></div>`);
+    Object.entries(LIB_REGLAGES).forEach(([k, lab]) => { if (m.reglages[k]) dl.append(h(`<div class="mr-l"><span class="muted small">${lab}</span><span class="small">${esc(m.reglages[k])}</span></div>`)); });
+    dl.append(h(`<div class="hint">Consignes générales du type de machine : la notice affichée sur la machine prime.</div>`));
+    inner.append(dl);
+  }
+  if ((m.variantes || []).length) inner.append(h(`<div class="small" style="margin-top:8px"><span class="muted">Variantes : </span>${m.variantes.map(esc).join(" · ")}</div>`));
+  // Filtre par muscle À L'INTÉRIEUR de la machine : « presse à jambes » → « fessiers ».
+  const muscles = [...new Set(exos.flatMap((e) => e.musclesPrincipaux))];
+  let mFiltre = "";
+  const chips = h(`<div class="row scrollx" style="gap:6px;margin-top:12px"></div>`);
+  const liste = h(`<div class="stack" style="margin-top:8px"></div>`);
+  const dessine = () => {
+    chips.querySelectorAll(".chip").forEach((c) => c.classList.toggle("on", (c.dataset.m || "") === mFiltre));
+    liste.innerHTML = "";
+    const l = mFiltre ? exos.filter((e) => e.musclesPrincipaux.includes(mFiltre)) : exos;
+    liste.append(h(`<div class="eyebrow">${l.length.toLocaleString("fr-FR")} exercice${l.length > 1 ? "s" : ""} réalisable${l.length > 1 ? "s" : ""}</div>`));
+    l.slice(0, 60).forEach((e) => {
+      const b = h(`<button class="exline">${`<span class="lx-vig">${vignetteHTML(e, "sm")}</span>`}<span class="meta"><span class="nm">${esc(e.nom)}</span><span class="muted small">${e.musclesPrincipaux.map((x) => MUSCLE_LABELS[x] || x).join(", ")}</span></span></button>`);
+      b.addEventListener("click", () => ouvrirDetail(e));
+      liste.append(b);
+    });
+    if (l.length > 60) {
+      const plus = h(`<button class="secondary" style="width:100%">Voir les ${l.length} dans la bibliothèque</button>`);
+      plus.addEventListener("click", () => filtrerBibliotheque({ machine: id, muscle: mFiltre }));
+      liste.append(plus);
+    }
+  };
+  if (muscles.length > 1) {
+    const tous = h(`<button class="chip on" data-m="">Tous</button>`);
+    tous.addEventListener("click", () => { mFiltre = ""; dessine(); });
+    chips.append(tous);
+    muscles.forEach((x) => { const c = h(`<button class="chip" data-m="${x}">${esc(MUSCLE_LABELS[x] || x)}</button>`); c.addEventListener("click", () => { mFiltre = mFiltre === x ? "" : x; dessine(); }); chips.append(c); });
+    inner.append(chips);
+  }
+  inner.append(liste);
+  const bLib = h(`<button class="secondary" style="width:100%;margin-top:10px">Filtrer la bibliothèque sur cette machine</button>`);
+  bLib.addEventListener("click", () => filtrerBibliotheque({ machine: id, muscle: mFiltre }));
+  inner.append(bLib);
+  dessine();
+}
+
+/* ---------------- Ajouter un exercice à une séance ---------------- */
+function ouvrirAjoutSeance(exo) {
+  const { inner, fermer } = feuilleBiblio("Ajouter à ma séance", exo.nom);
+  const routines = Etat.data.programmesPerso || [];
+  const mes = mesuresExercice(exo);
+  const best1rm = historiqueExercice(exo.id).best1rm || 0;
+  const opts = [];
+  if (LIVE) opts.push(`<option value="live">Séance en cours</option>`);
+  routines.forEach((r) => (r.seances || []).forEach((sc) => opts.push(`<option value="${esc(r.id)}|${esc(sc.id)}">${esc(r.nom)} — ${esc(sc.nom)}</option>`)));
+  routines.forEach((r) => opts.push(`<option value="${esc(r.id)}|+">${esc(r.nom)} — nouvelle séance</option>`));
+  opts.push(`<option value="+|+">Nouvelle routine</option>`);
+  const f = h(`<form class="ajout-form stack">
+    <label class="out-field"><span>Destination</span><select name="dest">${opts.join("")}</select></label>
+    <div class="ajout-grille">
+      <label class="out-field"><span>Séries</span><input name="series" type="number" inputmode="numeric" min="1" max="10" value="3"></label>
+      ${mes.distance ? `<label class="out-field"><span>Distance (km)</span><input name="dist" inputmode="decimal" placeholder="5"></label>`
+        : `<label class="out-field"><span>Répétitions</span><input name="reps" inputmode="numeric" placeholder="8-12" value="${mes.isometrique ? "" : "8-12"}"></label>`}
+      <label class="out-field"><span>Charge (${uUnite()})</span><input name="charge" inputmode="decimal" placeholder="—"></label>
+      <label class="out-field"><span>Temps (s)</span><input name="duree" type="number" inputmode="numeric" placeholder="${mes.isometrique || mes.distance ? "60" : "—"}"></label>
+      <label class="out-field"><span>Repos (s)</span><input name="repos" type="number" inputmode="numeric" value="${exo.typeExercice === "isolation" ? 60 : 90}"></label>
+      <label class="out-field"><span>Tempo</span><input name="tempo" placeholder="3-1-1"></label>
+      <label class="out-field"><span>RPE cible</span><input name="rpe" inputmode="decimal" placeholder="8"></label>
+      <label class="out-field"><span>RIR cible</span><input name="rir" type="number" inputmode="numeric" min="0" max="5" value="2"></label>
+      <label class="out-field"><span>% du 1RM</span><input name="pct" type="number" inputmode="numeric" min="30" max="100" placeholder="${best1rm ? "75" : "—"}"></label>
+    </div>
+    <div class="hint">${best1rm ? `1RM estimé : ${uCharge(best1rm)}. Un % du 1RM calcule la charge s'il n'y en a pas.` : "Le % du 1RM sera converti en charge dès que tu auras un historique sur cet exercice."}</div>
+    <button class="primary" type="submit"><span class="btn-ico">${IC.plus}</span>Ajouter</button>
+  </form>`);
+  f.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    /** @type {Record<string, any>} */
+    const d = {};
+    new FormData(/** @type {HTMLFormElement} */ (f)).forEach((v, k) => { d[k] = v; });
+    const num = (x) => { const v = parseFloat(String(x || "").replace(",", ".")); return Number.isFinite(v) ? v : null; };
+    const reps = String(d.reps || "").match(/(\d+)\s*(?:[-à]\s*(\d+))?/);
+    const pct = num(d.pct);
+    let chargeKg = d.charge ? depuisSaisie(String(d.charge), uImp()) : null;
+    if (!chargeKg && pct && best1rm) chargeKg = Math.round((best1rm * pct) / 100 / 0.5) * 0.5;
+    const params = {
+      nbSeries: num(d.series) || 3,
+      repsCible: reps ? [Number(reps[1]), Number(reps[2] || reps[1])] : undefined,
+      chargeKg, dureeSec: num(d.duree), distanceM: d.dist ? (num(d.dist) || 0) * 1000 : null,
+      reposSec: num(d.repos) ?? 90, tempo: String(d.tempo || "").trim() || null,
+      rpeCible: num(d.rpe), rirCible: num(d.rir) ?? 2, pct1RM: pct,
+    };
+    if (d.dest === "live") {
+      if (!LIVE) return;
+      const seance = trouverSeance(LIVE.seanceId);
+      ajouterExercice(seance, exo.id, params);
+      Etat.sauver(); fermer(); toast("Ajouté à la séance en cours"); return;
+    }
+    const [rid, sid] = String(d.dest).split("|");
+    let r = routines.find((x) => x.id === rid);
+    if (!r) { r = creerRoutine(`Mes exercices`); (Etat.data.programmesPerso ||= []).push(r); }
+    let sc = (r.seances || []).find((x) => x.id === sid);
+    if (!sc) sc = ajouterSeance(r, `Séance ${(r.seances || []).length + 1}`);
+    ajouterExercice(sc, exo.id, params);
+    Etat.sauver();
+    fermer();
+    toast(`Ajouté à « ${sc.nom} » (${r.nom})`);
+    dialogue({ titre: "Exercice ajouté", message: `${exo.nom} est dans « ${sc.nom} ». Tu peux y régler l'ordre, les séries ou créer un superset.`, cancelVal: false,
+      actions: [{ label: "Continuer", valeur: false }, { label: "Ouvrir la routine", valeur: true, primary: true }] })
+      .then((ok) => { if (ok) { document.querySelectorAll(".sheet").forEach((x) => x.remove()); EDIT_ROUTINE = r.id; nav("prog"); } });
+  });
+  inner.append(f);
+}
+
+/* ---------------- Exercices personnels : créer, modifier, supprimer ---------------- */
+/** Réduit une image à 320 px (JPEG) pour la garder dans les données locales. */
+function reduireImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const r = Math.min(1, 320 / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL("image/jpeg", 0.72));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("image illisible")); };
+    img.src = url;
+  });
+}
+
+function ouvrirEditeurExercice(exo) {
+  const edition = Boolean(exo && exo.perso);
+  const base = edition ? (Etat.data.exercicesPerso || []).find((x) => x.id === exo.id) || exo : null;
+  const { inner, fermer } = feuilleBiblio(edition ? "Modifier mon exercice" : "Créer un exercice", "Enregistré sur cet appareil, privé");
+  const lignes = (a) => (a || []).join("\n");
+  const sel = (vals, cur, labels, vide = "") => `${vide ? `<option value="">${vide}</option>` : ""}${vals.map((v) => `<option value="${v}"${v === cur ? " selected" : ""}>${esc(labels[v] || v)}</option>`).join("")}`;
+  const MUSC = MUSCLES.filter((m) => m !== "corps_entier");
+  const f = h(`<form class="perso-form stack">
+    <label class="out-field"><span>Nom de l'exercice *</span><input name="nom" required maxlength="80" value="${esc(base?.nom || "")}"></label>
+    <label class="out-field"><span>Nom anglais (facultatif)</span><input name="nomEn" maxlength="80" value="${esc(base?.nomEn || "")}"></label>
+    <label class="out-field"><span>Muscle principal *</span><select name="prim" required>${sel(MUSC, base?.musclesPrincipaux?.[0], MUSCLE_LABELS, "Choisir…")}</select></label>
+    <div><div class="eyebrow">Muscles secondaires</div><div class="row pf-chips" data-k="sec">${MUSC.map((m) => `<button type="button" class="chip${base?.musclesSecondaires?.includes(m) ? " on" : ""}" data-v="${m}">${esc(MUSCLE_LABELS[m] || m)}</button>`).join("")}</div></div>
+    <div><div class="eyebrow">Équipement *</div><div class="row pf-chips" data-k="eq">${EQUIPMENTS.map((q) => `<button type="button" class="chip${(base?.equipement || []).includes(q) ? " on" : ""}" data-v="${q}">${esc(EQUIPMENT_LABELS[q] || q)}</button>`).join("")}</div></div>
+    <label class="out-field"><span>Machine</span><select name="machine">${sel(MACHINES.map((m) => m.id), base?.machine, Object.fromEntries(MACHINES.map((m) => [m.id, m.nom])), "Aucune")}</select></label>
+    <div class="ajout-grille">
+      <label class="out-field"><span>Difficulté</span><select name="diff">${sel(["1", "2", "3", "4"], String(base?.difficulte || 2), { 1: DIFF_LABEL[1], 2: DIFF_LABEL[2], 3: DIFF_LABEL[3], 4: DIFF_LABEL[4] })}</select></label>
+      <label class="out-field"><span>Type</span><select name="type">${sel(Object.keys(TYPE_EXO_LABELS), base?.typeExercice || "hypertrophie", TYPE_EXO_LABELS)}</select></label>
+      <label class="out-field"><span>Mouvement</span><select name="patron">${sel(MOVEMENT_PATTERNS, base?.patron || "", LIB_PATRON, "—")}</select></label>
+      <label class="out-field"><span>Côté</span><select name="uni"><option value="0">Bilatéral</option><option value="1"${base?.unilateral ? " selected" : ""}>Unilatéral</option></select></label>
+    </div>
+    <label class="out-field"><span>Description</span><textarea name="desc" rows="2" maxlength="400">${esc(base?.description || "")}</textarea></label>
+    <label class="out-field"><span>Instructions (une étape par ligne)</span><textarea name="instr" rows="4" maxlength="1500">${esc(lignes(base?.instructions))}</textarea></label>
+    <label class="out-field"><span>Conseils</span><textarea name="conseils" rows="2" maxlength="600">${esc(base?.conseils || "")}</textarea></label>
+    <label class="out-field"><span>Erreurs à éviter (une par ligne)</span><textarea name="err" rows="2" maxlength="600">${esc(lignes(base?.erreurs))}</textarea></label>
+    <label class="out-field"><span>Lien vidéo (YouTube, ta propre vidéo en ligne…)</span><input name="video" type="url" inputmode="url" placeholder="https://…" value="${esc(base?.media?.video || "")}"></label>
+    <label class="out-field"><span>Image</span><input name="image" type="file" accept="image/*"></label>
+    <div class="pf-img">${base?.media?.image ? `<img src="${base.media.image}" alt="Image de l'exercice">` : ""}</div>
+    <div><div class="eyebrow">Variantes et remplacements</div><div class="pf-liens"></div>
+      <div class="row"><button type="button" class="chip" data-add="variantes">${IC.plus}Variante</button><button type="button" class="chip" data-add="remplacements">${IC.plus}Remplacement</button></div></div>
+    <div class="pf-err warn small" hidden></div>
+    <button class="primary" type="submit">${edition ? "Enregistrer" : "Créer l'exercice"}</button>
+  </form>`);
+  let image = base?.media?.image || null;
+  const liens = { variantes: [...(base?.variantes || [])], remplacements: [...(base?.remplacements || [])] };
+  const dessineLiens = () => {
+    const box = f.querySelector(".pf-liens"); box.innerHTML = "";
+    [["variantes", "Variante"], ["remplacements", "Remplacement"]].forEach(([k, lab]) => liens[k].forEach((id, i) => {
+      const e = getExercise(id); if (!e) return;
+      const b = h(`<button type="button" class="chip on">${lab} : ${esc(e.nom)} ✕</button>`);
+      b.addEventListener("click", () => { liens[k].splice(i, 1); dessineLiens(); });
+      box.append(b);
+    }));
+  };
+  f.querySelectorAll(".pf-chips .chip").forEach((c) => c.addEventListener("click", () => { c.classList.toggle("on"); c.setAttribute("aria-pressed", String(c.classList.contains("on"))); }));
+  f.querySelectorAll("[data-add]").forEach((b) => b.addEventListener("click", () => choisirExercice((id) => { const k = b.dataset.add; if (!liens[k].includes(id)) liens[k].push(id); dessineLiens(); })));
+  f.querySelector("[name=image]").addEventListener("change", async (ev) => {
+    const file = ev.target.files && ev.target.files[0]; if (!file) return;
+    try { image = await reduireImage(file); f.querySelector(".pf-img").innerHTML = `<img src="${image}" alt="Image de l'exercice">`; }
+    catch { toast("Image illisible"); }
+  });
+  f.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    /** @type {Record<string, any>} */
+    const d = {};
+    new FormData(/** @type {HTMLFormElement} */ (f)).forEach((v, k) => { d[k] = v; });
+    const choisis = (k) => [...f.querySelectorAll(`.pf-chips[data-k=${k}] .chip.on`)].map((c) => c.dataset.v);
+    const err = f.querySelector(".pf-err");
+    const eq = choisis("eq");
+    const video = String(d.video || "").trim();
+    const pb = !String(d.nom).trim() ? "Donne un nom à l'exercice." : !d.prim ? "Choisis le muscle principal." : !eq.length ? "Choisis au moins un équipement."
+      : video && !/^https:\/\//i.test(video) ? "Le lien vidéo doit commencer par https://" : "";
+    if (pb) { err.hidden = false; err.textContent = pb; return; }
+    const fiche = {
+      id: base?.id || `perso-${Etat.uid()}`, nom: String(d.nom).trim(), nomEn: String(d.nomEn || "").trim(),
+      musclesPrincipaux: [d.prim], musclesSecondaires: choisis("sec").filter((m) => m !== d.prim), equipement: eq,
+      machine: d.machine || "", difficulte: Number(d.diff) || 2, typeExercice: d.type, patron: d.patron || null, unilateral: d.uni === "1",
+      description: String(d.desc || "").trim(), instructions: String(d.instr || "").split("\n").map((x) => x.trim()).filter(Boolean),
+      conseils: String(d.conseils || "").trim(), erreurs: String(d.err || "").split("\n").map((x) => x.trim()).filter(Boolean),
+      media: { miniature: null, video: video || null, image }, variantes: liens.variantes, remplacements: liens.remplacements,
+      creeLe: base?.creeLe || new Date().toISOString(), modifieLe: new Date().toISOString(),
+    };
+    const l = (Etat.data.exercicesPerso ||= []);
+    const i = l.findIndex((x) => x.id === fiche.id);
+    if (i >= 0) l[i] = fiche; else l.push(fiche);
+    enregistrerExercicesPerso(l);
+    Etat.sauver();
+    fermer();
+    document.querySelectorAll(".sheet").forEach((x) => x.remove());
+    toast(edition ? "Exercice modifié" : "Exercice créé");
+    render();
+    ouvrirDetail(getExercise(fiche.id));
+  });
+  inner.append(f);
+  dessineLiens();
+}
+
+async function supprimerExercicePerso(exo) {
+  const utilise = (Etat.data.logs || []).some((l) => (l.exercices || []).some((e) => e.exerciceId === exo.id))
+    || (Etat.data.programmesPerso || []).some((r) => (r.seances || []).some((sc) => (sc.exercices || []).some((e) => e.exerciceId === exo.id)));
+  const ok = await confirmer(utilise
+    ? `« ${exo.nom} » figure dans tes routines ou ton historique. Il disparaîtra de la bibliothèque, mais ton historique gardera son nom.`
+    : `Supprimer définitivement « ${exo.nom} » ?`, { titre: "Supprimer l'exercice", ok: "Supprimer", danger: true });
+  if (!ok) return;
+  const l = Etat.data.exercicesPerso || [];
+  const i = l.findIndex((x) => x.id === exo.id);
+  if (i < 0) return;
+  // Utilisé : on garde une trace masquée pour que l'historique reste lisible.
+  if (utilise) l[i] = { ...l[i], supprime: true }; else l.splice(i, 1);
+  enregistrerExercicesPerso(l);
+  Etat.sauver();
+  document.querySelectorAll(".sheet").forEach((x) => x.remove());
+  toast("Exercice supprimé");
+  render();
 }
 
 /* ======================================================================
@@ -6224,7 +6685,7 @@ function ouvrirFicheMuscle(muscle) {
   });
 
   const bCat = h(`<button class="secondary" style="width:100%;margin-top:12px">Voir tous les exercices de ce muscle</button>`);
-  bCat.addEventListener("click", () => { fermer(); CAT_FILTRE = { q: "", muscle, equip: "", niveau: "", type: "" }; CAT_FAVORIS_SEUL = false; nav("cat"); });
+  bCat.addEventListener("click", () => { fermer(); CAT_FILTRE = { ...filtresCatVides(), muscle }; CAT_FAVORIS_SEUL = false; nav("cat"); });
   inner.append(bCat);
 
   sheet.querySelector("#mX").addEventListener("click", fermer);
@@ -7932,6 +8393,9 @@ function vSet(v) {
 async function amorcerApp() {
   try {
     await Etat.init();
+    // Exercices créés par l'utilisateur : dans le catalogue AVANT tout rendu,
+    // sinon une routine qui les contient les verrait « indisponibles ».
+    enregistrerExercicesPerso(Etat.data.exercicesPerso || []);
     appliquerIdentite();
     appliquerTheme();
     // Exercices de l'extension (wger) présents dans les données : on charge

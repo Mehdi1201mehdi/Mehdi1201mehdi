@@ -478,6 +478,10 @@ export const EXERCISES = [
  */
 import { SALLE_EXERCISES } from "./exercises-salle.js";
 import { corrigerFiche } from "./corrections-catalogue.js";
+import { MACHINES, MACHINES_PAR_ID, texteExercice } from "./machines.js";
+import { mouvementsDe, estIsolation, estPolyarticulaire } from "../engine/taxonomie.js";
+import { validerExercice } from "../engine/validationExo.js";
+import { MUSCLE_LABELS, EQUIPMENT_LABELS } from "../models.js";
 
 // Catalogue = base originale + exercices de salle (machines/poulies), tous deux
 // rédigés pour ce projet et chargés d'emblée (donc disponibles hors ligne).
@@ -648,19 +652,95 @@ function norm(s) {
  * @param {{q?:string, muscle?:string, equip?:string, niveau?:string|number, type?:string}} [filtres]
  * @param {any[]} [list]
  */
+/**
+ * Synonymes de recherche (français familier ↔ termes du catalogue, anglais).
+ * Un mot cherché trouve l'exercice s'il apparaît, ou l'un de ses synonymes.
+ */
+const SYNONYMES = {
+  abdos: ["abdominaux", "abs", "crunch", "gainage"], abs: ["abdominaux"], pecs: ["pectoraux", "chest"], pec: ["pectoraux", "chest"],
+  dos: ["dorsaux", "back", "rowing", "tirage"], fesses: ["fessiers", "glute"], cuisses: ["quadriceps", "ischio"],
+  bras: ["biceps", "triceps"], epaules: ["epaule", "deltoide", "shoulder"], mollet: ["mollets", "calf"],
+  ischios: ["ischio", "hamstring"], bench: ["developpe couche", "bench press"], deadlift: ["souleve de terre"],
+  squat: ["squat"], tractions: ["traction", "pull up", "chin up"], pompes: ["pompe", "push up"], dips: ["dip"],
+  poulie: ["cable"], cable: ["poulie"], halteres: ["haltere", "dumbbell"], haltere: ["halteres", "dumbbell"],
+  barre: ["barbell"], elastique: ["elastiques", "band"], presse: ["leg press", "presse a cuisses"],
+  cardio: ["course", "velo", "rameur", "tapis"], etirement: ["stretch", "etirements"], gainage: ["planche", "plank"],
+};
+
+/** Texte de recherche d'un exercice, calculé une fois (sans accents, avec muscles et matériel). */
+const _hay = new WeakMap();
+function texteRecherche(e) {
+  let t = _hay.get(e);
+  if (!t) {
+    t = [e.nom, ...(e.nomsAlternatifs || []), e.nomEn || "", ...(e.tags || []),
+      ...(e.musclesPrincipaux || []).map((m) => MUSCLE_LABELS[m] || m), ...(e.musclesSecondaires || []).map((m) => MUSCLE_LABELS[m] || m),
+      ...(e.equipement || []).map((q) => EQUIPMENT_LABELS[q] || q)].map(norm).join(" ").replace(/[^a-z0-9]+/g, " ");
+    _hay.set(e, t);
+  }
+  return t;
+}
+
+/**
+ * Recherche et filtres COMBINABLES de la bibliothèque. Tous les critères posés
+ * doivent être vrais en même temps (« Pectoraux » + « Machines » + « Débutant »).
+ *  - q : mots (tous requis), accents ignorés, synonymes FR/EN ;
+ *  - muscle (principal OU secondaire), muscle2 (secondaire seulement) ;
+ *  - equip (matériel), groupe (groupe d'équipement : banc, machine, poulie…),
+ *    machine (identifiant du catalogue des machines), sansMateriel ;
+ *  - niveau, type, mouvement (famille), poly (« poly » | « iso ») ;
+ *  - perso (exercices créés par l'utilisateur), statut (validation).
+ * @param {any} [filtres]
+ * @param {any[]} [list]
+ */
 export function chercherCatalogue(filtres = {}, list = CATALOGUE) {
   const toks = norm(filtres.q).split(/[^a-z0-9]+/).filter(Boolean); // recherche par mots (tous requis)
+  const machine = filtres.machine ? MACHINES_PAR_ID[filtres.machine] : null;
+  const groupe = filtres.groupe ? MACHINES.filter((m) => m.groupe === filtres.groupe) : null;
+  const sansMat = filtres.sansMateriel ? MACHINES_PAR_ID["sans-materiel"] : null;
   return list.filter((e) => {
     if (filtres.muscle && !e.musclesPrincipaux.includes(filtres.muscle) && !(e.musclesSecondaires || []).includes(filtres.muscle)) return false;
+    if (filtres.muscle2 && !(e.musclesSecondaires || []).includes(filtres.muscle2)) return false;
     if (filtres.equip && !e.equipement.includes(filtres.equip)) return false;
     // Niveau (1 à 4) et type d'exercice : comparés en chaîne, comme les
     // valeurs des pastilles de filtre.
     if (filtres.niveau && String(e.difficulte || "") !== String(filtres.niveau)) return false;
     if (filtres.type && e.typeExercice !== filtres.type) return false;
+    if (filtres.mouvement && !mouvementsDe(e).includes(filtres.mouvement)) return false;
+    if (filtres.poly === "poly" && !estPolyarticulaire(e)) return false;
+    if (filtres.poly === "iso" && !estIsolation(e)) return false;
+    if (filtres.perso && !e.perso) return false;
+    if (filtres.statut && validerExercice(e).statut !== filtres.statut) return false;
+    if (machine || groupe || sansMat) {
+      const t = texteExercice(e);
+      if (machine && e.machine !== machine.id && !machine.test(e, t)) return false;
+      if (groupe && !groupe.some((m) => e.machine === m.id || m.test(e, t))) return false;
+      if (sansMat && !sansMat.test(e, t)) return false;
+    }
     if (toks.length) {
-      const hay = norm(e.nom) + " " + norm((e.nomsAlternatifs || []).join(" ")) + " " + norm((e.tags || []).join(" "));
-      if (!toks.every((t) => hay.includes(t))) return false;
+      const hay = texteRecherche(e);
+      if (!toks.every((t) => hay.includes(t) || (SYNONYMES[t] || []).some((s) => hay.includes(s)))) return false;
     }
     return true;
   });
+}
+
+/**
+ * Exercices CRÉÉS PAR L'UTILISATEUR : enregistrés dans ses données (privées,
+ * sur l'appareil), injectés dans le catalogue au démarrage et après chaque
+ * modification. Appel idempotent : remplace les entrées perso précédentes.
+ * @param {any[]} liste
+ */
+export function enregistrerExercicesPerso(liste) {
+  for (let i = CATALOGUE.length - 1; i >= 0; i--) if (CATALOGUE[i].perso) CATALOGUE.splice(i, 1);
+  for (const id of Object.keys(EXERCISES_BY_ID)) if (EXERCISES_BY_ID[id].perso) delete EXERCISES_BY_ID[id];
+  for (const e of Array.isArray(liste) ? liste : []) {
+    if (!e || !e.id || !e.nom || !(e.musclesPrincipaux || []).length) continue;
+    const f = { ...e, perso: true, source: "perso", statut: "perso", auteur: "Moi", nomsAlternatifs: e.nomEn ? [e.nomEn] : [] };
+    if (!f.equipement || !f.equipement.length) f.equipement = ["poids_du_corps"];
+    f.musclesSecondaires = f.musclesSecondaires || []; f.instructions = f.instructions || []; f.erreurs = f.erreurs || [];
+    f.media = f.media || { miniature: null, video: null };
+    EXERCISES_BY_ID[f.id] = f;
+    // Supprimé mais présent dans l'historique : résolu par son id, absent de la bibliothèque.
+    if (!f.supprime) CATALOGUE.unshift(f);
+  }
 }

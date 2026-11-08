@@ -120,6 +120,7 @@ export const TRIS = [
   { cle: "pertinence", nom: "Pertinence" },
   { cle: "alpha", nom: "A → Z" },
   { cle: "muscle", nom: "Par muscle" },
+  { cle: "populaire", nom: "Les plus utilisés" },
 ];
 
 /**
@@ -157,7 +158,11 @@ export function ajouterRecent(recents, id, max = MAX_RECENTS) {
  * intérêt d'en avoir. À l'intérieur de chaque groupe, le tri demandé s'applique.
  *
  * @param {any[]} exercices
- * @param {{favoris?:string[], tri?:string}} [opts]
+ * « populaire » : nombre de séances où l'exercice a été fait (opts.usage), puis
+ * l'ordre du catalogue — une popularité mesurée sur TES séances, pas inventée.
+ *
+ * @param {any[]} exercices
+ * @param {{favoris?:string[], tri?:string, usage?:Map<string,number>}} [opts]
  */
 export function ordonner(exercices, opts = {}) {
   const l = Array.isArray(exercices) ? exercices.slice() : [];
@@ -171,6 +176,10 @@ export function ordonner(exercices, opts = {}) {
     const fa = fav.has(a && a.id) ? 0 : 1, fb = fav.has(b && b.id) ? 0 : 1;
     if (fa !== fb) return fa - fb;
     if (tri === "alpha") return nom(a).localeCompare(nom(b), "fr");
+    if (tri === "populaire" && opts.usage) {
+      const d = (opts.usage.get(b && b.id) || 0) - (opts.usage.get(a && a.id) || 0);
+      if (d) return d;
+    }
     if (tri === "muscle") {
       const c = muscle(a).localeCompare(muscle(b), "fr");
       if (c) return c;
@@ -192,4 +201,18 @@ export function resoudreIds(ids, getExercise) {
   return (Array.isArray(ids) ? ids : [])
     .map((id) => { try { return getExercise(id); } catch (e) { return null; } })
     .filter(Boolean);
+}
+
+/**
+ * Nombre de séances par exercice (popularité personnelle).
+ * @param {any[]} logs
+ * @returns {Map<string, number>}
+ */
+export function compterUsage(logs) {
+  const m = new Map();
+  for (const l of Array.isArray(logs) ? logs : []) {
+    const vus = new Set();
+    for (const e of (l && l.exercices) || []) if (e && e.exerciceId && !vus.has(e.exerciceId)) { vus.add(e.exerciceId); m.set(e.exerciceId, (m.get(e.exerciceId) || 0) + 1); }
+  }
+  return m;
 }

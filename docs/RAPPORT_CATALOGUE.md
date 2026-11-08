@@ -31,7 +31,6 @@ Généré le 2026-11-08 par `scripts/rapport-catalogue.mjs` à partir des donné
 | --- | ---: |
 | consignes d'exécution | 648 |
 | nom français | 109 |
-| nom anglais | 49 |
 
 | Incohérence détectée | Fiches |
 | --- | ---: |
@@ -126,7 +125,7 @@ Un exercice peut appartenir à plusieurs familles (un squat est à la fois « sq
 | Poulies | Poulie vis-à-vis (double poulie) | 7 | 12 |
 | Smith machine | Smith machine (barre guidée) | 47 | 54 |
 | Poids du corps | Poids du corps | 281 | 552 |
-| Poids du corps | Sans matériel | 198 | 435 |
+| Poids du corps | Sans matériel | 196 | 431 |
 | Poids du corps | Barre de traction | 39 | 60 |
 | Poids du corps | Barres parallèles / station de dips | 17 | 28 |
 | Cardio | Tapis de course | 7 | 20 |

@@ -496,7 +496,7 @@ export const MACHINES_PAR_ID = Object.fromEntries(MACHINES.map((m) => [m.id, m])
 export function machinesDe(e) {
   if (!e) return [];
   const t = texteExercice(e);
-  return MACHINES.filter((m) => { try { return m.test(e, t); } catch { return false; } });
+  return MACHINES.filter((m) => { try { return e.machine === m.id || m.test(e, t); } catch { return false; } });
 }
 
 /**
@@ -507,7 +507,7 @@ export function machinesDe(e) {
 export function exercicesDeMachine(id, catalogue) {
   const m = MACHINES_PAR_ID[id];
   if (!m) return [];
-  return catalogue.filter((e) => { try { return m.test(e, texteExercice(e)); } catch { return false; } });
+  return catalogue.filter((e) => { try { return e.machine === id || m.test(e, texteExercice(e)); } catch { return false; } });
 }
 
 /** Machines d'un groupe de navigation visuelle. @param {string} groupe */

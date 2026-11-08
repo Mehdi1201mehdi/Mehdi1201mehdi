@@ -104,7 +104,7 @@ test("taxonomie : familles de mouvement, charge, repères généraux", () => {
   const curl = getExercise("curl-barre");
   assert.ok(estIsolation(curl) && !estPolyarticulaire(curl));
   assert.ok(mouvementsDe(curl).includes("flexion"));
-  for (const e of CATALOGUE) for (const k of mouvementsDe(e)) assert.ok(MOUVEMENTS.includes(k), `${e.id} : ${k}`);
+  for (const e of CATALOGUE) for (const k of mouvementsDe(e)) assert.ok(/** @type {readonly string[]} */ (MOUVEMENTS).includes(k), `${e.id} : ${k}`);
   const familles = new Set(CATALOGUE.flatMap(mouvementsDe));
   assert.equal(familles.size, MOUVEMENTS.length, "les 16 familles demandées sont toutes représentées");
 });
@@ -112,4 +112,68 @@ test("taxonomie : familles de mouvement, charge, repères généraux", () => {
 test("recherche : texte normalisé sans accents, avec le nom anglais", () => {
   const t = texteExercice(getExercise("developpe-couche-barre"));
   assert.ok(t.includes("developpe couche"));
+});
+
+import { chercherCatalogue, enregistrerExercicesPerso } from "../src/data/exercises.js";
+import { ordonner, compterUsage, TRIS } from "../src/engine/bibliotheque.js";
+import { serieTemplateDefaut, definirSeries } from "../src/engine/routines.js";
+
+test("recherche : accents, synonymes FR/EN, muscles et matériel cherchables", () => {
+  const a = chercherCatalogue({ q: "développé couché" }).length;
+  assert.equal(chercherCatalogue({ q: "developpe couche" }).length, a);
+  assert.ok(a > 10);
+  assert.ok(chercherCatalogue({ q: "bench" }).length >= a, "bench → développé couché");
+  assert.ok(chercherCatalogue({ q: "pecs machine" }).some((e) => /pec deck|butterfly|presse pectorale/i.test(e.nom)));
+});
+
+test("filtres combinables : muscle + famille d'équipement + niveau", () => {
+  const r = chercherCatalogue({ muscle: "pectoraux", groupe: "machine", niveau: "2" });
+  assert.ok(r.length > 0);
+  for (const e of r) {
+    assert.ok(e.musclesPrincipaux.includes("pectoraux") || e.musclesSecondaires.includes("pectoraux"));
+    assert.equal(e.difficulte, 2);
+    assert.ok(machinesDe(e).some((m) => m.groupe === "machine"), e.nom);
+  }
+  assert.ok(chercherCatalogue({ machine: "presse-jambes", muscle: "fessiers" }).length > 0);
+  assert.ok(chercherCatalogue({ poly: "iso" }).every((e) => estIsolation(e)));
+  assert.ok(chercherCatalogue({ mouvement: "rotation" }).length > 20);
+  assert.ok(chercherCatalogue({ sansMateriel: true }).every((e) => e.equipement.every((q) => q === "poids_du_corps")));
+  assert.ok(chercherCatalogue({ statut: "valide" }).length >= 1200);
+});
+
+test("exercices perso : enregistrés, cherchables, masqués une fois supprimés, sans doublon", () => {
+  const avant = CATALOGUE.length;
+  enregistrerExercicesPerso([{ id: "perso-t1", nom: "Rowing élastique maison", musclesPrincipaux: ["dorsaux"], equipement: ["elastiques"], machine: "elastiques" }]);
+  assert.equal(CATALOGUE.length, avant + 1);
+  const e = getExercise("perso-t1");
+  assert.equal(e.perso, true);
+  assert.deepEqual(chercherCatalogue({ perso: true }).map((x) => x.id), ["perso-t1"]);
+  assert.ok(chercherCatalogue({ q: "rowing elastique maison" }).some((x) => x.id === "perso-t1"));
+  enregistrerExercicesPerso([{ id: "perso-t1", nom: "Rowing élastique maison", musclesPrincipaux: ["dorsaux"], supprime: true }]);
+  assert.equal(CATALOGUE.length, avant, "supprimé : hors bibliothèque");
+  assert.ok(getExercise("perso-t1"), "mais toujours résolu pour l'historique");
+  enregistrerExercicesPerso([]);
+  assert.equal(getExercise("perso-t1"), undefined);
+});
+
+test("tri « les plus utilisés » : compté sur les séances réelles", () => {
+  const logs = [{ exercices: [{ exerciceId: "b" }, { exerciceId: "b" }, { exerciceId: "a" }] }, { exercices: [{ exerciceId: "b" }] }];
+  const u = compterUsage(logs);
+  assert.equal(u.get("b"), 2, "une séance compte une fois");
+  assert.equal(u.get("a"), 1);
+  assert.ok(TRIS.some((t) => t.cle === "populaire"));
+  const l = ordonner([{ id: "a", nom: "A" }, { id: "c", nom: "C" }, { id: "b", nom: "B" }], { tri: "populaire", usage: u });
+  assert.deepEqual(l.map((x) => x.id), ["b", "a", "c"]);
+});
+
+test("ajout à une séance : charge, tempo, RPE, % 1RM ; conservés quand on change les séries", () => {
+  const exo = getExercise("developpe-couche-barre");
+  const t = serieTemplateDefaut(exo, { repsCible: [6, 8], chargeKg: 80, tempo: "3-1-1", rpeCible: 8, pct1RM: 75, reposSec: 120 });
+  assert.deepEqual([t.chargeKg, t.tempo, t.rpeCible, t.pct1RM, t.reposSec], [80, "3-1-1", 8, 75, 120]);
+  const ex = { exerciceId: exo.id, series: [t, { ...t }] };
+  definirSeries(ex, { nbSeries: 4, repsCible: [5, 5] });
+  assert.equal(ex.series.length, 4);
+  assert.deepEqual(ex.series[0].repsCible, [5, 5]);
+  assert.equal(ex.series[3].tempo, "3-1-1");
+  assert.equal(ex.series[3].chargeKg, 80);
 });
