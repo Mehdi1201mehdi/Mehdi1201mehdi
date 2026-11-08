@@ -477,6 +477,7 @@ export const EXERCISES = [
  * qu'à l'ouverture de l'écran Catalogue, pas au démarrage de l'app.
  */
 import { SALLE_EXERCISES } from "./exercises-salle.js";
+import { corrigerFiche } from "./corrections-catalogue.js";
 
 // Catalogue = base originale + exercices de salle (machines/poulies), tous deux
 // rédigés pour ce projet et chargés d'emblée (donc disponibles hors ligne).
@@ -563,17 +564,50 @@ export function chargerCatalogueEtendu() {
     // Deux extensions, chargées ensemble : wger (CC-BY-SA, avec descriptions)
     // et free-exercise-db (domaine public, métadonnées seules). Un identifiant
     // déjà présent n'est jamais écrasé.
-    extraCataloguePromise = Promise.all([import("./exercises-extra.js"), import("./exercises-fedb.js")])
-      .then(([{ EXTRA_EXERCISES }, { FEDB_EXERCISES }]) => {
-        for (const e of [...EXTRA_EXERCISES, ...FEDB_EXERCISES]) {
+    // Troisième : exercises-dataset (données MIT, consignes françaises), qui
+    // apporte ses nouveaux exercices ET des consignes aux fiches existantes
+    // qui n'en avaient pas.
+    extraCataloguePromise = Promise.all([import("./exercises-extra.js"), import("./exercises-fedb.js"), import("./exercises-edb.js")])
+      .then(([{ EXTRA_EXERCISES }, { FEDB_EXERCISES }, { EDB_EXERCISES, EDB_ENRICHISSEMENTS }]) => {
+        for (const e of [...EXTRA_EXERCISES, ...FEDB_EXERCISES, ...EDB_EXERCISES.map(completerFicheEdb)]) {
           if (EXERCISES_BY_ID[e.id]) continue;
           EXERCISES_BY_ID[e.id] = e;
           if (!DOUBLONS_MASQUES[e.id]) CATALOGUE.push(e);
         }
+        appliquerEnrichissements(EDB_ENRICHISSEMENTS);
+        for (const e of Object.values(EXERCISES_BY_ID)) corrigerFiche(e);
         extraCatalogueCharge = true;
       });
   }
   return extraCataloguePromise;
+}
+
+/** Valeurs par défaut retirées du fichier généré exercises-edb.js (fichier compact). */
+const DEFAUTS_EDB = { erreurs: [], respiration: "", securite: "", musclesStabilisateurs: [], equipementsAlternatifs: [], position: "",
+  amplitude: "complète", chargeRelative: "moyen", contreIndications: [], statut: "importe", auteur: "exercises-dataset (MIT)",
+  source: "exercises-dataset", licence: "MIT (données ; médias exclus)", niveauEstime: true, dureeSec: null };
+/** @param {any} e */
+export function completerFicheEdb(e) {
+  const f = { ...e };
+  for (const [k, v] of Object.entries(DEFAUTS_EDB)) if (!(k in f)) f[k] = Array.isArray(v) ? [] : v;
+  if (!f.media) f.media = { miniature: null, video: null };
+  return f;
+}
+
+/**
+ * Consignes françaises (exercises-dataset, MIT) ajoutées aux fiches qui n'en
+ * avaient pas : jamais d'écrasement d'une consigne existante.
+ * @param {Record<string, {instructions:string[], nomEn:string, sourceId:string}>} enr
+ */
+export function appliquerEnrichissements(enr) {
+  for (const [id, x] of Object.entries(enr || {})) {
+    const e = EXERCISES_BY_ID[id];
+    if (!e || (e.instructions || []).length) continue;
+    e.instructions = x.instructions.slice();
+    e.sourceInstructions = "exercises-dataset (MIT)";
+    if (x.nomEn && !(e.nomsAlternatifs || []).some((n) => n.toLowerCase() === x.nomEn.toLowerCase())) e.nomsAlternatifs = [...(e.nomsAlternatifs || []), x.nomEn];
+    if (typeof e.description === "string") e.description = e.description.replace(" Fiche importée sans consignes détaillées.", "");
+  }
 }
 
 /**

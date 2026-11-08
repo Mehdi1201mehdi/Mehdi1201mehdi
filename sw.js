@@ -1,7 +1,7 @@
 /* Service worker — stratégie RÉSEAU D'ABORD pour l'app (toujours la dernière
    version en ligne), cache en secours hors ligne. Les médias de démonstration
    (cross-origin) restent en cache d'abord pour l'usage hors ligne. */
-const CACHE = "coachperso-ia-v156";
+const CACHE = "coachperso-ia-v157";
 const MEDIA_CACHE = "coachperso-media-v1";
 const MEDIA_HOSTS = ["exercisedb.dev", "exercisedb.p.rapidapi.com", "wger.de", "githubusercontent.com", "cloudfront.net"];
 const ASSETS = [
@@ -10,11 +10,11 @@ const ASSETS = [
   "./assets/icons/icon-maskable-512.png", "./assets/icons/apple-touch-icon.png",
   "./assets/fonts/inter-latin.woff2", "./assets/fonts/inter-latin-ext.woff2", "./assets/fonts/anton-latin.woff2",
   "./src/ui/app.js", "./src/ui/icones.js", "./src/ui/dom.js", "./src/ui/vignettes.js", "./src/ui/graphes.js", "./src/ui/anatomy.js", "./src/ui/scanner.js", "./src/ui/notifs.js", "./src/ui/photoCapture.js", "./src/ui/son.js", "./src/ui/voix.js", "./src/ui/flip.js", "./src/ui/anatomieCanvas.js", "./src/ui/illustrations.js", "./src/ui/medailles.js", "./src/ui/dico.js", "./src/ui/natif.js", "./src/models.js",
-  "./src/data/exercises.js", "./src/data/exercises-extra.js", "./src/data/exercises-fedb.js", "./src/data/foods.js", "./src/data/gifs.js", "./src/data/media-manifest.js", "./src/data/anatoly.js", "./src/data/anatomy-paths.js", "./src/data/mobilite.js", "./src/data/programmes-salle.js", "./src/data/exercises-salle.js", "./src/data/muscles-moteur.js", "./src/data/exercise-muscle-map.js", "./src/data/dictionnaire.js",
+  "./src/data/exercises.js", "./src/data/exercises-extra.js", "./src/data/exercises-fedb.js", "./src/data/exercises-edb.js", "./src/data/machines.js", "./src/data/corrections-catalogue.js", "./src/data/foods.js", "./src/data/gifs.js", "./src/data/media-manifest.js", "./src/data/anatoly.js", "./src/data/anatomy-paths.js", "./src/data/mobilite.js", "./src/data/programmes-salle.js", "./src/data/exercises-salle.js", "./src/data/muscles-moteur.js", "./src/data/exercise-muscle-map.js", "./src/data/dictionnaire.js",
   "./src/engine/index.js", "./src/engine/constraints.js", "./src/engine/generator.js",
   "./src/engine/progression.js", "./src/engine/replacement.js", "./src/engine/review.js",
   "./src/engine/nutrition.js", "./src/engine/calendar.js", "./src/engine/export.js", "./src/engine/liveSession.js", "./src/engine/routines.js",
-  "./src/engine/records.js", "./src/engine/stats.js", "./src/engine/backup.js", "./src/engine/powerlifting.js", "./src/engine/defis.js", "./src/engine/assistant.js", "./src/engine/outils.js", "./src/engine/fatigue.js", "./src/engine/planner.js", "./src/engine/apprentissage.js", "./src/engine/bibliotheque.js", "./src/engine/repos.js", "./src/engine/force.js", "./src/engine/trophees.js", "./src/engine/rang.js", "./src/engine/photos.js", "./src/engine/bilanSeance.js", "./src/engine/muscle.js", "./src/engine/equilibre.js", "./src/engine/dictionnaire.js", "./src/engine/coachRoutine.js", "./src/engine/activite.js", "./src/engine/unites.js", "./src/engine/mesures.js", "./src/engine/analyse.js", "./src/engine/corps.js", "./src/engine/calories.js", "./src/engine/intervalles.js",
+  "./src/engine/records.js", "./src/engine/stats.js", "./src/engine/backup.js", "./src/engine/powerlifting.js", "./src/engine/defis.js", "./src/engine/assistant.js", "./src/engine/outils.js", "./src/engine/fatigue.js", "./src/engine/planner.js", "./src/engine/apprentissage.js", "./src/engine/bibliotheque.js", "./src/engine/repos.js", "./src/engine/force.js", "./src/engine/trophees.js", "./src/engine/rang.js", "./src/engine/photos.js", "./src/engine/bilanSeance.js", "./src/engine/muscle.js", "./src/engine/equilibre.js", "./src/engine/dictionnaire.js", "./src/engine/coachRoutine.js", "./src/engine/activite.js", "./src/engine/unites.js", "./src/engine/mesures.js", "./src/engine/analyse.js", "./src/engine/corps.js", "./src/engine/calories.js", "./src/engine/intervalles.js", "./src/engine/validationExo.js", "./src/engine/taxonomie.js",
   "./src/integrations/exercisedb.js", "./src/integrations/openfoodfacts.js", "./src/integrations/coachIA.js", "./src/integrations/coachCloud.js", "./src/integrations/santeConnect.js",
   "./src/store/state.js", "./src/store/db.js", "./src/store/migrate.js",
   "./src/config/identite.js",

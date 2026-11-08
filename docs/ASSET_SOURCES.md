@@ -103,12 +103,19 @@ trop léger pour l'usage.
 | Coach Perso (rédaction maison) | 93 | — | Fiches complètes en français (consignes, erreurs, sécurité, respiration). |
 | wger.de | 240 (250 importés, 10 doublons masqués) | CC-BY-SA 4.0 — attribution affichée sur chaque fiche | Nom, muscles, matériel, description d'origine (souvent en anglais). |
 | free-exercise-db (github.com/yuhonas/free-exercise-db) | 793 (835 importés, 42 doublons masqués) | Unlicense (domaine public) | **Métadonnées seules** : nom anglais, muscles, matériel, niveau, mécanique, catégorie. |
-| **Total** | **1 126 exercices distincts** | | |
+| exercises-dataset (github.com/hasaneyldrm/exercises-dataset) | 831 nouveaux (1 324 dans la source : 446 déjà au catalogue, 45 doublons internes, 2 de cou) | **MIT pour les données** (© 2026 Hasan Emir Yıldırım) | Nom anglais, muscles, matériel, **consignes en français**. 385 fiches existantes sans consignes reçoivent ces consignes françaises. **Médias exclus** : les images et GIF appartiennent à Gym visual et ne sont pas repris. |
+| **Total** | **1 957 exercices distincts** (1 227 validés, voir RAPPORT_CATALOGUE.md) | | |
+
+**Sources examinées et écartées** : RepDB (701 exercices, licence « usage dans
+une application » qui interdit de redistribuer les données : incompatible avec
+un dépôt public) ; longhaul-fitness (MIT, 404) et Glowupp (MIT, 322) : consignes
+en anglais seulement et en grande partie déjà couvertes, non intégrés à ce stade ;
+jeux Kaggle/Hugging Face issus de sites commerciaux : provenance non autorisée.
 
 **Pourquoi pas 3 000 ?** Les autres jeux de données « ouverts » trouvés soit
 reprennent ces mêmes mouvements (doublons), soit n'ont pas de provenance claire
 pour leurs textes et images (fiches recopiées de sites commerciaux). Gonfler le
-compteur en renommant des variantes est exclu : 1 126 est le nombre réel de
+compteur en renommant des variantes est exclu : 1 957 est le nombre réel de
 mouvements distincts (aucun nom affiché deux fois, vérifié par test).
 
 **free-exercise-db : ce qui n'est PAS repris.** Le jeu de données dérive de
