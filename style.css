@@ -145,7 +145,12 @@
   --warning:#9B6209;
   --ok:#4E7106; --ok-soft:rgba(78,113,6,.14); --orange:#B2540A; --indigo:#5B6459; --pink:#C93746;
   --anat-body:#DDE2D6; --anat-line:#C2C9B8; --anat-muscle:#C6CEBB;
-  --anat-primary:#56790C; --anat-secondary:#A9C271;
+  /* Muscle ciblé en terre cuite, comme en thème sombre : en vert sur un corps
+     vert-gris il se confondait avec le reste (audit nov. 2026). */
+  --anat-primary:#B8482A; --anat-secondary:#DFA791;
+  /* Récupération : le blanc « frais » et le rose pâle du thème sombre étaient
+     illisibles sur fond clair (contrastes 1,0 et 2,1 → 18,3 / 5,2 / 7,9). */
+  --recup-frais:#12160E; --recup-encours:#A93BB8; --recup-fatigue:#8E0A99;
   --shadow:0 4px 16px rgba(20,28,12,.08); --shadow-lg:0 16px 42px rgba(20,28,12,.14);
 }
 
@@ -315,6 +320,11 @@ label.f>span{display:block;font-size:.8rem;font-weight:750;color:var(--ink-soft)
 .qrow button span{font-size:.7rem;font-weight:600}
 .qrow .q-blue{color:var(--accent)}.qrow .q-green{color:var(--ok)}.qrow .q-indigo{color:var(--indigo)}
 /* Carte « Entraînement du jour » (accueil) — traitement héro (bord + lueur d'accent) */
+/* Reprise d'une séance interrompue : première carte de l'accueil. */
+.reprise{border-color:color-mix(in srgb,var(--accent) 45%,var(--line));margin-bottom:var(--space-3)}
+.reprise-t{margin:4px 0 10px;font-size:1.3rem}
+.reprise-n{color:var(--accent-ink);font-weight:800;font-size:.85rem}
+.reprise .primary{margin-top:12px}
 .wkcard{position:relative;overflow:hidden;border-color:color-mix(in srgb,var(--accent) 32%,var(--line));box-shadow:var(--shadow-lg),0 0 40px -12px color-mix(in srgb,var(--accent) 40%,transparent);
   background:
     radial-gradient(135% 95% at 106% -14%, color-mix(in srgb,var(--accent) 30%,transparent), transparent 50%),
@@ -1142,8 +1152,9 @@ body.guide-open{overflow:hidden}
 .alt-v .mini-silhouette{width:100%;height:100%;display:block}
 .alt-g{flex:1;min-width:0}
 /* Capsule de repos persistante */
+/* Au-dessus du bouton coach (56 px, bas à 72 px) : les deux se recouvraient. */
 .restcap{position:fixed;right:14px;z-index:var(--z-capsule);display:none;align-items:center;gap:7px;
-  bottom:calc(84px + env(safe-area-inset-bottom));padding:10px 15px;border-radius:999px;min-height:44px;
+  bottom:calc(140px + env(safe-area-inset-bottom));padding:10px 15px;border-radius:999px;min-height:44px;
   background:var(--accent);color:var(--on-accent);border:0;font-weight:800;
   box-shadow:0 8px 24px color-mix(in srgb,var(--accent) 40%,transparent)}
 .restcap.show{display:inline-flex;animation:popIn .25s var(--ease) both}

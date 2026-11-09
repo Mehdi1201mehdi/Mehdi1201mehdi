@@ -1,0 +1,44 @@
+# Audit avant refonte — 9 novembre 2026
+
+Branche `refonte-premium` (issue de `fitai-premium`, e8254a2). Mesures prises avec
+Chrome piloté (Playwright) sur 9 écrans × 6 largeurs (320, 375, 390, 430, 820, 1366 px),
+thèmes sombre et clair, jeu de données de test (20 séances).
+
+## Ce qui est sain (mesuré)
+- 684 tests unitaires sur 684 ; aucune erreur JavaScript ni requête en échec sur 72 écrans visités.
+- Aucun débordement horizontal, aucune image cassée, aucun bouton sans nom accessible.
+- Une série validée est écrite dans le stockage immédiatement ; après rechargement en pleine
+  séance, charge et répétitions sont retrouvées.
+
+## Défauts constatés
+| # | Défaut | Mesure | État |
+|---|--------|--------|------|
+| 1 | Séance interrompue : la reprise n'apparaissait qu'en bas de la carte « Prochaine séance », sous 6 exercices | capture | corrigé (carte « Séance en cours » en tête) |
+| 2 | Thème clair : chiffres de récupération blancs sur blanc, rose pâle | contraste 1,0 et 2,1 | corrigé (18,3 / 5,2 / 7,9) |
+| 3 | Thème clair : muscle ciblé vert sur corps vert | capture | corrigé (terre cuite, comme en sombre) |
+| 4 | Minuteur de repos posé sur le bouton coach | recouvrement mesuré | corrigé |
+| 5 | Réglages : le thème sombre s'appelait encore « Lime » | lecture du code | corrigé |
+| 6 | Ordinateur et tablette : une colonne de téléphone centrée, barre du bas étirée | captures 820 et 1366 | à faire (lot 2) |
+| 7 | Changement d'onglet lent sur téléphone modeste | 215 à 400 ms, processeur ÷4 ; 3 893 nœuds sur Routines | à faire (lot 2) |
+| 8 | Dictionnaire : 164 fiches affichées d'un coup | page de 18 600 px | à faire (lot 4) |
+| 9 | Progrès, Nutrition, Dictionnaire, Calculatrices : accessibles seulement depuis Compte | lecture du code | à faire (lot 2) |
+| 10 | Bibliothèque : 20 cibles tactiles sous 40 px ; accueil : 28 textes sous 11 px | mesure | à faire (lots 3 et 5) |
+| 11 | Le minuteur de repos continue après l'abandon d'une séance | capture | à faire (lot 3) |
+| 12 | Démarrage : 90 fichiers, 1,5 Mo non compressés en local | mesure | à vérifier sur GitHub Pages (gzip) |
+
+## Demandé et absent
+Archivage des programmes ; modèle « Bro Split » ; AMRAP proposé dans l'interface de séance
+(présent dans le moteur) ; choix explicite Epley / Brzycki / Lombardi (le moteur calcule les
+trois et affiche une médiane) ; mise en page ordinateur.
+
+## Demandé et déjà présent
+Bibliothèque (1 957 exercices, 57 machines, filtres, corps cliquable, favoris, exercices
+personnels), séance (séries, charge, tempo, RPE, RIR, supersets, dégressives, échauffement,
+EMOM, notes, remplacement, réorganisation, chronomètre), programmes (Full Body, Haut/Bas,
+PPL, personnalisés, duplication), statistiques et 16 mensurations, calculatrices (1RM, IMC,
+métabolisme, macros, masse grasse), dictionnaire (164 termes, 11 catégories), coach IA
+facultatif avec validation, sauvegarde et restauration, PWA et APK.
+
+## Non vérifié
+Rendu sur un vrai téléphone ; les sites FitAI et Fit'Distance (inaccessibles depuis cet
+environnement) ; objectif de 3 000 exercices (1 957 distincts avec les sources autorisées).

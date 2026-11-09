@@ -876,6 +876,23 @@ function vDash(v) {
   // programme reste juste dessous, et disparaît quand il n'y en a pas — un
   // rappel de ce qu'on n'a pas ne rend service à personne.
   const moteurActif = Etat.data.reglages.moteurAuto !== false && !!Etat.data.profil;
+  // SÉANCE INTERROMPUE D'ABORD. Constaté à l'audit : après un rechargement (ou
+  // l'app fermée par Android) en pleine séance, l'accueil n'affichait que
+  // « Prochaine séance · Commencer » — les séries déjà validées étaient bien
+  // sauvegardées, mais rien ne disait qu'on pouvait les reprendre.
+  const seanceLive = LIVE && !LIVE.fini ? trouverSeance(LIVE.seanceId) : null;
+  if (seanceLive) {
+    const faites = Object.values(LIVE.data || {}).reduce((n, e) => n + (e.series || []).filter((x) => x.done).length, 0);
+    const total = Object.values(LIVE.data || {}).reduce((n, e) => n + (e.series || []).length, 0);
+    const pct = total ? Math.round((faites / total) * 100) : 0;
+    const carte = h(`<div class="card reprise" role="region" aria-label="Séance en cours">
+      <div class="spread"><span class="eyebrow">Séance en cours</span><span class="num reprise-n">${faites}/${total} séries</span></div>
+      <h2 class="reprise-t">${esc(seanceLive.nom)}</h2>
+      <div class="bar"><div style="width:${pct}%"></div></div>
+      <button class="primary big"><span class="btn-ico">${IC.play}</span>Reprendre la séance</button></div>`);
+    carte.querySelector("button").addEventListener("click", () => { APERCU = null; nav("train"); });
+    scene.append(carte);
+  }
   if (moteurActif) carteMoteur(scene);
   // L'arête qui ferme la scène. Un fondu seul laisse l'œil dans le flou ; cette
   // ligne dit où la zone héro s'arrête et où la page reprend.
@@ -8296,7 +8313,7 @@ function vSet(v) {
 
   const aff = h(`<div class="card stack"></div>`);
   aff.append(h(`<span class="small">Thème</span>`));
-  aff.append(chipsInline([["auto", "Auto"], ["light", "Clair"], ["dark", "Lime"], ["nuit", "Nuit"]], (val) => Etat.data.reglages.theme === val, (val) => { Etat.data.reglages.theme = val; Etat.sauver(); appliquerTheme(); }));
+  aff.append(chipsInline([["auto", "Auto"], ["light", "Clair"], ["dark", "Sombre"], ["nuit", "Nuit"]], (val) => Etat.data.reglages.theme === val, (val) => { Etat.data.reglages.theme = val; Etat.sauver(); appliquerTheme(); }));
   // Unité de poids : purement d'affichage, l'historique reste stocké en kg et
   // s'affiche aussitôt dans l'autre unité. Une séance déjà commencée garde
   // l'unité dans laquelle elle a été saisie jusqu'à sa fin.
