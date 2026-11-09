@@ -197,9 +197,14 @@ const TABS = { dash: vDash, prog: vProg, cat: vCatalogue, recup: vRecup, train: 
 // séance active ne sont plus dans la barre : ils restent atteignables, l'un
 // depuis le Compte (comme la carte « Stats » de FitAI), l'autre au démarrage
 // d'une séance. Aucune vue n'a été supprimée.
-const TABS_PLUS = ["food", "anatoly", "stats", "train", "dico"];
+const TABS_PLUS = ["food", "anatoly", "recup", "train", "dico"];
+// Barre du bas (nov. 2026, validée par Mehdi) :
+// Accueil · Entraînement · Exercices · Progrès · Profil.
+// Un sous-écran allume l'onglet dont il dépend : on sait toujours où l'on est,
+// et un tap sur cet onglet ramène à son écran principal.
+const ONGLET_PARENT = { train: "prog", anatoly: "prog", recup: "stats", food: "set", dico: "set" };
 /** Titre affiché dans l'en-tête compact des écrans autres que l'Accueil. */
-const TITRES_ECRAN = { prog: "Programme", train: "Séance", stats: "Progrès", food: "Nutrition", cat: "Catalogue", anatoly: "Anatoly", set: "Profil", dico: "Dictionnaire" };
+const TITRES_ECRAN = { prog: "Entraînement", train: "Séance", stats: "Progrès", food: "Nutrition", cat: "Exercices", anatoly: "Anatoly", set: "Profil", dico: "Dictionnaire", recup: "Récupération" };
 /**
  * En-tête : la marque, et rien d'autre.
  *
@@ -219,7 +224,7 @@ function majHeader() {
 }
 function majTabs() {
   $("#tabs").querySelectorAll("button[data-tab]").forEach((b) => {
-    const on = b.dataset.tab === TAB;
+    const on = b.dataset.tab === (ONGLET_PARENT[TAB] || TAB);
     b.classList.toggle("on", on);
     if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); // lecteurs d'écran : onglet actif
   });
@@ -310,6 +315,14 @@ function render() {
   libererPhotos();
   view.innerHTML = "";
   (Etat.data.profil ? TABS[TAB] : vOnboarding)(view);
+  // Sous-écran hors barre : un retour visible vers l'onglet dont il dépend
+  // (le bouton retour d'Android marche aussi, mais il ne se voit pas).
+  const parent = Etat.data.profil && TAB !== "train" ? ONGLET_PARENT[TAB] : null;
+  if (parent) {
+    const br = h(`<button class="chip retour-onglet" type="button"><span class="cic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg></span>${esc(TITRES_ECRAN[parent] || "Retour")}</button>`);
+    br.addEventListener("click", () => nav(parent));
+    view.prepend(br);
+  }
   // Motion : ne rejouer l'entrée en cascade que lorsque la VUE change vraiment
   // (onglet, ouverture d'un aperçu, démarrage d'une séance, onboarding). Les
   // simples mises à jour dans le même écran (+1 verre d'eau, bascule RIR, mois
@@ -7681,6 +7694,12 @@ function vStats(v) {
   const logs = Etat.data.logs;
   const p = Etat.data.profil;
   v.append(h(`<div class="dash-hi"><div><span class="eyebrow">Ton évolution</span><h1>Progrès</h1></div></div>`));
+  // Récupération : accès direct depuis Progrès (elle n'est plus dans la barre).
+  {
+    const bR = h(`<button class="card plusitem lien-recup"><span class="pm-ic mi-blue">${IC.activity}</span><span class="pm-main"><b>Récupération musculaire</b><br><span class="muted small">Muscles prêts, en récupération, sollicités</span></span><span class="chev" aria-hidden="true">›</span></button>`);
+    bR.addEventListener("click", () => nav("recup"));
+    v.append(bR);
+  }
 
   const sm = statsSemaine(logs);
   const dm = dureeMoyenneMin(logs);
@@ -8137,11 +8156,9 @@ function vSet(v) {
     b.addEventListener("click", () => nav(tab));
     outils.append(b);
   };
-  // « Progrès » ouvre ici. Depuis le passage aux cinq onglets de FitAI
-  // (Routines · Exercices · Séance · Récupération · Compte), il n'est plus dans
-  // la barre — comme chez eux, où les statistiques vivent dans le Compte. Cette
-  // entrée est donc son SEUL accès : ne pas la retirer.
-  outil(IC.bars, "mi-blue", "Progrès — stats, records, mensurations", "stats");
+  // « Récupération » a quitté la barre du bas (remplacée par « Progrès ») :
+  // elle reste ouverte d'ici et de Progrès ; l'accueil ouvre la feuille « État musculaire ».
+  outil(IC.activity, "mi-blue", "Récupération musculaire", "recup");
   outil(IC.apple, "mi-green", "Nutrition", "food");
   outil(IC.dumbbell, "mi-indigo", "Programme Anatoly", "anatoly");
   outil(IC.livre, "mi-blue", "Dictionnaire fitness", "dico");

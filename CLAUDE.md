@@ -22,6 +22,8 @@ serveur), éteint par défaut. Application Android via Capacitor (`android/`).
   nutrition, powerlifting, sauvegarde. Pur, testé.
 - **UI** : helper `h()` dans `src/ui/app.js` ; vues `vDash / vProg / vTrain / vStats /
   vNutrition / vAnatoly / vCatalogue / vSet`.
+  Barre du bas : Accueil (`dash`) · Entraînement (`prog`) · Exercices (`cat`) · Progrès
+  (`stats`) · Profil (`set`) ; sous-écrans rattachés par `ONGLET_PARENT`.
 - **Offline** : `sw.js` — réseau d'abord pour l'app, cache d'abord pour les médias.
   **Incrémenter `CACHE` (`coachperso-ia-vNN`) à chaque changement d'assets.**
 - **Tests** : `node --test tests/*.test.js` (600) + smokes Playwright dans le scratchpad.

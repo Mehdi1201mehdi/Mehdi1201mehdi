@@ -136,26 +136,33 @@
   --shadow-lg:0 24px 60px rgba(0,0,0,.55);
 }
 :root[data-theme="light"]{
-  --bg:#F4F6F3; --bg-deep:#EDF0EA; --surface:#FFFFFF; --surface-2:#F0F3EC; --surface-3:#E7EBE1; --elevated:#FFFFFF;
-  --ink:#12160E; --ink-soft:#5B6459; --faint:#646C5F;
-  --line:#DEE3D8; --hair:rgba(18,22,14,.08);
-  --accent:#56790C; --accent-2:#4A6A08; --accent-light:#8CBF20; --accent-dark:#4E7106; --on-accent:#FFFFFF;
-  --accent-ink:#4E7106; --accent-soft:rgba(86,121,12,.13); --accent-glow:rgba(86,121,12,.16); --glow:rgba(86,121,12,.16);
-  --lime:#56790C; --amber:#9B6209; --amber-soft:rgba(155,98,9,.14); --danger:#C93746; --danger-soft:rgba(201,55,70,.12);
+  /* Même identité que le thème sombre : accent bleu, neutres froids. Le thème
+     clair était vert (accent #56790C) — deux applications différentes selon le
+     thème. Validé par Mehdi le 9 nov. 2026. */
+  --bg:#F4F6FA; --bg-deep:#ECEFF5; --surface:#FFFFFF; --surface-2:#EEF1F6; --surface-3:#E4E8F0; --elevated:#FFFFFF;
+  --ink:#0E1420; --ink-soft:#566074; --faint:#5F6A7E;
+  --line:#DCE1EA; --hair:rgba(14,20,32,.08);
+  --accent:#1D5FD6; --accent-2:#174FB8; --accent-light:#4C8DFF; --accent-dark:#174FB8; --on-accent:#FFFFFF;
+  --accent-ink:#1A56C4; --accent-soft:rgba(29,95,214,.11); --accent-glow:rgba(29,95,214,.16); --glow:rgba(29,95,214,.16);
+  --lime:#1D5FD6; --amber:#9B6209; --amber-soft:rgba(155,98,9,.14); --danger:#C93746; --danger-soft:rgba(201,55,70,.12);
   --warning:#9B6209;
-  --ok:#4E7106; --ok-soft:rgba(78,113,6,.14); --orange:#B2540A; --indigo:#5B6459; --pink:#C93746;
-  --anat-body:#DDE2D6; --anat-line:#C2C9B8; --anat-muscle:#C6CEBB;
-  /* Muscle ciblé en terre cuite, comme en thème sombre : en vert sur un corps
-     vert-gris il se confondait avec le reste (audit nov. 2026). */
+  --ok:#2F7D32; --ok-soft:rgba(47,125,50,.13); --orange:#B2540A; --indigo:#566074; --pink:#C93746;
+  --anat-body:#D9DEE8; --anat-line:#BFC6D4; --anat-muscle:#C3CAD8;
+  /* Muscle ciblé en terre cuite, comme en thème sombre. */
   --anat-primary:#B8482A; --anat-secondary:#DFA791;
   /* Récupération : le blanc « frais » et le rose pâle du thème sombre étaient
      illisibles sur fond clair (contrastes 1,0 et 2,1 → 18,3 / 5,2 / 7,9). */
-  --recup-frais:#12160E; --recup-encours:#A93BB8; --recup-fatigue:#8E0A99;
-  --shadow:0 4px 16px rgba(20,28,12,.08); --shadow-lg:0 16px 42px rgba(20,28,12,.14);
+  --recup-frais:#0E1420; --recup-encours:#A93BB8; --recup-fatigue:#8E0A99;
+  --shadow:0 4px 16px rgba(14,22,40,.08); --shadow-lg:0 16px 42px rgba(14,22,40,.14);
 }
 
 *{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%}
+/* `min-height` et non `height` : avec une hauteur fixe de 100 %, la marge basse
+   du body (réservée à la barre d'onglets) restait DANS l'écran au lieu de
+   s'ajouter après le contenu — le dernier élément de chaque page finissait sous
+   la barre (bouton « Créer depuis une séance passée » inatteignable). */
+html{height:100%}
+body{min-height:100%}
 /* Accessibilité : contenu réservé aux lecteurs d'écran */
 .sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 /* Lien d'évitement (clavier) : caché jusqu'au focus */
@@ -545,6 +552,10 @@ button.linklike{background:transparent;border:none;min-height:44px;display:inlin
 /* Menu « Plus » */
 .plusmenu .inner{display:flex;flex-direction:column;gap:10px}
 .plusitem{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:15px}
+/* Retour d'un sous-écran vers son onglet ; lien Récupération en tête de Progrès. */
+.retour-onglet{margin:0 0 var(--space-3);min-height:44px;padding-inline:14px 16px}
+.retour-onglet .cic{width:16px;height:16px;margin-right:4px}
+.lien-recup{margin-bottom:var(--space-3)}
 .plusitem .pm-ic{flex:0 0 auto;width:46px;height:46px;border-radius:13px;display:grid;place-items:center;font-size:1.4rem;background:var(--surface-2)}
 .plusitem .pm-ic svg{width:23px;height:23px;display:block}
 .plusitem .pm-ic.mi-green,.plusitem .pm-ic.mi-blue,.plusitem .pm-ic.mi-indigo,.plusitem .pm-ic.mi-orange{background:color-mix(in srgb,currentColor 15%,transparent)}

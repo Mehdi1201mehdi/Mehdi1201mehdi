@@ -42,3 +42,27 @@ facultatif avec validation, sauvegarde et restauration, PWA et APK.
 ## Non vérifié
 Rendu sur un vrai téléphone ; les sites FitAI et Fit'Distance (inaccessibles depuis cet
 environnement) ; objectif de 3 000 exercices (1 957 distincts avec les sources autorisées).
+
+## Complément d'audit (même jour)
+
+Demandé dans la mission et non couvert au premier passage.
+
+| Vérification | Méthode | Résultat |
+|---|---|---|
+| Boutons inactifs | clic sur chaque bouton visible de 8 écrans (159 boutons distincts), page neuve à chaque clic | 0 bouton sans effet, 0 erreur JavaScript ; 1 bouton inatteignable (ci-dessous) |
+| Bas de page | mesure de l'espace entre le dernier élément et la barre, 9 écrans × 3 largeurs | **défaut** : le dernier élément de chaque page passait sous la barre (−52 px) ; « Créer depuis une séance passée » ne pouvait pas être touché. Cause : `html,body{height:100%}`. Corrigé (+50 à +68 px) |
+| Sauvegarde | favori, thème, nouvelle routine, puis actualisation | conservés |
+| Double stockage | localStorage vidé, puis actualisation | données rendues par IndexedDB |
+| Sauvegarde / restauration | export JSON, navigateur vierge, import « Fusionner » | 20 séances, favoris, routines, 8 mensurations revenus ; aucune clé du coach dans le fichier |
+| Calculs | Epley, Brzycki, Lombardi (100 kg × 5), Mifflin-St Jeor, US Navy, IMC, somme des macros : recalcul indépendant | identiques |
+| Bibliothèque | scénario de 28 vérifications | 28/28 |
+
+Non couvert : chaque champ de chaque formulaire, chaque graphique ; le bouton retour
+d'Android quand une feuille est ouverte sur le premier écran (à vérifier dans l'APK) ;
+Fit'Distance (site bloqué ici, navigateur de Mehdi non joignable depuis le mobile).
+FitAI : référence = `docs/ANALYSE_FITAI_APK_2.0.6.md` (XAPK fourni par Mehdi).
+
+## Lot 2a — fait
+- Barre du bas : Accueil · Entraînement · Exercices · Progrès · Profil. Un sous-écran allume
+  l'onglet dont il dépend et affiche un retour. Récupération : depuis Progrès et Profil.
+- Thème clair en bleu, neutres froids (contrastes vérifiés : 5,1 à 6,1).
