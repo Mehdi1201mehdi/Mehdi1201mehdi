@@ -24,7 +24,7 @@ import { memoriserFlip, rejouerFlip, oublierFlip } from "./flip.js";
 import { dessinerCorps } from "./anatomieCanvas.js";
 import { illustration } from "./illustrations.js";
 import { medaille } from "./medailles.js";
-import { trophees } from "../engine/trophees.js";
+import { trophees, serieSemainesEnCours } from "../engine/trophees.js";
 import { rangForce, NIVEAUX, STANDARDS, LIMITES as LIM_RANG, validerSeuils, standardsEffectifs, AVERTISSEMENT as AVERT_RANG } from "../engine/rang.js";
 import { calculerBesoins } from "../engine/nutrition.js";
 import { bilan } from "../engine/review.js";
@@ -75,7 +75,7 @@ import {
   supprimerExerciceIndex, deplacerExercice, definirSeries, dupliquerRoutine,
   seanceDepuisLog, estimerDureeSeance,
 } from "../engine/routines.js";
-import { FORMULE_1RM, classementRecords, detecterRecords, e1rmFiable } from "../engine/records.js";
+import { FORMULE_1RM, classementRecords, detecterRecords, e1rmFiable, recordsRecents } from "../engine/records.js";
 import { construireExport, validerImport, appliquerImport, nomFichierBackup } from "../engine/backup.js";
 import { disquesParCote, echauffement, rampeEchauffement } from "../engine/powerlifting.js";
 import {
@@ -681,6 +681,9 @@ function carteBilanSemaine(logs, p) {
   </span>`));
   let ecart;
   if (!b.seances && !b.precedente.seances) ecart = "Enregistre une séance pour voir ta semaine ici.";
+  // Semaine pas encore commencée : « −100 % de volume » un mardi matin ne dit
+  // rien d'utile et décourage. On rappelle seulement ce qu'il y a à égaler.
+  else if (!b.seances) ecart = `Rien cette semaine pour l'instant · ${b.precedente.seances} séance${b.precedente.seances > 1 ? "s" : ""} la semaine dernière.`;
   else if (b.ecartVolumePct == null) ecart = b.seances ? "Première semaine enregistrée : la comparaison arrive la semaine prochaine." : "Rien cette semaine pour l'instant.";
   else {
     const signe = b.ecartVolumePct > 0 ? "+" : "";
@@ -945,6 +948,10 @@ function vDash(v) {
   // Toutes les valeurs viennent de l'historique réel, aucune n'est inventée.
   v.append(h(`<div class="eyebrow dash-lbl">Mes chiffres</div>`));
   v.append(grilleChiffres(logs));
+  {
+    const duo = carteCorpsEtRecords(logs);
+    if (duo) v.append(duo);
+  }
 
   // Ma semaine — bande compacte, juste sous l'action principale.
   v.append(h(`<div class="eyebrow dash-lbl">Ma semaine</div>`));
@@ -959,9 +966,13 @@ function vDash(v) {
     b.addEventListener("click", onClick);
     return b;
   };
+  // « Exercices » est dans la barre du bas : sa place revient aux écrans qui
+  // n'y sont pas (calculatrices et dictionnaire n'étaient joignables que par
+  // le Profil).
   qrow.append(qbtn(IC.message, "q-blue", "Coach", () => ouvrirCoach()));
+  qrow.append(qbtn(IC.calculator || IC.bars, "q-blue", "Calculs", () => ouvrirOutils()));
+  qrow.append(qbtn(IC.book || IC.info, "q-blue", "Lexique", () => nav("dico")));
   qrow.append(qbtn(IC.apple, "q-green", "Nutrition", () => nav("food")));
-  qrow.append(qbtn(IC.search, "q-indigo", "Exercices", () => nav("cat")));
   v.append(qrow);
 
   // Objectif du jour (façon « Today Target ») : séance, calories, hydratation
@@ -4886,15 +4897,49 @@ function tagsExercice(exo) {
  * rythme visé. L'anneau montre les séances faites sur l'objectif hebdomadaire —
  * une vraie mesure, pas un pourcentage décoratif.
  */
+/**
+ * Accueil : évolution du poids et derniers records battus, côte à côte.
+ * Chaque moitié n'apparaît que si elle a de vraies données ; rien du tout si
+ * aucune des deux n'en a (pas de carte vide décorative).
+ */
+function carteCorpsEtRecords(logs) {
+  const poids = serieCorps(Etat.data.metrics, "poidsKg");
+  const recs = recordsRecents(logs, (id) => (getExercise(id) || {}).nom || id, 3);
+  if (poids.length < 2 && !recs.length) return null;
+  const box = h(`<div class="duo-acc"></div>`);
+  if (poids.length >= 2) {
+    const dernier = poids[poids.length - 1], borne = Date.parse(dernier.iso) - 30 * 86400000;
+    const ref = poids.find((x) => Date.parse(x.iso) >= borne) || poids[0];
+    const ecart = Math.round((uAff(dernier.v) - uAff(ref.v)) * 10) / 10;
+    const c = h(`<button class="card duo-c" type="button" aria-label="Voir l'évolution du poids">
+      <span class="eyebrow">Poids</span>
+      <b class="num duo-v">${esc(uCharge(dernier.v))}</b>
+      <span class="duo-sub">${ecart === 0 ? "stable" : `${ecart > 0 ? "+" : "−"}${String(Math.abs(ecart)).replace(".", ",")} ${uUnite()}`} sur 30 j</span>
+      <span class="duo-spark" aria-hidden="true">${sparkAire(poids.slice(-12).map((x) => x.v))}</span></button>`);
+    c.addEventListener("click", () => nav("stats"));
+    box.append(c);
+  }
+  if (recs.length) {
+    const c = h(`<button class="card duo-c" type="button" aria-label="Voir mes records">
+      <span class="eyebrow">Derniers records</span>
+      ${recs.map((r) => `<span class="duo-rec"><span class="duo-rn">${esc(r.nom)}</span><b class="num">${esc(uCharge(r.valeur))}</b></span>`).join("")}</button>`);
+    c.addEventListener("click", () => nav("stats"));
+    box.append(c);
+  }
+  return box;
+}
+
 function carteProgrammeActuel(prog, logs, profil) {
   const cible = Math.max(1, profil?.joursParSemaine || 4);
   const sm = statsSemaine(logs);
   const pct = Math.min(1, sm.seances / cible);
+  const suite = serieSemainesEnCours(logs);
   const c = h(`<button class="card prog-actuel" aria-label="Voir le programme"></button>`);
   c.append(h(`<span class="pa-txt">
     <span class="eyebrow">Programme actuel</span>
     <b class="pa-nom">${esc(prog?.nom || "Aucun programme")}</b>
     <span class="pa-meta">${cible} séance${cible > 1 ? "s" : ""} / semaine · ${sm.seances} faite${sm.seances > 1 ? "s" : ""}</span>
+    ${suite >= 2 ? `<span class="pa-suite"><span class="cic">${IC.flame}</span><b class="num">${suite}</b> semaines d'affilée</span>` : ""}
   </span>`));
   c.append(h(`<span class="pa-ring">${anneauSignature(pct, `${sm.seances}`, "sur " + cible)}</span>`));
   c.addEventListener("click", () => nav("prog"));
@@ -5097,15 +5142,17 @@ function carteMoteur(v) {
       const meta = `${nb} série${nb > 1 ? "s" : ""} × ${plage[0]}-${plage[1]} reps`;
       liste.append(ligneExoFitai({ exo, meta, dispo, onClick: () => ouvrirDetail(exo) }));
     });
-    c.append(liste);
     // Une séance déjà entamée prime sur la proposition du jour : on la reprend,
     // on ne la remplace pas.
+    // Le bouton passe AVANT la liste : sur un téléphone de 6,7 pouces il
+    // tombait sous la barre d'onglets, il fallait défiler pour démarrer.
     const enCours = travailEnCours();
     const b = enCours
       ? h(`<button class="primary big hero-cta"><span class="btn-ico">${IC.play}</span>Reprendre la séance</button>`)
       : h(`<button class="primary big hero-cta"><span class="btn-ico">${IC.play}</span>Commencer la séance</button>`);
     b.addEventListener("click", enCours ? () => nav("train") : demarrerAuto);
     c.append(b);
+    c.append(liste);
     if (enCours) {
       c.append(h(`<div class="hint" style="margin-top:8px">Séance en cours · ${enCours} série${enCours > 1 ? "s" : ""} renseignée${enCours > 1 ? "s" : ""}.</div>`));
     }

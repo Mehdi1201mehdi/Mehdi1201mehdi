@@ -219,3 +219,28 @@ export function trophees(logs, nbRecords = 0) {
 
   return { familles, obtenus, total, dernier };
 }
+
+/**
+ * Suite de semaines consécutives EN COURS (au moins une séance par semaine).
+ *
+ * La semaine en cours ne casse pas la suite tant qu'elle n'est pas finie : un
+ * mardi sans séance, on affiche encore les semaines enchaînées jusqu'à la
+ * précédente. Calcul sur les lundis (dates locales), sans numéro de semaine —
+ * le passage d'année ne pose donc aucun cas particulier.
+ * @param {any[]} logs
+ * @param {Date} [ref]
+ * @returns {number}
+ */
+export function serieSemainesEnCours(logs, ref = new Date()) {
+  const lundi = (d) => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+  const cle = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  const semaines = new Set((logs || [])
+    .map((l) => Date.parse(l && l.date))
+    .filter((t) => Number.isFinite(t))
+    .map((t) => cle(lundi(new Date(t)))));
+  const cur = lundi(ref);
+  if (!semaines.has(cle(cur))) cur.setDate(cur.getDate() - 7);
+  let n = 0;
+  while (semaines.has(cle(cur))) { n++; cur.setDate(cur.getDate() - 7); }
+  return n;
+}

@@ -7,7 +7,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FAMILLES, trophees, mesures, meilleureSerieSemaines } from "../src/engine/trophees.js";
+import { FAMILLES, trophees, mesures, meilleureSerieSemaines, serieSemainesEnCours } from "../src/engine/trophees.js";
+import { recordsRecents } from "../src/engine/records.js";
 
 const jour = (n) => new Date(Date.now() - n * 864e5).toISOString();
 /** Séance à `n` jours, avec `series` séries de `kg` × `reps`. */
@@ -165,4 +166,31 @@ test("trophees : aucun palier n'est hors d'atteinte d'un pratiquant régulier", 
   const logs = Array.from({ length: 624 }, (_, i) => seance(Math.floor(i / 4) * 7 + (i % 4), 100, 10, 8, 3600));
   const t = trophees(logs, 120);
   assert.equal(t.obtenus, t.total, `seulement ${t.obtenus}/${t.total} après trois ans d'assiduité`);
+});
+
+// ---- Suite de semaines en cours, derniers records ----
+
+test("serieSemainesEnCours : la semaine en cours ne casse pas la suite", () => {
+  const L = (d) => ({ date: d });
+  const mardi = new Date(2026, 10, 10); // mardi 10 nov. 2026
+  // Séances les 3 semaines précédentes, rien encore cette semaine.
+  assert.equal(serieSemainesEnCours([L("2026-11-05"), L("2026-10-28"), L("2026-10-20")], mardi), 3);
+  // Avec une séance cette semaine : 4.
+  assert.equal(serieSemainesEnCours([L("2026-11-09"), L("2026-11-05"), L("2026-10-28"), L("2026-10-20")], mardi), 4);
+  // Un trou la semaine dernière : la suite repart de zéro.
+  assert.equal(serieSemainesEnCours([L("2026-10-28"), L("2026-10-20")], mardi), 0);
+  assert.equal(serieSemainesEnCours([], mardi), 0);
+  // Passage d'année.
+  assert.equal(serieSemainesEnCours([L("2026-12-30"), L("2027-01-06")], new Date(2027, 0, 7)), 2);
+});
+
+test("recordsRecents : seulement les records réellement battus, les plus récents d'abord", () => {
+  const log = (date, id, kg, reps) => ({ date, exercices: [{ exerciceId: id, series: [{ chargeKg: kg, reps, done: true }] }] });
+  const logs = [log("2026-10-01", "squat", 100, 5), log("2026-10-08", "squat", 105, 5), log("2026-10-10", "dc", 80, 5), log("2026-10-15", "squat", 110, 5)];
+  const r = recordsRecents(logs, (id) => id.toUpperCase(), 3);
+  assert.equal(r.length, 1);            // « dc » fait une seule fois : pas un record battu
+  assert.equal(r[0].nom, "SQUAT");
+  assert.equal(r[0].date, "2026-10-15"); // le plus récent, une seule ligne par exercice
+  assert.ok(r[0].valeur > r[0].ancien && r[0].ancien > 0);
+  assert.deepEqual(recordsRecents([], undefined, 3), []);
 });

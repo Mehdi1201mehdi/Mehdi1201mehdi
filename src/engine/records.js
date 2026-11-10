@@ -117,3 +117,26 @@ export function detecterRecords(logsAnterieurs, nouveauLog, resoudreNom = (id) =
   }
   return out;
 }
+
+/**
+ * Derniers records RÉELLEMENT battus (un ancien record existait), du plus
+ * récent au plus ancien. La première fois qu'on fait un exercice n'est pas un
+ * record battu : l'afficher comme tel gonflerait la liste de faux exploits.
+ * @param {any[]} logs
+ * @param {(id:string)=>string} [resoudreNom]
+ * @param {number} [n]
+ * @returns {{exerciceId:string, nom:string, type:string, valeur:number, ancien:number, date:string}[]}
+ */
+export function recordsRecents(logs, resoudreNom = (id) => id, n = 3) {
+  const tries = (logs || []).filter((l) => l && l.date).slice().sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  const out = [], vus = new Set();
+  for (let i = tries.length - 1; i >= 1 && out.length < n; i--) {
+    for (const r of detecterRecords(tries.slice(0, i), tries[i], resoudreNom)) {
+      if (!(r.ancien > 0) || r.type === "reps" || vus.has(r.exerciceId)) continue;
+      vus.add(r.exerciceId);
+      out.push({ ...r, date: tries[i].date });
+      if (out.length >= n) break;
+    }
+  }
+  return out;
+}
