@@ -99,6 +99,7 @@ export const SPLITS = /** @type {const} */ ([
  * @property {number} dureeSeanceMin      // ex. 30, 45, 60, 75
  * @property {"maison"|"salle"|"exterieur"} lieu
  * @property {typeof EQUIPMENTS[number][]} equipements
+ * @property {"auto"|"full_body"|"haut_bas"|"push_pull_legs"|"bro_split"|string} [split] répartition imposée (absent ou "auto" = choisie selon les jours)
  * @property {typeof MUSCLES[number][]} musclesPrioritaires
  * @property {string[]} exercicesAimes     // ids d'exercices
  * @property {string[]} exercicesRefuses   // ids d'exercices

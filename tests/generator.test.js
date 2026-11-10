@@ -87,3 +87,25 @@ test("pas de doublon biomécanique lourd : au plus un patron 'squat' par séance
     assert.ok(squats <= 1, `séance ${s.nom} : ${squats} squats`);
   }
 });
+
+// ---- Répartition choisie par l'utilisateur ----
+
+test("répartition imposée : « bro_split » donne un groupe musculaire par séance", () => {
+  const prog = genererProgramme(makeProfil({ joursParSemaine: 5, niveau: "intermediaire", objectif: "prise_muscle", lieu: "salle",
+    equipements: ["poids_du_corps", "halteres", "barre", "banc", "poulie", "machine_guidee", "rack", "barre_traction"], split: "bro_split" }));
+  assert.equal(prog.split, "bro_split");
+  assert.deepEqual(prog.seances.map((s) => s.nom), ["Pectoraux", "Dos", "Jambes", "Épaules", "Bras"]);
+  for (const s of prog.seances) assert.ok(s.exercices.length >= 3, `${s.nom} : ${s.exercices.length} exercices`);
+  // Séance « Pectoraux » : le premier exercice vise bien les pectoraux.
+  assert.ok(getExercise(prog.seances[0].exercices[0].exerciceId).musclesPrincipaux.includes("pectoraux"));
+  // Aucun doublon dans une même séance.
+  for (const s of prog.seances) assert.equal(new Set(s.exercices.map((e) => e.exerciceId)).size, s.exercices.length);
+});
+
+test("répartition « auto » ou inconnue : la règle par défaut reste inchangée", () => {
+  const base = /** @type {any} */ ({ joursParSemaine: 4, niveau: "intermediaire", objectif: "prise_muscle" });
+  assert.equal(genererProgramme(makeProfil({ ...base })).split, "haut_bas");
+  assert.equal(genererProgramme(makeProfil({ ...base, split: "auto" })).split, "haut_bas");
+  assert.equal(genererProgramme(makeProfil({ ...base, split: "nimporte" })).split, "haut_bas");
+  assert.equal(genererProgramme(makeProfil({ ...base, split: "full_body" })).split, "full_body");
+});

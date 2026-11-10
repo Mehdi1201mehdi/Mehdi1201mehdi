@@ -11,8 +11,13 @@ import { filtrerExercices, DIFFICULTE_CIBLE } from "./constraints.js";
 /* ------------------------------------------------------------------ */
 /* 1. Choix du split hebdomadaire                                      */
 /* ------------------------------------------------------------------ */
+/** Répartitions que l'utilisateur peut imposer (Profil → Répartition). */
+export const SPLITS_CHOISISSABLES = ["full_body", "haut_bas", "push_pull_legs", "bro_split"];
+
 export function choisirSplit(profil) {
   if (profil.objectif === "mobilite") return "mobilite";
+  // Choix explicite de l'utilisateur ; « auto » ou absent → règle par défaut.
+  if (SPLITS_CHOISISSABLES.includes(profil.split)) return profil.split;
   const j = profil.joursParSemaine;
   if (j <= 3) return "full_body";
   if (j === 4) return "haut_bas";
@@ -82,6 +87,35 @@ const SLOTS = {
     S("epaules", "isolation"),
     S("abdominaux", "gainage"),
   ],
+  // Répartition par groupe musculaire (« bro split ») : un groupe par séance.
+  bro_pecs: [
+    S("pectoraux", "principal", ["poussee_horizontale"]),
+    S("pectoraux", "secondaire", ["poussee_horizontale"]),
+    S("pectoraux", "isolation"),
+    S("pectoraux", "isolation"),
+    S("abdominaux", "gainage"),
+  ],
+  bro_dos: [
+    S("dorsaux", "principal", ["tirage_vertical"]),
+    S("dorsaux", "principal", ["tirage_horizontal"]),
+    S("dorsaux", "secondaire", ["tirage_horizontal"]),
+    S("trapezes", "isolation"),
+    S("lombaires", "isolation"),
+  ],
+  bro_epaules: [
+    S("epaules", "principal", ["poussee_verticale"]),
+    S("epaules", "isolation"),
+    S("epaules", "isolation"),
+    S("trapezes", "isolation"),
+    S("abdominaux", "gainage"),
+  ],
+  bro_bras: [
+    S("biceps", "isolation"),
+    S("triceps", "isolation"),
+    S("biceps", "isolation"),
+    S("triceps", "isolation"),
+    S("avant_bras", "isolation"),
+  ],
   mobilite: [
     S("corps_entier", "cardio"),
     S("fessiers", "cardio"),
@@ -104,6 +138,11 @@ function sequenceSeances(split, jours) {
     case "push_pull_legs": {
       const seq = [["Poussée", "push"], ["Tirage", "pull"], ["Jambes", "bas"]];
       return Array.from({ length: jours }, (_, i) => ({ nom: seq[i % 3][0] + (i >= 3 ? " B" : ""), slots: seq[i % 3][1] }));
+    }
+    case "bro_split": {
+      // Ordre pensé pour la récupération : jambes entre deux jours de buste.
+      const seq = [["Pectoraux", "bro_pecs"], ["Dos", "bro_dos"], ["Jambes", "bas"], ["Épaules", "bro_epaules"], ["Bras", "bro_bras"]];
+      return Array.from({ length: jours }, (_, i) => ({ nom: seq[i % 5][0] + (i >= 5 ? " B" : ""), slots: seq[i % 5][1] }));
     }
     case "mobilite":
       return Array.from({ length: jours }, (_, i) => ({ nom: `Mobilité & récupération ${i + 1}`, slots: "mobilite" }));
@@ -300,14 +339,20 @@ function justifierExo(exo, slot, profil) {
 
 const SPLIT_LABELS = {
   full_body: "corps entier", haut_bas: "haut / bas du corps",
-  push_pull_legs: "poussée / tirage / jambes", mobilite: "mobilité & récupération",
+  push_pull_legs: "poussée / tirage / jambes", bro_split: "par groupe musculaire", mobilite: "mobilité & récupération",
 };
 function justifierGlobal(split, profil) {
   const raisons = {
     full_body: `Avec ${profil.joursParSemaine} séance(s)/semaine, un format corps entier stimule chaque groupe musculaire plusieurs fois par semaine — le meilleur rapport résultat/temps pour ton profil.`,
     haut_bas: `À 4 séances, un découpage haut/bas permet plus de volume par groupe tout en laissant 48 h de récupération entre deux séances similaires.`,
     push_pull_legs: `À 5+ séances, le format poussée/tirage/jambes répartit finement le volume et respecte la récupération.`,
+    bro_split: `Un groupe musculaire par séance, comme tu l'as choisi : beaucoup de volume sur le groupe du jour, une semaine complète pour récupérer. Chaque groupe n'est travaillé qu'une fois par semaine — à 3 séances ou moins, le corps entier est plus efficace.`,
     mobilite: `Objectif mobilité : séances douces centrées sur l'amplitude et la récupération, sans charge lourde.`,
   };
+  // Répartition imposée : ne pas la justifier par un nombre de séances qui
+  // n'est peut-être pas le sien.
+  if (split !== "bro_split" && SPLITS_CHOISISSABLES.includes(profil.split)) {
+    return `Programme ${SPLIT_LABELS[split]} — répartition que tu as choisie dans ton profil, sur ${profil.joursParSemaine} séance(s) par semaine.`;
+  }
   return `Programme ${SPLIT_LABELS[split]} — ${raisons[split]}`;
 }

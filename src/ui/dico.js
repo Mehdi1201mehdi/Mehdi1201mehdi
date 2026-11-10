@@ -121,6 +121,8 @@ export function vueDico(v, ctx) {
   const zone = h(`<div class="dico-zone"></div>`);
   v.append(zone);
 
+  const TRANCHE = 40;
+  let limite = TRANCHE;
   const dessiner = () => {
     zone.innerHTML = "";
     const libre = !normaliser(Q) && !CAT && !FAV_SEUL;
@@ -199,11 +201,21 @@ export function vueDico(v, ctx) {
       res.forEach((t) => liste.append(ligne(t)));
       zone.append(liste);
     } else {
-      for (const g of grouperParLettre(res)) {
+      // Par tranches : les 164 fiches d'un coup faisaient une page de 18 000 px
+      // (audit nov. 2026), lente à ouvrir sur un téléphone modeste. L'ordre
+      // alphabétique est conservé ; la recherche, elle, parcourt toujours tout.
+      const visibles = res.slice(0, limite);
+      for (const g of grouperParLettre(visibles)) {
         zone.append(h(`<h2 class="dico-lettre" id="dico-${g.lettre}">${g.lettre}</h2>`));
         const liste = h(`<div class="card dico-liste"></div>`);
         g.termes.forEach((t) => liste.append(ligne(t)));
         zone.append(liste);
+      }
+      if (res.length > limite) {
+        const reste = res.length - limite;
+        const plus = h(`<button class="secondary dico-plus" type="button">Afficher ${Math.min(TRANCHE, reste)} termes de plus <span class="muted">· ${reste} restants</span></button>`);
+        plus.addEventListener("click", () => { limite += TRANCHE; dessiner(); });
+        zone.append(plus);
       }
     }
   };

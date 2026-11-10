@@ -552,6 +552,8 @@ button.linklike{background:transparent;border:none;min-height:44px;display:inlin
 /* Menu « Plus » */
 .plusmenu .inner{display:flex;flex-direction:column;gap:10px}
 .plusitem{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:15px}
+.rt-arch{width:100%;margin-top:var(--space-3)}
+.dico-plus{width:100%;margin-top:var(--space-4);min-height:48px}
 /* Accueil : poids et derniers records, côte à côte (une colonne sous 340 px). */
 .duo-acc{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--space-3);margin-top:var(--space-3)}
 .duo-c{position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:flex-start;gap:var(--space-1);text-align:left;min-height:132px}

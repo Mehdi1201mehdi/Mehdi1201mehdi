@@ -611,6 +611,9 @@ function renderStepObjectif(c) { cardsChoix(c, GOALS.map((g) => [g, GOAL_LABELS[
 function renderStepNiveau(c) { cardsChoix(c, LEVELS.map((l) => [l, LEVEL_LABELS[l]]), (v) => DRAFT.niveau === v, (v) => DRAFT.niveau = v, LEVEL_ICONS); }
 function renderStepDispo(c) {
   field(c, "Jours par semaine", chipsInline([1, 2, 3, 4, 5, 6].map((n) => [n, `${n} j`]), (v) => DRAFT.joursParSemaine === v, (v) => DRAFT.joursParSemaine = v), "Pour une reprise, 3 jours est idéal.");
+  field(c, "Répartition", chipsInline([["auto", "Auto"], ["full_body", "Corps entier"], ["haut_bas", "Haut / Bas"], ["push_pull_legs", "Poussée · Tirage · Jambes"], ["bro_split", "Par groupe"]],
+    (v) => (DRAFT.split || "auto") === v, (v) => DRAFT.split = v),
+    "Auto choisit selon tes jours par semaine. « Par groupe » : un groupe musculaire par séance (pectoraux, dos, jambes, épaules, bras).");
   field(c, "Durée d'une séance", chipsInline([30, 45, 60, 75].map((n) => [n, `${n} min`]), (v) => DRAFT.dureeSeanceMin === v, (v) => DRAFT.dureeSeanceMin = v));
   field(c, "Lieu", chipsInline([["maison", "Maison"], ["salle", "Salle"], ["exterieur", "Extérieur"]], (v) => DRAFT.lieu === v, (v) => DRAFT.lieu = v));
 }
@@ -1288,10 +1291,14 @@ function blocExplorer(v) {
  * n'y a pas de programme — sans quoi les routines devenaient introuvables au
  * moment précis où elles sont le plus utiles.
  */
+let VOIR_ARCHIVES = false;
 function carteRoutines(v) {
-  const miennes = Etat.data.programmesPerso || [];
+  const toutes = Etat.data.programmesPerso || [];
+  // Une routine archivée quitte la liste sans être supprimée : son historique
+  // reste lisible et on la retrouve, repliée, sous les routines actives.
+  const miennes = toutes.filter((r) => !r.archive), archivees = toutes.filter((r) => r.archive);
   if (miennes.length) v.append(h(`<div class="eyebrow" style="margin:18px 0 8px">Mes routines</div>`));
-  miennes.forEach((r) => {
+  const carte = (r) => {
     // Une routine peut contenir plusieurs séances : le rail montre tous leurs
     // exercices, dans l'ordre, c'est ce qui la décrit le mieux d'un coup d'œil.
     const exos = r.seances.flatMap((s) => (s.exercices || []).map((e) => getExercise(e.exerciceId))).filter(Boolean);
@@ -1302,7 +1309,14 @@ function carteRoutines(v) {
       onDemarrer: () => { EDIT_ROUTINE = r.id; render(); },
       onMenu: () => menuRoutine(r),
     }));
-  });
+  };
+  miennes.forEach(carte);
+  if (archivees.length) {
+    const bArch = h(`<button class="rt-a ghost rt-arch" type="button" aria-expanded="${VOIR_ARCHIVES}"><span class="cic">${IC.layers}</span>Routines archivées (${archivees.length})</button>`);
+    bArch.addEventListener("click", () => { VOIR_ARCHIVES = !VOIR_ARCHIVES; render(); });
+    v.append(bArch);
+    if (VOIR_ARCHIVES) archivees.forEach(carte);
+  }
   const bFromLog = h(`<button class="rt-a ghost" style="width:100%;margin-top:10px" type="button"><span class="cic">${IC.cornerDown}</span>Créer depuis une séance passée</button>`);
   bFromLog.addEventListener("click", dupliquerSeancePassee);
   v.append(bFromLog);
@@ -1325,7 +1339,12 @@ function menuRoutine(r) {
     inner.append(b);
   };
   ajouter(IC.forward, "Ouvrir", () => { EDIT_ROUTINE = r.id; render(); });
-  ajouter(IC.copy, "Dupliquer", () => { Etat.data.programmesPerso.push(dupliquerRoutine(r)); Etat.sauver(); render(); });
+  ajouter(IC.copy, "Dupliquer", () => { const d = dupliquerRoutine(r); delete d.archive; Etat.data.programmesPerso.push(d); Etat.sauver(); render(); });
+  ajouter(IC.layers, r.archive ? "Désarchiver" : "Archiver", () => {
+    if (r.archive) delete r.archive; else r.archive = true;
+    Etat.sauver(); render();
+    toast(r.archive ? "Routine archivée — elle reste sous « Routines archivées »" : "Routine remise dans tes routines");
+  });
   ajouter(IC.trash, "Supprimer", async () => {
     if (!await confirmer(`Supprimer la routine « ${r.nom} » ?`, { danger: true, ok: "Supprimer" })) return;
     Etat.data.programmesPerso = Etat.data.programmesPerso.filter((x) => x.id !== r.id);
@@ -2501,7 +2520,7 @@ function ouvrirMachine(id) {
 /* ---------------- Ajouter un exercice à une séance ---------------- */
 function ouvrirAjoutSeance(exo) {
   const { inner, fermer } = feuilleBiblio("Ajouter à ma séance", exo.nom);
-  const routines = Etat.data.programmesPerso || [];
+  const routines = (Etat.data.programmesPerso || []).filter((r) => !r.archive);
   const mes = mesuresExercice(exo);
   const best1rm = historiqueExercice(exo.id).best1rm || 0;
   const opts = [];
@@ -2906,7 +2925,7 @@ function vTrain(v) {
     (prog && Array.isArray(prog.seances) ? prog.seances : [])
       .forEach((s) => v.append(carteSeanceChoix(s, "", sj && sj.id === s.id)));
     // Séances des routines perso.
-    const persos = Etat.data.programmesPerso || [];
+    const persos = (Etat.data.programmesPerso || []).filter((r) => !r.archive);
     if (persos.some((r) => r.seances.length)) {
       v.append(h(`<div class="eyebrow" style="margin:18px 0 8px">Mes routines</div>`));
       persos.forEach((r) => r.seances.forEach((s) => v.append(carteSeanceChoix(s, r.nom, false))));
@@ -2996,7 +3015,7 @@ function vTrain(v) {
   const fin = h(`<button class="primary big" style="margin-top:12px">Terminer et enregistrer</button>`);
   fin.addEventListener("click", terminer);
   v.append(fin);
-  $("#abandon", v).addEventListener("click", async () => { if (await confirmer("Abandonner la séance sans enregistrer ?", { danger: true, ok: "Abandonner" })) { LIVE = null; persistLive(true); render(); } });
+  $("#abandon", v).addEventListener("click", async () => { if (await confirmer("Abandonner la séance sans enregistrer ?", { danger: true, ok: "Abandonner" })) { LIVE = null; persistLive(true); stopTimer(); render(); } });
 }
 /**
  * Y a-t-il un travail en cours qu'un nouveau départ effacerait ?
@@ -8299,6 +8318,7 @@ function vSet(v) {
   ligneI("Objectif", GOAL_LABELS[p.objectif] || p.objectif);
   ligneI("Niveau", LEVEL_LABELS[p.niveau] || p.niveau);
   ligneI("Jours par semaine", `${p.joursParSemaine} jours`);
+  ligneI("Répartition", ({ full_body: "Corps entier", haut_bas: "Haut / Bas", push_pull_legs: "Poussée · Tirage · Jambes", bro_split: "Par groupe musculaire" })[p.split] || "Automatique");
   ligneI("Durée de séance", `${p.dureeSeanceMin} min`);
   ligneI("Lieu", p.lieu);
   ligneI("Unité de poids", uImp() ? "Livres (lb)" : "Kilogrammes (kg)");
