@@ -2922,3 +2922,57 @@ button.sem-bilan{display:flex;flex-direction:column;align-items:stretch;gap:10px
 }
 /* Barre d'outils de la bibliothèque : passe à la ligne plutôt que de couper « Favoris » ou « Créer » à 320 px. */
 .cat-outils{flex-wrap:wrap;overflow:visible}
+
+
+/* ======================================================================
+   ÉCRANS LARGES — tablette (≥ 768 px) et ordinateur (≥ 1024 px)
+   Jusqu'ici l'app affichait une colonne de téléphone au milieu d'un écran
+   vide, barre du bas étirée. Sur ordinateur : menu latéral fixe, contenu
+   large, tableaux de bord sur deux colonnes. Aucune règle ne touche < 768 px.
+   ====================================================================== */
+@media (min-width:768px){
+  .wrap{max-width:720px}
+  nav.tabs .wrap{max-width:720px;margin:0 auto;border:1px solid var(--hair);border-bottom:0;border-radius:var(--radius) var(--radius) 0 0}
+}
+@media (min-width:1024px){
+  :root{--rail:232px}
+  body{padding-left:var(--rail);padding-bottom:var(--space-6,32px)}
+  .wrap{max-width:1080px;padding-inline:32px}
+  header.top .wrap{max-width:1080px}
+
+  /* La barre du bas devient un menu latéral. */
+  nav.tabs{left:0;right:auto;top:0;bottom:0;width:var(--rail)}
+  nav.tabs .wrap{flex-direction:column;justify-content:flex-start;gap:var(--space-1);height:100%;max-width:none;margin:0;
+    padding:88px var(--space-3) var(--space-4);border:0;border-right:1px solid var(--hair);border-radius:0;background:var(--bg-deep)}
+  :root[data-theme="light"] nav.tabs .wrap{border-top:0;border-right-color:var(--line);background:var(--bg-deep)}
+  nav.tabs button{flex:none;flex-direction:row;justify-content:flex-start;gap:var(--space-3);min-height:48px;
+    padding:0 var(--space-3);border-radius:var(--radius-sm);font-size:.92rem;font-weight:650}
+  nav.tabs .tb-i{width:28px;height:28px;border-radius:0;background:none !important}
+  nav.tabs button.on{background:var(--accent-soft);color:var(--accent-ink)}
+  nav.tabs button:hover{background:var(--surface-2)}
+  nav.tabs button.on:hover{background:var(--accent-soft)}
+  .tab-pill{display:none}
+  /* La pastille mobile n'existe plus : pas de décalage vertical de l'icône. */
+  nav.tabs button.on .ico{transform:none}
+
+  #fabCoach{bottom:28px;right:28px}
+  .restcap{bottom:96px;right:28px}
+  .sheet .inner{max-width:640px}
+
+  /* Deux colonnes pour les écrans faits d'une pile de cartes. Les titres de
+     rubrique restent collés à la carte qu'ils annoncent. */
+  #view[data-ecran="dash"],#view[data-ecran="stats"],#view[data-ecran="set"],#view[data-ecran="recup"]{columns:2;column-gap:var(--space-5,24px)}
+  #view[data-ecran="dash"]>*,#view[data-ecran="stats"]>*,#view[data-ecran="set"]>*,#view[data-ecran="recup"]>*{break-inside:avoid}
+  #view[data-ecran] > .dash-lbl,#view[data-ecran] > .eyebrow,#view[data-ecran] > .spread.dash-lbl{break-after:avoid}
+  #view[data-ecran] > .dash-hi,#view[data-ecran] > .retour-onglet{column-span:all}
+  #view[data-ecran="dash"]>.disclaimer{column-span:all}
+
+  /* Entraînement : les cartes de routine sur deux colonnes, le reste pleine largeur. */
+  #view[data-ecran="prog"]{columns:2;column-gap:var(--space-5)}
+  #view[data-ecran="prog"]>*{column-span:all}
+  #view[data-ecran="prog"]>.rt-card{column-span:none;break-inside:avoid}
+  /* Bibliothèque : la liste d'exercices sur deux colonnes. */
+  #view[data-ecran="cat"] div:has(> .cat-ligne){columns:2;column-gap:var(--space-6)}
+  #view[data-ecran="cat"] .cat-ligne{break-inside:avoid}
+  #view[data-ecran="cat"] div:has(> .cat-ligne)>:not(.cat-ligne){column-span:all}
+}

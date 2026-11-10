@@ -314,6 +314,9 @@ function render() {
   arreterScan();
   libererPhotos();
   view.innerHTML = "";
+  // L'écran courant est annoncé au CSS : la mise en page large (≥ 1024 px)
+  // répartit certains écrans sur deux colonnes.
+  view.dataset.ecran = Etat.data.profil ? TAB : "accueil-initial";
   (Etat.data.profil ? TABS[TAB] : vOnboarding)(view);
   // Sous-écran hors barre : un retour visible vers l'onglet dont il dépend
   // (le bouton retour d'Android marche aussi, mais il ne se voit pas).
