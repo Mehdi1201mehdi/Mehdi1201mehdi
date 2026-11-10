@@ -552,6 +552,18 @@ button.linklike{background:transparent;border:none;min-height:44px;display:inlin
 /* Menu « Plus » */
 .plusmenu .inner{display:flex;flex-direction:column;gap:10px}
 .plusitem{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:15px}
+/* Progrès : séries par muscle (barre pleine = période, trait fin = période d'avant). */
+.spm-per .chip{min-height:36px;padding:0 var(--space-3)}
+.spm-liste{display:grid;gap:var(--space-2)}
+.spm-l{display:grid;grid-template-columns:minmax(84px,30%) 1fr 34px 40px;align-items:center;gap:var(--space-2);font-size:var(--fs-caption)}
+.spm-n{font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.spm-b{position:relative;height:12px;border-radius:var(--radius-pill);background:var(--surface-2);overflow:hidden}
+.spm-b i{position:absolute;inset:0 auto 0 0;border-radius:var(--radius-pill);background:var(--accent)}
+.spm-b i.av{background:none;border-right:2px solid var(--ink-soft);border-radius:0;z-index:1}
+.spm-v{text-align:right;font-size:.85rem}
+.spm-e{text-align:right;color:var(--ink-soft);font-weight:700}
+.spm-e.up{color:var(--ok)}.spm-e.down{color:var(--amber)}
+.setrow.record{box-shadow:inset 3px 0 0 var(--ok)}
 .rt-arch{width:100%;margin-top:var(--space-3)}
 .dico-plus{width:100%;margin-top:var(--space-4);min-height:48px}
 /* Accueil : poids et derniers records, côte à côte (une colonne sous 340 px). */

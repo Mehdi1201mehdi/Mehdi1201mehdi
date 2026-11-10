@@ -130,3 +130,23 @@ test("statsSemaine : séances/volume/durée de la semaine courante", () => {
   assert.equal(s.volume, 500);
   assert.equal(s.dureeMin, 60);
 });
+
+// ---- Séries par muscle, période contre période ----
+
+test("seriesParMuscle : principal = 1, secondaire = ½, échauffement exclu, comparaison", async () => {
+  const { seriesParMuscle } = await import("../src/engine/stats.js");
+  const exos = { dc: { musclesPrincipaux: ["pectoraux"], musclesSecondaires: ["triceps", "pectoraux"] }, sq: { musclesPrincipaux: ["quadriceps"], musclesSecondaires: [] } };
+  const get = (id) => exos[id];
+  const ref = Date.parse("2026-11-10T12:00:00");
+  const S = (n, extra = {}) => Array.from({ length: n }, () => ({ chargeKg: 60, reps: 8, ...extra }));
+  const logs = [
+    { date: "2026-11-09", exercices: [{ exerciceId: "dc", series: [...S(1, { type: "echauffement" }), ...S(4)] }] },
+    { date: "2026-11-01", exercices: [{ exerciceId: "dc", series: S(2) }, { exerciceId: "sq", series: S(3) }] },
+    { date: "2026-10-01", exercices: [{ exerciceId: "sq", series: S(9) }] }, // hors des deux périodes
+  ];
+  const r = Object.fromEntries(seriesParMuscle(logs, get, 7, ref).map((x) => [x.muscle, x]));
+  assert.deepEqual([r.pectoraux.series, r.pectoraux.avant, r.pectoraux.ecart], [4, 2, 2]);
+  assert.deepEqual([r.triceps.series, r.triceps.avant], [2, 1]);       // ½ par série, pas de double compte des pectoraux
+  assert.deepEqual([r.quadriceps.series, r.quadriceps.avant], [0, 3]);  // négligé cette semaine : reste listé
+  assert.deepEqual(seriesParMuscle([], get, 7, ref), []);
+});

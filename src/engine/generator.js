@@ -109,6 +109,14 @@ const SLOTS = {
     S("trapezes", "isolation"),
     S("abdominaux", "gainage"),
   ],
+  bro_epaules_bras: [
+    S("epaules", "principal", ["poussee_verticale"]),
+    S("epaules", "isolation"),
+    S("biceps", "isolation"),
+    S("triceps", "isolation"),
+    S("biceps", "isolation"),
+    S("triceps", "isolation"),
+  ],
   bro_bras: [
     S("biceps", "isolation"),
     S("triceps", "isolation"),
@@ -141,6 +149,15 @@ function sequenceSeances(split, jours) {
     }
     case "bro_split": {
       // Ordre pensé pour la récupération : jambes entre deux jours de buste.
+      // À 4 séances, épaules et bras partagent la dernière ; à 3 ou moins, un
+      // groupe par séance laisserait des muscles sans travail : on regroupe.
+      if (jours <= 3) {
+        const court = [["Pectoraux · Épaules · Triceps", "push"], ["Dos · Biceps", "pull"], ["Jambes", "bas"]];
+        return Array.from({ length: jours }, (_, i) => ({ nom: court[i % 3][0], slots: court[i % 3][1] }));
+      }
+      if (jours === 4) {
+        return [["Pectoraux", "bro_pecs"], ["Dos", "bro_dos"], ["Jambes", "bas"], ["Épaules · Bras", "bro_epaules_bras"]].map(([nom, slots]) => ({ nom, slots }));
+      }
       const seq = [["Pectoraux", "bro_pecs"], ["Dos", "bro_dos"], ["Jambes", "bas"], ["Épaules", "bro_epaules"], ["Bras", "bro_bras"]];
       return Array.from({ length: jours }, (_, i) => ({ nom: seq[i % 5][0] + (i >= 5 ? " B" : ""), slots: seq[i % 5][1] }));
     }

@@ -74,3 +74,17 @@ test("séries d'échauffement : gardées, mais hors records", () => {
   const nouveau = { exercices: [{ exerciceId: "dc", series: [{ chargeKg: 100, reps: 12, type: "echauffement" }, { chargeKg: 80, reps: 8 }] }] };
   assert.deepEqual(detecterRecords(histo, nouveau), [], "une approche (même mal saisie) n'est pas un record");
 });
+
+// ---- Record au moment de valider une série ----
+
+test("recordEnDirect : seulement si un ancien record est réellement dépassé", async () => {
+  const { recordEnDirect } = await import("../src/engine/records.js");
+  const logs = [{ date: "2026-10-01", exercices: [{ exerciceId: "sq", series: [{ chargeKg: 100, reps: 5 }] }] }];
+  assert.equal(recordEnDirect(logs, "sq", { chargeKg: 100, reps: 5 }), null);            // égalé, pas battu
+  const r = recordEnDirect(logs, "sq", { chargeKg: 105, reps: 5 });
+  assert.ok(r && r.e1rm > r.ancien);
+  assert.equal(recordEnDirect(logs, "sq", { chargeKg: 105, reps: 5 }, [{ chargeKg: 105, reps: 5 }]), null); // déjà fait aujourd'hui
+  assert.equal(recordEnDirect(logs, "sq", { chargeKg: 140, reps: 5, type: "echauffement" }), null);
+  assert.equal(recordEnDirect(logs, "nouveau", { chargeKg: 50, reps: 5 }), null);          // premier essai ≠ record battu
+  assert.equal(recordEnDirect(logs, "sq", { chargeKg: 60, reps: 30 }), null);              // au-delà de 12 reps : pas de 1RM fiable
+});

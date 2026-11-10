@@ -208,3 +208,40 @@ export function statsSemaine(logs, ref = new Date()) {
     dureeMin: dureeMoyenneMin(dedans),
   };
 }
+
+/**
+ * Séries de travail par muscle sur une période, comparées à la période
+ * précédente de même durée. Un muscle principal compte 1 série, un muscle
+ * secondaire ½ : c'est la convention la plus répandue pour suivre son volume.
+ * Les séries d'échauffement ne comptent pas.
+ * @param {any[]} logs
+ * @param {(id:string)=>any} getExercise
+ * @param {number} [jours]   durée de la période (7 = semaine glissante)
+ * @param {number} [ref]     fin de la période (ms)
+ * @returns {{muscle:string, series:number, avant:number, ecart:number}[]} trié par séries décroissantes
+ */
+export function seriesParMuscle(logs, getExercise, jours = 7, ref = Date.now()) {
+  const duree = Math.max(1, jours) * 86400000;
+  /** @type {Map<string, {series:number, avant:number}>} */
+  const par = new Map();
+  const ajouter = (m, n, champ) => { const o = par.get(m) || { series: 0, avant: 0 }; o[champ] += n; par.set(m, o); };
+  for (const l of logs || []) {
+    const t = Date.parse(l && l.date);
+    if (!Number.isFinite(t)) continue;
+    const age = ref - t;
+    const champ = age >= 0 && age < duree ? "series" : age >= duree && age < 2 * duree ? "avant" : null;
+    if (!champ) continue;
+    for (const e of l.exercices || []) {
+      const exo = getExercise(e.exerciceId);
+      if (!exo) continue;
+      const n = (e.series || []).filter((s) => s && s.type !== "echauffement" && s.done !== false && ((Number(s.reps) || 0) > 0 || (Number(s.dureeSec) || 0) > 0)).length;
+      if (!n) continue;
+      for (const m of exo.musclesPrincipaux || []) ajouter(m, n, champ);
+      for (const m of exo.musclesSecondaires || []) if (!(exo.musclesPrincipaux || []).includes(m)) ajouter(m, n / 2, champ);
+    }
+  }
+  return [...par.entries()]
+    .map(([muscle, o]) => ({ muscle, series: o.series, avant: o.avant, ecart: o.series - o.avant }))
+    .filter((x) => x.series > 0 || x.avant > 0)
+    .sort((a, b) => b.series - a.series || b.avant - a.avant);
+}

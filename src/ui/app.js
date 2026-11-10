@@ -75,7 +75,7 @@ import {
   supprimerExerciceIndex, deplacerExercice, definirSeries, dupliquerRoutine,
   seanceDepuisLog, estimerDureeSeance,
 } from "../engine/routines.js";
-import { FORMULE_1RM, classementRecords, detecterRecords, e1rmFiable, recordsRecents } from "../engine/records.js";
+import { FORMULE_1RM, classementRecords, detecterRecords, e1rmFiable, recordsRecents, recordEnDirect } from "../engine/records.js";
 import { construireExport, validerImport, appliquerImport, nomFichierBackup } from "../engine/backup.js";
 import { disquesParCote, echauffement, rampeEchauffement } from "../engine/powerlifting.js";
 import {
@@ -84,7 +84,7 @@ import {
 } from "../engine/force.js";
 import {
   volumeLog, volumeTotal, volumeParSemaine, dureeMoyenneMin, volumeParMuscle, recuperationParMuscle, statsSemaine,
-  METRIQUES_EXO, serieExercice, serieCorps, filtrerDepuis, metriquesPour,
+  METRIQUES_EXO, serieExercice, serieCorps, filtrerDepuis, metriquesPour, seriesParMuscle,
 } from "../engine/stats.js";
 import { chargeParPeriode, progressionMensuelle, DEFINITIONS_CHARGE, variationPct, comparaisonMemeStade,
   effortMoyen, seriesDe, plateaux } from "../engine/analyse.js";
@@ -3377,6 +3377,17 @@ function carteExoLive(e, seance) {
       majRail(lignes, st);
       persistLive(); majProgressionSeance(); majSuggestions();
       if (!s.done) return;
+      // Record battu : on le dit tout de suite, pas seulement au bilan de fin.
+      if (!enDistance) {
+        const kgDe = (x) => depuisSaisie(x.charge, uLive());
+        const autres = st.series.filter((x, k) => k !== i && x.done).map((x) => ({ chargeKg: kgDe(x), reps: Number(x.reps), type: x.type }));
+        const rec = recordEnDirect(Etat.data.logs || [], e.exerciceId, { chargeKg: kgDe(s), reps: Number(s.reps), type: s.type }, autres);
+        if (rec) {
+          row.classList.add("record");
+          jouer("record", Etat.data.reglages);
+          toast(`Record sur ${exo.nom} · 1RM estimé ${uCharge(rec.e1rm)} (avant ${uCharge(rec.ancien)})`);
+        }
+      }
       // Repos : court et fixe pour un drop set / rest-pause, nul dans un
       // superset tant qu'il reste un partenaire à enchaîner.
       const suivant = seance ? prochainSuperset(seance, e.exerciceId, i) : null;
@@ -7670,6 +7681,46 @@ function arrondirForce(kg) { return Math.round(Number(kg) / 2.5) * 2.5; }
 /** Nombre à la française : virgule décimale, sans décimale inutile. */
 function fr(n) { return String(n).replace(".", ","); }
 
+let SERIES_MUSCLE_JOURS = 7;
+/**
+ * Séries de travail par muscle sur 7 ou 30 jours, avec l'écart par rapport à
+ * la période précédente : « est-ce que je fais plus ou moins qu'avant, et
+ * quels muscles je néglige ? ».
+ */
+function carteSeriesParMuscle(v) {
+  const logs = Etat.data.logs || [];
+  if (!logs.length) return;
+  const card = h(`<div class="card stack spm"></div>`);
+  const dessiner = () => {
+    const J = SERIES_MUSCLE_JOURS;
+    const lignes = seriesParMuscle(logs, getExercise, J);
+    const max = Math.max(1, ...lignes.map((x) => Math.max(x.series, x.avant)));
+    const nb = (n) => String(Math.round(n * 10) / 10).replace(".", ",");
+    card.innerHTML = "";
+    card.append(h(`<div class="spread"><h2 class="row" style="margin:0;gap:8px">${mi(IC.bars, "mi-blue")}Séries par muscle</h2>
+      <span class="row spm-per" role="group" aria-label="Période"></span></div>`));
+    [[7, "7 j"], [30, "30 j"]].forEach(([j, lab]) => {
+      const b = h(`<button type="button" class="chip${j === J ? " on" : ""}" aria-pressed="${j === J}">${lab}</button>`);
+      b.addEventListener("click", () => { SERIES_MUSCLE_JOURS = /** @type {number} */ (j); dessiner(); });
+      card.querySelector(".spm-per").append(b);
+    });
+    card.append(h(`<div class="small muted">Séries de travail des ${J} derniers jours, comparées aux ${J} jours d'avant. Muscle principal = 1 série, secondaire = ½. Échauffement non compté.</div>`));
+    if (!lignes.length) { card.append(h(`<div class="hint">Aucune séance sur cette période ni sur la précédente.</div>`)); return; }
+    const liste = h(`<div class="spm-liste" role="list"></div>`);
+    lignes.forEach((x) => {
+      const ec = Math.round(x.ecart * 10) / 10;
+      liste.append(h(`<div class="spm-l" role="listitem">
+        <span class="spm-n">${esc(MUSCLE_LABELS[x.muscle] || x.muscle)}</span>
+        <span class="spm-b" aria-hidden="true"><i class="av" style="width:${(x.avant / max) * 100}%"></i><i style="width:${(x.series / max) * 100}%"></i></span>
+        <b class="num spm-v">${nb(x.series)}</b>
+        <span class="num spm-e ${ec > 0 ? "up" : ec < 0 ? "down" : ""}">${ec === 0 ? "=" : (ec > 0 ? "+" : "−") + nb(Math.abs(ec))}</span></div>`));
+    });
+    card.append(liste);
+  };
+  dessiner();
+  v.append(card);
+}
+
 /** Carte de chaleur musculaire : zones réellement travaillées (données locales). */
 function carteMuscleHeatmap(v) {
   const logs = Etat.data.logs || [];
@@ -7936,6 +7987,7 @@ function vStats(v) {
   });
 
   section(v, "muscles", "Muscles & récupération", (b) => {
+    carteSeriesParMuscle(b);
     carteMuscleHeatmap(b);
     carteRecup(b);
   });

@@ -109,3 +109,13 @@ test("répartition « auto » ou inconnue : la règle par défaut reste inchang�
   assert.equal(genererProgramme(makeProfil({ ...base, split: "nimporte" })).split, "haut_bas");
   assert.equal(genererProgramme(makeProfil({ ...base, split: "full_body" })).split, "full_body");
 });
+
+test("« bro_split » à 4 et 3 séances : aucun grand groupe oublié", () => {
+  const eq = ["poids_du_corps", "halteres", "barre", "banc", "poulie", "machine_guidee", "rack", "barre_traction"];
+  const p4 = genererProgramme(makeProfil(/** @type {any} */ ({ joursParSemaine: 4, niveau: "intermediaire", objectif: "prise_muscle", lieu: "salle", equipements: eq, split: "bro_split" })));
+  assert.deepEqual(p4.seances.map((s) => s.nom), ["Pectoraux", "Dos", "Jambes", "Épaules · Bras"]);
+  const muscles = new Set(p4.seances.flatMap((s) => s.exercices.flatMap((e) => getExercise(e.exerciceId).musclesPrincipaux)));
+  for (const m of ["pectoraux", "dorsaux", "quadriceps", "epaules", "biceps", "triceps"]) assert.ok(muscles.has(m), `${m} absent`);
+  const p3 = genererProgramme(makeProfil(/** @type {any} */ ({ joursParSemaine: 3, niveau: "intermediaire", objectif: "prise_muscle", lieu: "salle", equipements: eq, split: "bro_split" })));
+  assert.equal(p3.seances.length, 3);
+});

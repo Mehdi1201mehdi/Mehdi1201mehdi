@@ -140,3 +140,26 @@ export function recordsRecents(logs, resoudreNom = (id) => id, n = 3) {
   }
   return out;
 }
+
+/**
+ * Record battu AU MOMENT où une série est validée (sans attendre la fin de la
+ * séance). Vrai seulement si un ancien record existe et que le 1RM estimé de
+ * cette série dépasse à la fois l'historique et les séries déjà faites
+ * aujourd'hui — sinon chaque série d'une séance en progrès sonnerait.
+ * @param {any[]} logs               historique (séances terminées)
+ * @param {string} exerciceId
+ * @param {{chargeKg:number, reps:number, type?:string}} serie
+ * @param {{chargeKg:number, reps:number, type?:string}[]} [dejaFaites]  autres séries validées de la séance
+ * @returns {{e1rm:number, ancien:number}|null}
+ */
+export function recordEnDirect(logs, exerciceId, serie, dejaFaites = []) {
+  if (!estSerieTravail(serie)) return null;
+  const e = e1rmFiable(Number(serie.chargeKg) || 0, Number(serie.reps) || 0);
+  if (!(e > 0)) return null;
+  const histo = meilleursParExercice(logs || [])[exerciceId];
+  const ancien = histo ? histo.e1rmMax : 0;
+  if (!(ancien > 0)) return null;
+  const session = Math.max(0, ...dejaFaites.filter(estSerieTravail).map((x) => e1rmFiable(Number(x.chargeKg) || 0, Number(x.reps) || 0)));
+  if (e <= ancien + 0.01 || e <= session + 0.01) return null;
+  return { e1rm: Math.round(e * 10) / 10, ancien: Math.round(ancien * 10) / 10 };
+}
