@@ -147,6 +147,9 @@ export function validerExercice(e, opts = {}) {
   if (opts.masques && opts.masques[e.id]) return { statut: "rejete", manques: [], alertes: [`Doublon de ${opts.masques[e.id]}`] };
   const manques = champsManquants(e);
   const alertes = incoherences(e);
+  // Consignes rédigées par l'app (consignesAuto.js) : la fiche est lisible,
+  // mais elle n'a pas été relue — jamais « Validée » tant que ce n'est pas fait.
+  if (e.consignesAuto) alertes.push("Consignes rédigées par l'app, à vérifier");
   // Le nom français non établi n'est pas un « trou » de données mais une vérification à faire.
   const manquesBloquants = manques.filter((m) => m !== "nom français");
   if (manquesBloquants.length) return { statut: "incomplet", manques, alertes };

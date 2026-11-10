@@ -177,3 +177,36 @@ test("ajout à une séance : charge, tempo, RPE, % 1RM ; conservés quand on cha
   assert.equal(ex.series[3].tempo, "3-1-1");
   assert.equal(ex.series[3].chargeKg, 80);
 });
+
+// ---- Consignes rédigées par l'app ----
+
+test("consignes auto : jamais sur une fiche qui en a déjà, toujours signalées", async () => {
+  const { completerConsignes, archetypeDe, ARCHETYPES } = await import("../src/engine/consignesAuto.js");
+  const { validerExercice } = await import("../src/engine/validationExo.js");
+  const deja = { nom: "Curl biceps", instructions: ["Étape A", "Étape B"] };
+  completerConsignes(deja);
+  assert.deepEqual(deja.instructions, ["Étape A", "Étape B"]);
+  assert.equal(deja.consignesAuto, undefined);
+  const vide = { id: "x", nom: "Curl marteau (haltères)", nomEn: "Hammer curl", musclesPrincipaux: ["biceps"], equipement: ["halteres"], patron: "flexion_bras", difficulte: 1, source: "test" };
+  completerConsignes(vide);
+  assert.equal(vide.consignesAuto, true);
+  assert.ok(vide.instructions.length >= 4 && vide.instructions[0].includes("avec les haltères"));
+  assert.ok(!vide.instructions.join(" ").includes("{avec}"));
+  assert.notEqual(validerExercice(vide).statut, "valide");
+  assert.ok(validerExercice(vide).alertes.some((a) => a.includes("à vérifier")));
+  // Mouvement non reconnu : la fiche reste vide plutôt que fausse.
+  const inconnu = completerConsignes({ nom: "Tour du monde (haltères)" });
+  assert.equal(inconnu.instructions, undefined);
+  // Pièges repérés à la relecture : pas de consigne de traction sur un relevé de jambes, etc.
+  const id = (nom) => (archetypeDe({ nom }) || {}).id || null;
+  assert.equal(id("Leg curl assis"), "leg_curl");
+  assert.equal(id("Relevés de jambes (barre de traction)"), "releve_jambes");
+  assert.equal(id("Kickback fessier à la poulie, une jambe"), null);
+  assert.equal(id("Développé couché sur planches (board press)"), null);
+  assert.equal(id("Mollets à la machine Hack Squat"), "mollets");
+  assert.equal(id("Auto-massage mollets (rouleau)"), null);
+  assert.equal(id("Squat pistol (Smith)"), null);
+  assert.equal(id("Développé militaire assis (barre)"), "developpe_epaules");
+  assert.equal(id("Tirage menton (élastique)"), "tirage_menton");
+  for (const a of ARCHETYPES) assert.ok(a.etapes.length >= 4, a.id);
+});

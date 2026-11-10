@@ -476,6 +476,7 @@ export const EXERCISES = [
  * Les ~250 exercices wger (`exercises-extra.js`, gros fichier) ne sont importés
  * qu'à l'ouverture de l'écran Catalogue, pas au démarrage de l'app.
  */
+import { completerConsignes } from "../engine/consignesAuto.js";
 import { SALLE_EXERCISES } from "./exercises-salle.js";
 import { corrigerFiche } from "./corrections-catalogue.js";
 import { MACHINES, MACHINES_PAR_ID, texteExercice } from "./machines.js";
@@ -579,7 +580,7 @@ export function chargerCatalogueEtendu() {
           if (!DOUBLONS_MASQUES[e.id]) CATALOGUE.push(e);
         }
         appliquerEnrichissements(EDB_ENRICHISSEMENTS);
-        for (const e of Object.values(EXERCISES_BY_ID)) corrigerFiche(e);
+        for (const e of Object.values(EXERCISES_BY_ID)) { corrigerFiche(e); completerConsignes(e); }
         extraCatalogueCharge = true;
       });
   }

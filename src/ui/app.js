@@ -1890,6 +1890,8 @@ function ouvrirDetail(exo) {
       const f = h(`<div class="stack"></div>`);
       if ((exo.instructions || []).length) {
         f.append(h(`<ol class="small det-steps">${exo.instructions.map((x) => `<li>${esc(x)}</li>`).join("")}</ol>`));
+        // Transparence : ces étapes ne viennent pas de la source de la fiche.
+        if (exo.consignesAuto) f.append(h(`<div class="hint consignes-auto">${IC.info}<span>Consignes générales rédigées par l'app à partir du type de mouvement, pas encore relues pour cette variante précise. À adapter à ton matériel.</span></div>`));
       }
       if (exo.respiration) f.append(h(`<div class="sec"><h3>Respiration</h3><div class="breath"><span class="in">↧ Inspirer</span><span class="out">↥ Expirer</span></div><div class="small muted" style="margin-top:6px">${esc(exo.respiration)}</div></div>`));
       if ((exo.erreurs || []).length) f.append(h(`<div class="sec"><h3>Erreurs fréquentes</h3><div class="small muted">✖ ${exo.erreurs.map(esc).join(" · ")}</div></div>`));
