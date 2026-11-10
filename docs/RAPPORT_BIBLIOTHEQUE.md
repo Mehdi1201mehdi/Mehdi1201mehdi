@@ -23,7 +23,7 @@ Branche tirée de `fitai-premium`. `main` et le site en ligne ne sont pas touch�
 
 ## 3. Machines référencées
 
-**57** machines et équipements (`src/data/machines.js`), chacun avec nom français et anglais, type, muscles, description ; les machines ont leurs réglages. Chaque exercice est rattaché à au moins un équipement (test).
+**60** machines et équipements (`src/data/machines.js`), chacun avec nom français et anglais, type, muscles, description ; les machines ont leurs réglages. Chaque exercice est rattaché à au moins un équipement (test).
 
 ## 4. Groupes musculaires
 

@@ -147,12 +147,30 @@ export function miniSilhouette(muscles, view = "auto", opts = {}) {
   const set = resoudre(muscles);
   const vue = view === "front" || view === "back" ? view : vueIdeale(set);
   const A = ANATOMY[vue];
-  const outline = `<path d="${A.outline}" fill="var(--anat-body)"/>`;
-  const mus = Object.entries(A.groups).map(([m, paths]) =>
-    `<g fill="${set.has(m) ? "var(--anat-primary)" : "var(--anat-muscle)"}">${paths.map((d) => `<path d="${d}"/>`).join("")}</g>`).join("");
-  const neutral = A.neutral.map((d) => `<path d="${d}" fill="var(--anat-body)"/>`).join("");
+  // Le corps (contour, muscles au repos, tête, mains) est dessiné UNE fois
+  // dans la planche `spriteAnatomie()` et rappelé par <use> : une vignette ne
+  // porte plus que ses muscles surlignés. L'écran des routines passait ainsi
+  // de ~3 900 nœuds à quelques centaines — c'était la cause de la lenteur des
+  // changements d'onglet relevée à l'audit.
+  const mus = Object.entries(A.groups).filter(([m]) => set.has(m)).map(([, paths]) =>
+    `<g fill="var(--anat-primary)">${paths.map((d) => `<path d="${d}"/>`).join("")}</g>`).join("");
   const zoom = !!opts.zoom && set.size > 0;
-  return `<svg class="mini-silhouette${zoom ? " zoom" : ""}" data-vue="${vue}" viewBox="${cadreSilhouette(vue, set, opts)}" preserveAspectRatio="xMidYMid ${zoom ? "slice" : "meet"}" aria-hidden="true">${outline}${mus}${neutral}</svg>`;
+  return `<svg class="mini-silhouette${zoom ? " zoom" : ""}" data-vue="${vue}" viewBox="${cadreSilhouette(vue, set, opts)}" preserveAspectRatio="xMidYMid ${zoom ? "slice" : "meet"}" aria-hidden="true"><use href="#anat-${vue}"/>${mus}</svg>`;
+}
+
+/**
+ * Planche cachée contenant le corps de face et de dos, à insérer une seule
+ * fois dans la page ; `miniSilhouette()` y renvoie par <use href="#anat-…">.
+ * @returns {string} SVG
+ */
+export function spriteAnatomie() {
+  const corps = (vue) => {
+    const A = ANATOMY[vue];
+    return `<g id="anat-${vue}"><path d="${A.outline}" fill="var(--anat-body)"/>`
+      + `<g fill="var(--anat-muscle)">${Object.values(A.groups).flat().map((d) => `<path d="${d}"/>`).join("")}</g>`
+      + `<g fill="var(--anat-body)">${A.neutral.map((d) => `<path d="${d}"/>`).join("")}</g></g>`;
+  };
+  return `<svg id="anat-sprite" width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>${corps("front")}${corps("back")}</defs></svg>`;
 }
 
 /**

@@ -18,7 +18,7 @@ import { genererProgramme } from "../engine/generator.js";
 import { recommander } from "../engine/progression.js";
 import { alternatives, variantes } from "../engine/replacement.js";
 import { chercherDemonstration, lienYouTube } from "../integrations/exercisedb.js";
-import { muscleDiagram, muscleHeatmap, miniSilhouette } from "./anatomy.js";
+import { muscleDiagram, muscleHeatmap, miniSilhouette, spriteAnatomie } from "./anatomy.js";
 import { jouer, amorcerSon } from "./son.js";
 import { memoriserFlip, rejouerFlip, oublierFlip } from "./flip.js";
 import { dessinerCorps } from "./anatomieCanvas.js";
@@ -8645,6 +8645,8 @@ function vSet(v) {
  * localStorage en secours) AVANT le premier rendu, sans rien effacer.
  */
 async function amorcerApp() {
+  // Planche anatomique partagée par toutes les vignettes de muscle.
+  if (!document.getElementById("anat-sprite")) document.body.insertAdjacentHTML("afterbegin", spriteAnatomie());
   try {
     await Etat.init();
     // Exercices créés par l'utilisateur : dans le catalogue AVANT tout rendu,

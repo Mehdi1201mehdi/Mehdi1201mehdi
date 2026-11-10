@@ -1,7 +1,7 @@
 // @ts-check
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { muscleDiagram, muscleHeatmap, miniSilhouette, vueIdeale, cadreSilhouette, BOITES } from "../src/ui/anatomy.js";
+import { muscleDiagram, muscleHeatmap, miniSilhouette, vueIdeale, cadreSilhouette, BOITES, spriteAnatomie } from "../src/ui/anatomy.js";
 import { ANATOMY } from "../src/data/anatomy-paths.js";
 import { MUSCLES } from "../src/models.js";
 
@@ -98,4 +98,14 @@ test("muscleDiagram : adducteurs et lombaires ont leur propre zone", () => {
   assert.match(html, /data-m="lombaires" fill="var\(--anat-secondary\)"/);
   // Les dorsaux ne s'allument plus pour un exercice de lombaires.
   assert.match(html, /data-m="dorsaux" fill="var\(--anat-muscle\)"/);
+});
+
+test("spriteAnatomie : les deux corps référencés par les vignettes existent", () => {
+  const sprite = spriteAnatomie();
+  for (const vue of ["front", "back"]) {
+    assert.match(sprite, new RegExp(`id="anat-${vue}"`));
+    assert.match(miniSilhouette(["pectoraux"], /** @type {any} */ (vue)), new RegExp(`<use href="#anat-${vue}"/>`));
+  }
+  // Une vignette ne redessine plus tout le corps : bien plus légère que la planche.
+  assert.ok(miniSilhouette(["biceps"]).length < sprite.length / 10);
 });

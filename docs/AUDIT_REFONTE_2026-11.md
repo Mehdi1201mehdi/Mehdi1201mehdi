@@ -66,3 +66,31 @@ FitAI : référence = `docs/ANALYSE_FITAI_APK_2.0.6.md` (XAPK fourni par Mehdi).
 - Barre du bas : Accueil · Entraînement · Exercices · Progrès · Profil. Un sous-écran allume
   l'onglet dont il dépend et affiche un retour. Récupération : depuis Progrès et Profil.
 - Thème clair en bleu, neutres froids (contrastes vérifiés : 5,1 à 6,1).
+
+## Lots suivants — faits le 10 nov. 2026
+
+| Lot | Contenu | Vérification |
+|---|---|---|
+| Accueil | bouton de séance avant la liste ; semaines d'affilée ; carte Poids (30 j) et Derniers records battus ; accès Coach / Calculs / Lexique / Nutrition ; plus de « −100 % » en début de semaine | captures 390 px, tests moteur |
+| Écrans larges | ≥ 1024 px : menu latéral, contenu 1080 px, deux colonnes (Accueil, Progrès, Profil, Entraînement, Bibliothèque) ; ≥ 768 px : colonne 720 px | captures 820 et 1366 px, deux thèmes, aucun débordement |
+| Programmes | Archiver / Désarchiver une routine ; répartition choisie dans le profil (auto, corps entier, haut/bas, poussée-tirage-jambes, par groupe) | 10 vérifications navigateur, 3 tests moteur |
+| Séance | échauffement calculé, disques à charger, alerte de record à la validation, minuteur arrêté à l'abandon | 18 + 10 vérifications navigateur |
+| Progrès | séries par muscle sur 7 / 30 j avec écart sur la période d'avant | test moteur, capture |
+| Dictionnaire | 40 termes puis « Afficher plus » (page 18 600 → 5 200 px) | navigateur |
+| Performance | corps des vignettes dessiné une fois (`spriteAnatomie`, `<use>`) : script de l'onglet Entraînement 164 → 60-116 ms (processeur ÷4) | mesure |
+| Bibliothèque | + pupitre à biceps, box de saut, mur (60 machines et équipements) | tests |
+
+Audit rejoué après ces lots : 72 écrans (9 × 6 largeurs + thème clair), aucun débordement,
+aucune erreur JavaScript, aucun bouton sans nom, aucune image cassée. 698 tests unitaires.
+
+Constat corrigé : le choix de formule 1RM existait déjà (consensus + détail de sept formules
+dont Epley, Brzycki, Lombardi) ; l'AMRAP existait déjà (type de série).
+
+## Reste à faire
+- Identité visuelle : la palette, la typographie et les composants sont inchangés ; seuls
+  l'accueil, le thème clair et la mise en page large ont été retravaillés.
+- 648 fiches d'exercice sans consignes ; objectif de 3 000 exercices non atteignable avec les
+  sources autorisées (1 957).
+- Coach IA : non revu. Dossiers de routines, widgets Android, export CSV : non faits.
+- Chaque formulaire et chaque graphique, un par un ; tout essai sur un vrai téléphone ;
+  affichage en livres pour les nouveaux outils.

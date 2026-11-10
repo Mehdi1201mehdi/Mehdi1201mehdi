@@ -448,6 +448,25 @@ export const MACHINES = [
     test: (e, t) => aEq(e, "swiss_ball") || /\b(swiss ball|stability ball|exercise ball)\b/.test(t),
   },
   {
+    id: "pupitre", nom: "Pupitre à biceps", nomEn: "Preacher bench", type: "banc", groupe: "banc",
+    muscles: ["biceps", "avant_bras"],
+    description: "Pupitre incliné (Larry Scott) : les bras calés, le biceps travaille sans élan.",
+    reglages: ["hauteur du siège", "aisselles au bord du pupitre"],
+    test: (e, t) => /\b(pupitre|larry scott|preacher)\b/.test(t),
+  },
+  {
+    id: "box", nom: "Box de saut", nomEn: "Plyo box", type: "accessoire", groupe: "accessoire",
+    muscles: ["quadriceps", "fessiers", "mollets"],
+    description: "Caisse stable pour les sauts, les montées et les squats sur box.",
+    test: (e, t) => /\b(box|caisse|plyo)\b/.test(t),
+  },
+  {
+    id: "mur", nom: "Mur", nomEn: "Wall", type: "accessoire", groupe: "accessoire",
+    muscles: ["epaules", "quadriceps", "mollets"],
+    description: "Un mur dégagé : appuis, étirements, chaise et travail de posture.",
+    test: (e, t) => /\b(mur|murale?s?|wall)\b/.test(t),
+  },
+  {
     id: "bosu", nom: "Bosu", nomEn: "Bosu ball", type: "accessoire", groupe: "accessoire",
     muscles: ["abdominaux", "quadriceps"],
     description: "Demi-ballon sur plateau : équilibre et proprioception.",
