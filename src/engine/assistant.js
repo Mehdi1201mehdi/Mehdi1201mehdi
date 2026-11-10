@@ -47,6 +47,11 @@ export function detecterIntention(q) {
   const n = norm(q);
   const muscle = detecterMuscle(q);
   if (/(remplac|alternativ|a la place|au lieu|substitu|autre exo)/.test(n)) return { intent: "remplacer", muscle };
+  // Bilan avant « progression » : « analyse mes progrès » demande un état des
+  // lieux, pas la règle de surcharge.
+  if (/(analys|bilan|resume|ou j.?en suis|mes perf|mes resultats|mes stats|mes progres)/.test(n)) return { intent: "bilan", muscle };
+  if (/(programme|planning|routine|split|repartition).*(cree|creer|constru|fai[st]|genere|propos|organis)|(cree|creer|constru|genere|propos|organis|aide.*a).*(programme|planning|routine|entrainement)/.test(n)) return { intent: "programme", muscle };
+  if (/(expliqu|comment (faire|executer|realiser|bien faire)|technique d|bonne execution|execution d|c.?est quoi (le|la|les|un|une) )/.test(n)) return { intent: "expliquer", muscle };
   if (/(record|1rm|mon max|perso best|\bpr\b|meilleur.*(charge|perf|soulev))/.test(n)) return { intent: "records", muscle };
   if (/(eau|hydrat|boire|combien.*litre)/.test(n)) return { intent: "eau", muscle };
   if (/(calorie|kcal|prot|macro|glucide|lipide|nutrition|manger|besoin.*(cal|energ|nutri))/.test(n)) return { intent: "nutrition", muscle };

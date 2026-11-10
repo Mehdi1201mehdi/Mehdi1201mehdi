@@ -564,6 +564,9 @@ button.linklike{background:transparent;border:none;min-height:44px;display:inlin
 .spm-e{text-align:right;color:var(--ink-soft);font-weight:700}
 .spm-e.up{color:var(--ok)}.spm-e.down{color:var(--amber)}
 .setrow.record{box-shadow:inset 3px 0 0 var(--ok)}
+.rt-dossier{display:flex;align-items:center;gap:var(--space-2);margin:var(--space-5) 0 var(--space-2)}
+.rt-dossier .cic{width:14px;height:14px}
+.dossier-choix{flex-wrap:wrap;gap:var(--space-2);margin:var(--space-3) 0}
 .rt-arch{width:100%;margin-top:var(--space-3)}
 .dico-plus{width:100%;margin-top:var(--space-4);min-height:48px}
 /* Accueil : poids et derniers records, côte à côte (une colonne sous 340 px). */

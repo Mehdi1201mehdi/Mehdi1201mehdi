@@ -451,7 +451,7 @@ export const MACHINES = [
     id: "pupitre", nom: "Pupitre à biceps", nomEn: "Preacher bench", type: "banc", groupe: "banc",
     muscles: ["biceps", "avant_bras"],
     description: "Pupitre incliné (Larry Scott) : les bras calés, le biceps travaille sans élan.",
-    reglages: ["hauteur du siège", "aisselles au bord du pupitre"],
+    reglages: { siege: "Hauteur réglée pour que les aisselles reposent sur le bord haut du pupitre.", securite: "Ne tends pas les bras à fond en bas : garde une légère flexion du coude." },
     test: (e, t) => /\b(pupitre|larry scott|preacher)\b/.test(t),
   },
   {

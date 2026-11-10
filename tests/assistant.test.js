@@ -37,3 +37,16 @@ test("trouverExoParNom : meilleur recouvrement de mots", () => {
   assert.equal(trouverExoParNom("les tractions", liste)?.id, "tr");
   assert.equal(trouverExoParNom("xyz introuvable", liste), null);
 });
+
+test("detecterIntention : bilan, programme, explication d'un exercice", () => {
+  assert.equal(detecterIntention("Analyse mes performances").intent, "bilan");
+  assert.equal(detecterIntention("fais-moi un bilan de mes progrès").intent, "bilan");
+  assert.equal(detecterIntention("Construis-moi un programme 3 jours avec haltères").intent, "programme");
+  assert.equal(detecterIntention("aide-moi à organiser mes entraînements").intent, "programme");
+  assert.equal(detecterIntention("Explique-moi le soulevé de terre").intent, "expliquer");
+  assert.equal(detecterIntention("comment faire un squat").intent, "expliquer");
+  // Les intentions existantes ne bougent pas.
+  assert.equal(detecterIntention("Par quoi remplacer les tractions ?").intent, "remplacer");
+  assert.equal(detecterIntention("quand augmenter la charge").intent, "progression");
+  assert.equal(detecterIntention("mon record au développé couché").intent, "records");
+});

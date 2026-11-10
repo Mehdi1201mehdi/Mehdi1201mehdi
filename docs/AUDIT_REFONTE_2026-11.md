@@ -94,3 +94,16 @@ dont Epley, Brzycki, Lombardi) ; l'AMRAP existait déjà (type de série).
 - Coach IA : non revu. Dossiers de routines, widgets Android, export CSV : non faits.
 - Chaque formulaire et chaque graphique, un par un ; tout essai sur un vrai téléphone ;
   affichage en livres pour les nouveaux outils.
+
+## Suite du 10 nov. 2026 (soir)
+
+- En-tête d'écran unique (`enTete`) : Exercices, Nutrition, Profil, Récupération, Anatoly.
+- États vides : Accueil et Progrès sans aucune séance n'affichent plus des tuiles à zéro.
+- Dossiers de routines (ranger, changer, sortir ; conservés après actualisation).
+- Coach hors ligne : bilan des performances (données enregistrées uniquement), explication
+  d'un exercice, aide à la construction du programme (aucune modification automatique).
+- Corrigé : fiche « Pupitre à biceps » (réglages au mauvais format dans le build 13).
+- Fit'Distance, page bancs lue (131 exercices, même fonctionnement que la page machines) :
+  rien à ajouter, le groupe « bancs » de l'app compte 226 exercices.
+- Audit rejoué : 72 écrans sans débordement ni erreur. 699 tests. Navigateur : 100/101
+  (l'échec restant est une image externe bloquée par l'environnement de test).

@@ -204,6 +204,14 @@ const TABS_PLUS = ["food", "anatoly", "recup", "train", "dico"];
 // et un tap sur cet onglet ramène à son écran principal.
 const ONGLET_PARENT = { train: "prog", anatoly: "prog", recup: "stats", food: "set", dico: "set" };
 /** Titre affiché dans l'en-tête compact des écrans autres que l'Accueil. */
+/**
+ * En-tête d'écran unique : surtitre + titre, élément optionnel à droite.
+ * Chaque écran avait le sien (titre seul, sur deux lignes, avec ou sans
+ * surtitre) — on ne reconnaissait pas la même application d'un onglet à l'autre.
+ */
+function enTete(surtitre, titre, droite = "") {
+  return h(`<div class="dash-hi"><div><span class="eyebrow">${esc(surtitre)}</span><h1>${esc(titre)}</h1></div>${droite}</div>`);
+}
 const TITRES_ECRAN = { prog: "Entraînement", train: "Séance", stats: "Progrès", food: "Nutrition", cat: "Exercices", anatoly: "Anatoly", set: "Profil", dico: "Dictionnaire", recup: "Récupération" };
 /**
  * En-tête : la marque, et rien d'autre.
@@ -953,7 +961,11 @@ function vDash(v) {
   // Statistiques d'un coup d'œil — grille 2 colonnes, chiffres dominants.
   // Toutes les valeurs viennent de l'historique réel, aucune n'est inventée.
   v.append(h(`<div class="eyebrow dash-lbl">Mes chiffres</div>`));
-  v.append(grilleChiffres(logs));
+  // Sans aucune séance, quatre tuiles à zéro ne disent rien : on annonce ce
+  // qui apparaîtra, plutôt qu'un tableau vide.
+  if (logs.length) v.append(grilleChiffres(logs));
+  else v.append(h(`<div class="card"></div>`));
+  if (!logs.length) v.lastElementChild.append(etatVide(IC.bars, "Tes chiffres arrivent après ta première séance", "Volume soulevé, régularité et records se rempliront tout seuls, à partir de ce que tu enregistres."));
   {
     const duo = carteCorpsEtRecords(logs);
     if (duo) v.append(duo);
@@ -1292,6 +1304,44 @@ function blocExplorer(v) {
  * moment précis où elles sont le plus utiles.
  */
 let VOIR_ARCHIVES = false;
+/** Noms de dossiers utilisés par des routines, triés à la française. */
+const dossiersRoutines = (liste) => [...new Set((liste || []).map((r) => (r.dossier || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "fr"));
+
+/** Ranger une routine dans un dossier existant, nouveau, ou la sortir de tout dossier. */
+async function rangerRoutine(r) {
+  const existants = dossiersRoutines(Etat.data.programmesPerso);
+  let champ;
+  const v = await dialogue({
+    titre: "Ranger dans un dossier",
+    message: `« ${r.nom} »`,
+    cancelVal: null,
+    actions: [
+      { label: "Annuler", valeur: null },
+      ...(r.dossier ? [{ label: "Sortir du dossier", valeur: "" }] : []),
+      { label: "Ranger", primary: true, valeur: () => champ.value },
+    ],
+    onMount: (inner) => {
+      champ = h(`<input maxlength="40" aria-label="Nom du dossier" placeholder="Nom du dossier (ex. Prise de masse)" style="width:100%">`);
+      champ.value = r.dossier || "";
+      const ancre = inner.querySelector(".row");
+      inner.insertBefore(champ, ancre);
+      if (existants.length) {
+        const choix = h(`<div class="row dossier-choix" role="group" aria-label="Dossiers existants"></div>`);
+        existants.forEach((d) => {
+          const b = h(`<button type="button" class="chip${d === r.dossier ? " on" : ""}">${esc(d)}</button>`);
+          b.addEventListener("click", () => { champ.value = d; choix.querySelectorAll(".chip").forEach((c) => c.classList.toggle("on", c === b)); });
+          choix.append(b);
+        });
+        inner.insertBefore(choix, ancre);
+      }
+    },
+  });
+  if (v == null) return;
+  const nom = String(v).trim().slice(0, 40);
+  if (nom) r.dossier = nom; else delete r.dossier;
+  Etat.sauver(); render();
+  toast(nom ? `Rangée dans « ${nom} »` : "Routine sortie du dossier");
+}
 function carteRoutines(v) {
   const toutes = Etat.data.programmesPerso || [];
   // Une routine archivée quitte la liste sans être supprimée : son historique
@@ -1310,7 +1360,15 @@ function carteRoutines(v) {
       onMenu: () => menuRoutine(r),
     }));
   };
-  miennes.forEach(carte);
+  // Dossiers : les routines sans dossier d'abord, puis un intertitre par
+  // dossier (ordre alphabétique). Un dossier n'existe que s'il contient une
+  // routine — rien à créer ni à supprimer à part.
+  miennes.filter((r) => !r.dossier).forEach(carte);
+  for (const d of dossiersRoutines(miennes)) {
+    const dedans = miennes.filter((r) => r.dossier === d);
+    v.append(h(`<div class="eyebrow rt-dossier"><span class="cic">${IC.layers}</span>${esc(d)} <span class="muted">· ${dedans.length}</span></div>`));
+    dedans.forEach(carte);
+  }
   if (archivees.length) {
     const bArch = h(`<button class="rt-a ghost rt-arch" type="button" aria-expanded="${VOIR_ARCHIVES}"><span class="cic">${IC.layers}</span>Routines archivées (${archivees.length})</button>`);
     bArch.addEventListener("click", () => { VOIR_ARCHIVES = !VOIR_ARCHIVES; render(); });
@@ -1340,6 +1398,7 @@ function menuRoutine(r) {
   };
   ajouter(IC.forward, "Ouvrir", () => { EDIT_ROUTINE = r.id; render(); });
   ajouter(IC.copy, "Dupliquer", () => { const d = dupliquerRoutine(r); delete d.archive; Etat.data.programmesPerso.push(d); Etat.sauver(); render(); });
+  if (!r.archive) ajouter(IC.layers, r.dossier ? "Changer de dossier" : "Ranger dans un dossier", () => rangerRoutine(r));
   ajouter(IC.layers, r.archive ? "Désarchiver" : "Archiver", () => {
     if (r.archive) delete r.archive; else r.archive = true;
     Etat.sauver(); render();
@@ -2073,7 +2132,7 @@ let CAT_TRI = "pertinence";
 let CAT_FAVORIS_SEUL = false;
 function vCatalogue(v) {
   if (!catalogueEtenduCharge()) chargerCatalogueEtendu().then(() => render());
-  const tete = h(`<div class="spread"><h1>Bibliothèque d'exercices</h1><span class="pill">${CATALOGUE.length.toLocaleString("fr-FR")} exercices</span></div>`);
+  const tete = enTete("Bibliothèque", "Exercices", `<span class="pill">${CATALOGUE.length.toLocaleString("fr-FR")} exercices</span>`);
   v.append(tete);
   const inp = h(`<input id="catQ" type="search" placeholder="Rechercher (ex : rowing, squat, presse…)" value="${esc(CAT_FILTRE.q)}" aria-label="Rechercher un exercice">`);
   v.append(inp);
@@ -2763,8 +2822,7 @@ function carteAnatoly(ex, num) {
 }
 function vAnatoly(v) {
   const info = ANATOLY_INFO;
-  v.append(h(`<div class="eyebrow">Programme Anatoly</div>`));
-  v.append(h(`<h1 style="margin:2px 0 2px">Powerbuilding</h1>`));
+  v.append(enTete("Programme Anatoly", "Powerbuilding"));
   v.append(h(`<div class="muted small" style="margin-bottom:13px">${info.nbSemaines} semaines · force &amp; esthétique</div>`));
 
   // Sélecteur de semaine S1..S8
@@ -5286,6 +5344,7 @@ function detailMuscle(cle, etat, profil) {
  * accessible depuis l'Accueil et n'est pas modifiée.
  */
 function vRecup(v) {
+  v.append(enTete("Ton corps", "Récupération"));
   const gen = AUTO || calculerAuto();
   const etat = gen.etat;
   const p = Etat.data.profil || {};
@@ -6074,11 +6133,58 @@ function repondreAssistant(q) {
       txt("Le conseil affiché sur chaque exercice pendant la séance tient déjà compte de tes deux dernières performances.");
       break;
     }
+    case "bilan": {
+      // État des lieux factuel : uniquement ce qui est enregistré, aucun chiffre déduit.
+      const logs = Etat.data.logs || [];
+      if (!logs.length) { txt("Je n'ai encore aucune séance à analyser. Enregistre ta première séance et je pourrai te dire où tu en es."); break; }
+      const J30 = 30 * 86400000, now = Date.now();
+      const dans = (l, a, b) => { const t = Date.parse(l.date); return now - t >= a && now - t < b; };
+      const m1 = logs.filter((l) => dans(l, 0, J30)), m0 = logs.filter((l) => dans(l, J30, 2 * J30));
+      const vol = (ls) => ls.reduce((a, l) => a + volumeLog(l), 0);
+      txt(`<b>30 derniers jours :</b> ${m1.length} séance${m1.length > 1 ? "s" : ""} (${m0.length} sur les 30 jours d'avant), ${esc(uVolume(Math.round(vol(m1))))} soulevés${m0.length ? ` contre ${esc(uVolume(Math.round(vol(m0))))}` : ""}.`);
+      const suite = serieSemainesEnCours(logs);
+      if (suite >= 2) txt(`Tu enchaînes <b>${suite} semaines</b> avec au moins une séance.`);
+      const recs = recordsRecents(logs, nomExo, 3);
+      if (recs.length) {
+        txt("Derniers records battus :");
+        recs.forEach((r) => box.append(h(`<div class="spread small"><span>${esc(r.nom)}</span><b>${esc(uCharge(r.valeur))} <span class="muted">(avant ${esc(uCharge(r.ancien))})</span></b></div>`)));
+      } else txt("Aucun record battu sur tes dernières séances.");
+      const spm = seriesParMuscle(logs, getExercise, 7);
+      const oublies = spm.filter((x) => x.series === 0 && x.avant > 0).map((x) => MUSCLE_LABELS[x.muscle] || x.muscle);
+      if (spm.length && spm[0].series > 0) txt(`Cette semaine, le plus travaillé : <b>${esc(MUSCLE_LABELS[spm[0].muscle] || spm[0].muscle)}</b> (${String(Math.round(spm[0].series * 10) / 10).replace(".", ",")} séries).`);
+      if (oublies.length) txt(`Travaillés la semaine d'avant mais pas encore cette semaine : ${esc(oublies.slice(0, 5).join(", "))}.`);
+      const bn = h(`<button class="secondary big">Voir mes progrès en détail</button>`);
+      bn.addEventListener("click", () => { fermerCoach(); nav("stats"); });
+      box.append(bn);
+      break;
+    }
+    case "programme": {
+      txt("Je ne modifie jamais ton programme tout seul. Deux façons de le construire, à toi de choisir :");
+      const b1 = h(`<button class="secondary big">Régler mes jours, mon matériel et ma répartition</button>`);
+      b1.addEventListener("click", () => { fermerCoach(); nav("set"); });
+      const b2 = h(`<button class="secondary big">Créer une routine à la main</button>`);
+      b2.addEventListener("click", () => { fermerCoach(); nav("prog"); });
+      box.append(b1, b2);
+      txt(`Le programme proposé suit ton profil : ${p.joursParSemaine || "?"} séance(s) par semaine, objectif « ${esc(GOAL_LABELS[p.objectif] || p.objectif || "?")} ». Dans le profil, « Répartition » permet de choisir corps entier, haut / bas, poussée · tirage · jambes ou par groupe musculaire.`);
+      break;
+    }
+    case "expliquer": {
+      const exo = /** @type {any} */ (trouverExoParNom(q, CATALOGUE));
+      if (!exo) { txt("Dis-moi quel exercice, par exemple : « explique-moi le soulevé de terre »."); break; }
+      txt(`<b>${esc(exo.nom)}</b> — ${esc((exo.musclesPrincipaux || []).map((m) => MUSCLE_LABELS[m] || m).join(", ") || "muscles non renseignés")}${(exo.musclesSecondaires || []).length ? `, avec ${esc(exo.musclesSecondaires.map((m) => MUSCLE_LABELS[m] || m).join(", "))} en soutien` : ""}.`);
+      const etapes = exo.instructions || [];
+      if (etapes.length) box.append(h(`<ol class="small det-steps">${etapes.slice(0, 4).map((x) => `<li>${esc(x)}</li>`).join("")}</ol>`));
+      else txt("Les consignes détaillées de cet exercice ne sont pas encore rédigées dans l'application ; la fiche indique les muscles, le matériel et les repères généraux du mouvement.");
+      const bf = h(`<button class="secondary big">Ouvrir la fiche complète</button>`);
+      bf.addEventListener("click", () => ouvrirDetail(exo));
+      box.append(bf);
+      break;
+    }
     case "aide":
       txt("Je réponds à partir de <b>tes vraies données</b> : ton programme, ton matériel, tes séances et tes besoins. Essaie par exemple :");
       break;
     default:
-      txt("Je n'ai pas compris la question. Je sais répondre sur : le remplacement d'un exercice, la séance du jour, la nutrition, l'hydratation, les temps de repos, la progression et tes records.");
+      txt("Je n'ai pas compris la question. Je sais répondre sur : le bilan de tes performances, l'explication ou le remplacement d'un exercice, la construction du programme, la séance du jour, la nutrition, l'hydratation, les temps de repos, la progression et tes records.");
   }
 
   // Suggestions cliquables (aide + question non comprise)
@@ -6633,7 +6739,7 @@ function vNutrition(v) {
   const log = Etat.data.foodlog[jour] || [];
   const tot = log.reduce((a, f) => ({ kcal: a.kcal + f.kcal, p: a.p + f.p, c: a.c + f.c, l: a.l + f.l }), { kcal: 0, p: 0, c: 0, l: 0 });
 
-  v.append(h(`<h1 style="margin-bottom:12px">Nutrition</h1>`));
+  v.append(enTete("Ton alimentation", "Nutrition"));
   // Objectifs du jour : anneau calories + barres de macros
   const restant = b.kcal - Math.round(tot.kcal);
   const cible = h(`<div class="card stack"></div>`);
@@ -7921,11 +8027,20 @@ function vStats(v) {
   v.append(h(`<div class="dash-hi"><div><span class="eyebrow">Ton évolution</span><h1>Progrès</h1></div></div>`));
   // Récupération : accès direct depuis Progrès (elle n'est plus dans la barre).
   {
-    const bR = h(`<button class="card plusitem lien-recup"><span class="pm-ic mi-blue">${IC.activity}</span><span class="pm-main"><b>Récupération musculaire</b><br><span class="muted small">Muscles prêts, en récupération, sollicités</span></span><span class="chev" aria-hidden="true">›</span></button>`);
+    const bR = h(`<button class="card plusitem lien-recup"><span class="pm-ic mi-blue">${IC.activity}</span><span class="pm-main"><b>Récupération musculaire</b><span class="muted small">Muscles prêts, en récupération, sollicités</span></span><span class="chev" aria-hidden="true">›</span></button>`);
     bR.addEventListener("click", () => nav("recup"));
     v.append(bR);
   }
 
+  if (!logs.length) {
+    // Écran vide assumé : avant la première séance, statistiques, calendrier
+    // et courbes n'affichaient que des zéros.
+    const c = h(`<div class="card"></div>`);
+    c.append(etatVide(IC.bars, "Rien à mesurer pour l'instant", "Après ta première séance, tu trouveras ici tes records, ton volume, tes séries par muscle et ta régularité.", {
+      action: { label: "Voir ma prochaine séance", onClick: () => nav("dash") },
+    }));
+    v.append(c);
+  }
   const sm = statsSemaine(logs);
   const dm = dureeMoyenneMin(logs);
   const objSem = p.joursParSemaine || 3;
@@ -7947,7 +8062,7 @@ function vStats(v) {
     b.addEventListener("click", () => { STATS_PERIODE = val; render(); });
     chipsP.append(b);
   });
-  v.append(chipsP);
+  if (logs.length) v.append(chipsP);
   const jp = Number(STATS_PERIODE), depuis = jp ? Date.now() - jp * 864e5 : 0;
   const lp = logs.filter((l) => new Date(l.date).getTime() >= depuis);
   const volP = Math.round(lp.reduce((a, l) => a + volumeLog(l), 0));
@@ -7958,10 +8073,10 @@ function vStats(v) {
   g.append(statCard(IC.bars, uVolume(volP).replace(/ (kg|lb)$/, ""), `Volume ${uUnite()}`));
   const kcalP = lp.reduce((a, l) => a + kcalLog(l), 0);
   g.append(statCard(IC.flame, kcalP.toLocaleString("fr-FR"), "kcal estimées"));
-  v.append(g);
+  if (logs.length) v.append(g);
 
   // Graphique de progression interactif : LE graphique utile, toujours visible.
-  carteProgression(v);
+  if (logs.length) carteProgression(v);
 
   // Le reste est rangé en sections repliables — l'écran faisait 6 écrans de
   // long, on ne lisait plus rien. Priorité : régularité, muscles, records.
@@ -7970,7 +8085,7 @@ function vStats(v) {
   section(v, "regularite", "Régularité", (b) => {
     carteCalendrier(b, logs);
     carteDefis(b);
-  }, { ouvert: true, resume: `${sm.seances}/${objSem} cette semaine` });
+  }, { ouvert: logs.length > 0, resume: `${sm.seances}/${objSem} cette semaine` });
 
   section(v, "volume", "Volume", (b) => {
     const sem2 = volumeParSemaine(logs);
@@ -8335,8 +8450,7 @@ function vDico(v) {
 
 function vSet(v) {
   const p = Etat.data.profil;
-  v.append(h(`<div class="eyebrow">Ton compte</div>`));
-  v.append(h(`<h1 style="margin-bottom:14px">Profil</h1>`));
+  v.append(enTete("Ton compte", "Profil"));
 
   // Carte profil : avatar + nom + « Modifier le profil »
   const hero = h(`<div class="hero"><span class="glow"></span></div>`);
