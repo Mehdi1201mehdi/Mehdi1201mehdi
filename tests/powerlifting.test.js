@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   e1rmBrzycki, estimer1RM, arrondir, tablePourcentages, disquesParCote, echauffement, FORMULES_1RM,
 } from "../src/engine/powerlifting.js";
+import { rampeEchauffement } from "../src/engine/powerlifting.js";
 
 test("arrondir : au pas donné (plus proche)", () => {
   assert.equal(arrondir(101.2, 2.5), 100);   // plus proche de 100
@@ -71,4 +72,34 @@ test("echauffement : charge légère → juste la barre", () => {
   const e = echauffement(18, 20);
   assert.equal(e.length, 1);
   assert.equal(e[0].kg, 20);
+});
+
+// ---- Échauffement calculé en séance ----
+
+test("rampeEchauffement : barre à vide puis 50 / 70 / 85 %, jamais la charge de travail", () => {
+  const r = rampeEchauffement(100, { barre: 20, pas: 2.5 });
+  assert.deepEqual(r.map((x) => x.charge), [20, 50, 70, 85]);
+  assert.deepEqual(r.map((x) => x.reps), [8, 5, 3, 1]);
+  assert.ok(r.every((x) => x.charge < 100));
+});
+
+test("rampeEchauffement : sans barre, pas de palier à vide", () => {
+  const r = rampeEchauffement(40, { barre: 0, pas: 2.5 });
+  assert.deepEqual(r.map((x) => x.charge), [20, 27.5, 35]);
+  assert.equal(r[0].pct, 50);
+});
+
+test("rampeEchauffement : charge légère → pas de doublon ni de palier ≥ travail", () => {
+  const r = rampeEchauffement(25, { barre: 20, pas: 2.5 });
+  const charges = r.map((x) => x.charge);
+  assert.equal(new Set(charges).size, charges.length);
+  assert.ok(charges.every((c) => c < 25 && c >= 20));
+  assert.deepEqual(rampeEchauffement(20, { barre: 20 }), []);
+  assert.deepEqual(rampeEchauffement(0), []);
+  assert.deepEqual(rampeEchauffement(/** @type {any} */ ("abc")), []);
+});
+
+test("rampeEchauffement : en livres (barre 45, pas 5)", () => {
+  const r = rampeEchauffement(225, { barre: 45, pas: 5 });
+  assert.deepEqual(r.map((x) => x.charge), [45, 115, 160, 190]);
 });

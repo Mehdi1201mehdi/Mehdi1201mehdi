@@ -102,3 +102,36 @@ export function echauffement(travailKg, barreKg = 20, pas = 2.5) {
   out.push({ kg: arrondir(W, pas), reps: 5, pct: 100, label: "travail" });
   return out;
 }
+
+/**
+ * Séries d'approche à insérer AVANT les séries de travail d'une séance en cours.
+ *
+ * Indépendant de l'unité : `travail`, `barre` et `pas` sont dans la même unité
+ * (kg ou lb), celle de la saisie. Sans barre (haltères, machine, poulie), il
+ * n'y a pas de palier « à vide » : on part de 50 %.
+ * Jamais de palier égal ou supérieur à la charge de travail, jamais deux fois
+ * la même charge — sur une charge légère, l'arrondi écrasait les paliers.
+ * @param {number} travail  charge de travail visée
+ * @param {{barre?: number, pas?: number}} [opts]  barre = 0 → exercice sans barre
+ * @returns {{charge:number, reps:number, pct:number|null}[]}
+ */
+export function rampeEchauffement(travail, opts = {}) {
+  const W = Number(travail);
+  if (!(W > 0)) return [];
+  const barre = Number(opts.barre) > 0 ? Number(opts.barre) : 0;
+  const pas = Number(opts.pas) > 0 ? Number(opts.pas) : 2.5;
+  const paliers = [
+    ...(barre ? [{ pct: null, reps: 8, charge: barre }] : []),
+    { pct: 50, reps: barre ? 5 : 8 },
+    { pct: 70, reps: barre ? 3 : 5 },
+    { pct: 85, reps: barre ? 1 : 2 },
+  ];
+  const out = [], vues = new Set();
+  for (const p of paliers) {
+    const charge = p.charge != null ? p.charge : Math.max(barre, arrondir(W * p.pct / 100, pas));
+    if (!(charge > 0) || charge >= W || vues.has(charge)) continue;
+    vues.add(charge);
+    out.push({ charge: Math.round(charge * 100) / 100, reps: p.reps, pct: p.pct });
+  }
+  return out;
+}

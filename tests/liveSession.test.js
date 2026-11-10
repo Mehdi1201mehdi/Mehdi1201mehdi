@@ -308,3 +308,28 @@ test("estEnCours : entrées inexploitables → false, jamais d'erreur", () => {
   assert.equal(estEnCours([{ done: false }], 5), false);
   assert.equal(estEnCours([{ done: false }], -1), false);
 });
+
+// ---- Séries d'échauffement : ni héritage ni décalage ----
+
+test("valeurSerie : une série de travail n'hérite pas d'une série d'échauffement", async () => {
+  const { valeurSerie } = await import("../src/engine/liveSession.js");
+  const series = [
+    { charge: "20", reps: "8", type: "echauffement" }, { charge: "85", reps: "1", type: "echauffement" },
+    { charge: "", reps: "", type: "normale" }, { charge: "100", reps: "5", type: "normale" }, { charge: "", reps: "", type: "normale" },
+  ];
+  assert.equal(valeurSerie(series, 2, "charge", 97.5, 100), 97.5);
+  assert.equal(valeurSerie(series, 2, "reps", null, 8), 8);
+  assert.equal(valeurSerie(series, 4, "charge", 97.5, 100), 100);
+  assert.equal(valeurSerie([{ charge: "20", type: "echauffement" }, { charge: "", type: "echauffement" }], 1, "charge"), 20);
+});
+
+test("seriePrecedente : aligne les séries de travail, ignore l'échauffement", async () => {
+  const { seriePrecedente } = await import("../src/engine/liveSession.js");
+  const live = [{ type: "echauffement" }, { type: "echauffement" }, { type: "normale" }, { type: "normale" }];
+  const passees = [{ chargeKg: 20, type: "echauffement" }, { chargeKg: 100 }, { chargeKg: 102.5 }];
+  assert.equal(seriePrecedente(live, 0, passees), null);
+  assert.equal(seriePrecedente(live, 2, passees).chargeKg, 100);
+  assert.equal(seriePrecedente(live, 3, passees).chargeKg, 102.5);
+  assert.equal(seriePrecedente(live, 3, null), null);
+  assert.equal(seriePrecedente([{ type: "normale" }], 0, [{ chargeKg: 60 }]).chargeKg, 60);
+});

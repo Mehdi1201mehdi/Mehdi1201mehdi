@@ -59,7 +59,7 @@ import { reduire, choisirImage, urlObjet } from "./photoCapture.js";
 import { photoSet, photoGet, photoDel, photoCles } from "../store/db.js";
 import { Etat, seanceDuJour, planningJours } from "../store/state.js";
 import {
-  nouvelleSession, ajouterSerie, retirerDerniereSerie,
+  nouvelleSession, nouvelleSerie, seriePrecedente, ajouterSerie, retirerDerniereSerie,
   serialiser, restaurer, estReprenable, dureeSecondes,
   reconcilier, TYPES_SERIE, GROUPES_SUPERSET, cyclerType, valeurSerie, completerSerie,
   exercicesDuSuperset, groupeSupersetLibre, reposApresSerie, estEnCours,
@@ -77,7 +77,7 @@ import {
 } from "../engine/routines.js";
 import { FORMULE_1RM, classementRecords, detecterRecords, e1rmFiable } from "../engine/records.js";
 import { construireExport, validerImport, appliquerImport, nomFichierBackup } from "../engine/backup.js";
-import { disquesParCote, echauffement } from "../engine/powerlifting.js";
+import { disquesParCote, echauffement, rampeEchauffement } from "../engine/powerlifting.js";
 import {
   estimer1RMComplet, pctPourReps, chargesParZone, tableComplete,
   chargePourRPE, pctPourRPE, meilleuresSeries, equilibreForce,
@@ -3236,9 +3236,10 @@ function carteExoLive(e, seance) {
         }
         continue;
       }
-      const dpi = derniere && derniere.series[i];
-      const cc = valeurSerie(st.series, i, "charge", uAffLive(dpi && dpi.chargeKg), uAffLive(sug.chargeKg));
-      const rr = valeurSerie(st.series, i, "reps", dpi && dpi.reps, plage && plage[0]);
+      const dpi = seriePrecedente(st.series, i, derniere && derniere.series);
+      const app = st.series[i] && st.series[i].type === "echauffement";
+      const cc = valeurSerie(st.series, i, "charge", uAffLive(dpi && dpi.chargeKg), app ? null : uAffLive(sug.chargeKg));
+      const rr = valeurSerie(st.series, i, "reps", dpi && dpi.reps, app ? null : plage && plage[0]);
       const ic = row.querySelector('input[data-f="charge"]');
       if (ic) ic.placeholder = cc == null ? "—" : String(cc);
       const ir = row.querySelector('input[data-f="reps"]');
@@ -3262,7 +3263,7 @@ function carteExoLive(e, seance) {
     synth.innerHTML = parts.join(`<span class="cs-sep" aria-hidden="true">·</span>`);
   };
   st.series.forEach((s, i) => {
-    const dp = derniere && derniere.series[i];
+    const dp = seriePrecedente(st.series, i, derniere && derniere.series);
     const prev = !dp ? "—"
       : enDistance ? (dp.distanceM ? texteDistance(dp.distanceM) : dp.dureeSec ? texteDuree(dp.dureeSec) : "—")
       : enTemps ? `${dp.dureeSec || 0}s` : `${uAffLive(dp.chargeKg) || 0}×${dp.reps || 0}`;
@@ -3275,11 +3276,15 @@ function carteExoLive(e, seance) {
     // Suggestion affichée = valeur qui sera enregistrée si l'on valide sans
     // rien taper. Les deux doivent être calculées au même endroit, sans quoi
     // l'écran promet une chose et l'historique en garde une autre.
-    const chargeAff = valeurSerie(st.series, i, "charge", uAffLive(dp && dp.chargeKg), uAffLive(sug.chargeKg));
-    const repsAff = valeurSerie(st.series, i, "reps", dp && dp.reps, plage && plage[0]);
+    const approche = s.type === "echauffement";
+    const chargeAff = valeurSerie(st.series, i, "charge", uAffLive(dp && dp.chargeKg), approche ? null : uAffLive(sug.chargeKg));
+    const repsAff = valeurSerie(st.series, i, "reps", dp && dp.reps, approche ? null : plage && plage[0]);
+    // Le repère de type (É, D, MAX…) se voit même hors mode avancé : une
+    // série d'approche ajoutée par « Échauffement calculé » ressemblait sinon
+    // à une série de travail.
     const numEl = avance
       ? `<button class="serie sertype ${s.type !== "normale" ? "on" : ""}" aria-label="Type de la série ${i + 1} : ${tSerie.label}. Toucher pour changer">${i + 1}${tSerie.court ? `<span class="sertag">${tSerie.court}</span>` : ""}</button>`
-      : `<span class="serie">${i + 1}</span>`;
+      : `<span class="serie${tSerie.court ? " sertype on" : ""}"${tSerie.court ? ` aria-label="Série ${i + 1} : ${tSerie.label}"` : ""}>${i + 1}${tSerie.court ? `<span class="sertag">${tSerie.court}</span>` : ""}</span>`;
     // La série EN COURS est la première non validée : c'est la seule qu'on
     // cherche du regard entre deux séries. Elle porte un rail d'accent et des
     // champs éclaircis ; les autres restent en retrait. Sans ce repère, les
@@ -3373,7 +3378,7 @@ function carteExoLive(e, seance) {
     bFill.title = "Pré-remplir avec la dernière fois / le conseil";
     bFill.addEventListener("click", () => {
       st.series.forEach((s, i) => {
-        const dp = derniere && derniere.series[i];
+        const dp = seriePrecedente(st.series, i, derniere && derniere.series);
         if (enDistance) {
           if (!s.distanceKm && dp?.distanceM) s.distanceKm = kmSaisie(dp.distanceM);
           if (!s.dureeMin && dp?.dureeSec) s.dureeMin = minutesSaisie(dp.dureeSec);
@@ -3396,7 +3401,16 @@ function carteExoLive(e, seance) {
 
   const bMenu = h(`<button class="chip exomenu" aria-label="Autres actions pour ${esc(exo.nom)}">⋯</button>`);
   if (st.douleur) bMenu.classList.add("danger");
-  bMenu.addEventListener("click", () => menuExoLive(e, exo, st, seance));
+  // Charge repère pour les calculs du menu (échauffement, disques) : la série
+  // déjà saisie, sinon la dernière séance, sinon la charge conseillée.
+  const repere = () => {
+    const saisie = (st.series || []).find((x) => x.type !== "echauffement" && x.charge !== "" && x.charge != null);
+    if (saisie) return saisie.charge;
+    const d0 = derniere && derniere.series && derniere.series[0];
+    const kg = (d0 && d0.chargeKg) || sug.chargeKg;
+    return kg ? uAffLive(kg) : "";
+  };
+  bMenu.addEventListener("click", () => menuExoLive(e, exo, st, seance, repere()));
   serieActs.append(bMenu);
   c.append(serieActs);
   // Exercice terminé (toutes les séries validées) → état visuel discret.
@@ -3407,7 +3421,94 @@ function carteExoLive(e, seance) {
  * Menu des actions secondaires d'un exercice en séance. Sorti de la carte pour
  * garder l'écran d'entraînement dense et manipulable d'une main.
  */
-function menuExoLive(e, exo, st, seance) {
+/** Nombre saisi (« 62,5 » ou « 62.5 ») → nombre, ou 0. */
+const nbSaisi = (x) => { const n = parseFloat(String(x == null ? "" : x).replace(",", ".")); return Number.isFinite(n) && n > 0 ? n : 0; };
+const frNb = (n) => String(Math.round(n * 100) / 100).replace(".", ",");
+/** L'exercice se charge-t-il sur une barre ? (échauffement à vide, disques) */
+const surBarre = (exo) => (exo.equipement || []).some((q) => q === "barre" || q === "smith" || q === "barre_ez" || q === "trap_bar");
+
+/**
+ * Échauffement calculé : séries d'approche déduites de la charge de travail,
+ * insérées en tête de l'exercice (type « échauffement » : hors records, hors
+ * tonnage). Les séries d'approche pas encore faites sont remplacées, jamais
+ * celles déjà validées.
+ */
+async function ajouterEchauffementLive(st, exo, repere) {
+  const lb = uLive(), unite = lb ? "lb" : "kg";
+  const barre = surBarre(exo) ? (lb ? 45 : 20) : 0, pas = lb ? 5 : 2.5;
+  let champ, apercu;
+  const v = await dialogue({
+    titre: "Échauffement calculé",
+    message: `Charge de travail prévue pour « ${exo.nom} » :`,
+    cancelVal: null,
+    actions: [{ label: "Annuler", valeur: null }, { label: "Ajouter", primary: true, valeur: () => champ.value }],
+    onMount: (inner) => {
+      champ = h(`<input inputmode="decimal" aria-label="Charge de travail (${unite})" placeholder="${unite}" style="width:100%">`);
+      champ.value = repere ? String(repere).replace(".", ",") : "";
+      apercu = h(`<div class="ech-apercu" aria-live="polite"></div>`);
+      const maj = () => {
+        const r = rampeEchauffement(nbSaisi(champ.value), { barre, pas });
+        apercu.innerHTML = r.length
+          ? r.map((x) => `<span class="pill"><b class="num">${frNb(x.charge)}</b> ${unite} × ${x.reps}${x.pct ? ` <i>${x.pct} %</i>` : " <i>à vide</i>"}</span>`).join("")
+          : `<span class="muted small">${nbSaisi(champ.value) ? "Charge trop légère pour des séries d'approche." : "Saisis ta charge de travail."}</span>`;
+      };
+      champ.addEventListener("input", maj);
+      const ancre = inner.querySelector(".row");
+      inner.insertBefore(champ, ancre); inner.insertBefore(apercu, ancre);
+      maj(); setTimeout(() => champ.select(), 0);
+    },
+  });
+  if (v == null) return;
+  const rampe = rampeEchauffement(nbSaisi(v), { barre, pas });
+  if (!rampe.length) { toast("Aucune série d'approche à ajouter pour cette charge"); return; }
+  const gardees = st.series.filter((x) => !(x.type === "echauffement" && !x.done));
+  const nouvelles = rampe.map((x) => ({ ...nouvelleSerie(null), charge: frNb(x.charge), reps: String(x.reps), type: "echauffement" }));
+  const faites = gardees.filter((x) => x.type === "echauffement");
+  st.series = [...faites, ...nouvelles, ...gardees.filter((x) => x.type !== "echauffement")];
+  persistLive(true); render();
+  toast(`${nouvelles.length} série${nouvelles.length > 1 ? "s" : ""} d'échauffement ajoutée${nouvelles.length > 1 ? "s" : ""}`);
+}
+
+/** Disques à mettre de chaque côté de la barre, sans quitter la séance. */
+function calculerDisquesLive(exo, repere) {
+  const lb = uLive(), unite = lb ? "lb" : "kg";
+  const barres = lb ? [45, 35, 25, 15] : [20, 15, 10, 7.5];
+  const disques = lb ? [45, 35, 25, 10, 5, 2.5] : [25, 20, 15, 10, 5, 2.5, 1.25];
+  let barre = barres[0];
+  dialogue({
+    titre: "Disques à charger",
+    message: exo.nom,
+    cancelVal: null,
+    actions: [{ label: "Fermer", valeur: null, primary: true }],
+    onMount: (inner) => {
+      const champ = h(`<input inputmode="decimal" aria-label="Charge totale (${unite})" placeholder="Charge totale (${unite})" style="width:100%">`);
+      champ.value = repere ? String(repere).replace(".", ",") : "";
+      const choix = h(`<div class="row disq-barres" role="group" aria-label="Poids de la barre"></div>`);
+      const res = h(`<div class="disq-res" aria-live="polite"></div>`);
+      const maj = () => {
+        choix.querySelectorAll("button").forEach((b) => b.classList.toggle("on", Number(b.dataset.b) === barre));
+        const cible = nbSaisi(champ.value);
+        if (!cible) { res.innerHTML = `<span class="muted small">Saisis la charge totale, barre comprise.</span>`; return; }
+        const d = disquesParCote(cible, barre, disques);
+        if (!d.possible) { res.innerHTML = `<span class="muted small">La charge doit dépasser le poids de la barre (${frNb(barre)} ${unite}).</span>`; return; }
+        res.innerHTML = `<div class="eyebrow">De chaque côté</div>
+          <div class="disq-liste">${d.parCote.length ? d.parCote.map((x) => `<span class="disq num">${frNb(x)}</span>`).join("") : `<span class="muted">aucun disque</span>`}</div>
+          ${d.exact ? "" : `<div class="muted small">Au plus proche : <b class="num">${frNb(d.totalReel)} ${unite}</b> (il manque ${frNb(d.resteKg * 2)} ${unite}).</div>`}`;
+      };
+      barres.forEach((b) => {
+        const bt = h(`<button type="button" class="chip" data-b="${b}">Barre ${frNb(b)} ${unite}</button>`);
+        bt.addEventListener("click", () => { barre = b; maj(); });
+        choix.append(bt);
+      });
+      champ.addEventListener("input", maj);
+      const ancre = inner.querySelector(".row");
+      inner.insertBefore(champ, ancre); inner.insertBefore(choix, ancre); inner.insertBefore(res, ancre);
+      maj(); setTimeout(() => champ.select(), 0);
+    },
+  });
+}
+
+function menuExoLive(e, exo, st, seance, repere = "") {
   const sheet = h(`<div class="sheet menu-sheet"><div class="inner"></div></div>`);
   const inner = sheet.querySelector(".inner");
   const fermer = () => sheet.remove();
@@ -3439,6 +3540,10 @@ function menuExoLive(e, exo, st, seance) {
       item(IC.swap, "Grouper en superset", () => choisirPartenaireSuperset(e.exerciceId, seance));
     }
   }
+  // Charge, donc échauffement calculable ; barre, donc disques à compter.
+  const aCharge = !(st.series || []).some((x) => x.dureeSec || x.distanceKm != null) && !(exo.equipement || []).every((q) => q === "poids_du_corps");
+  if (aCharge) item(IC.flame, "Échauffement calculé", () => ajouterEchauffementLive(st, exo, repere));
+  if (aCharge && surBarre(exo)) item(IC.barreLourde || IC.dumbbell, "Disques à charger", () => calculerDisquesLive(exo, repere));
   item(IC.message, st.note ? "Modifier la note" : "Ajouter une note", () => noterExerciceLive(st, exo));
   item(IC.clock, "Minuteur EMOM / Tabata", () => ouvrirOutils("intervalles"));
   item(IC.swap, "Remplacer l'exercice", () => remplacer(e.exerciceId));

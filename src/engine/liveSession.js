@@ -157,13 +157,39 @@ export function valeurSerie(series, i, champ, precedent = null, conseil = null) 
   const liste = Array.isArray(series) ? series : [];
   const saisi = nombre(liste[i] && liste[i][champ]);
   if (saisi != null) return saisi;
+  // Une série de travail n'hérite jamais d'une série d'échauffement (et
+  // inversement) : après « 85 kg × 1 » d'approche, la première série de
+  // travail proposait 85 kg × 1 au lieu de la charge prévue.
+  const ech = estEchauffement(liste[i]);
   for (let k = i - 1; k >= 0; k--) {
+    if (estEchauffement(liste[k]) !== ech) continue;
     const v = nombre(liste[k] && liste[k][champ]);
     if (v != null) return v;
   }
   const p = nombre(precedent);
   if (p != null) return p;
   return nombre(conseil);
+}
+
+const estEchauffement = (s) => !!s && s.type === "echauffement";
+
+/**
+ * Série de la séance précédente qui correspond à la série `i` d'aujourd'hui.
+ *
+ * On aligne les séries de TRAVAIL entre elles : des séries d'échauffement
+ * ajoutées en tête décalaient tout (la 1re série de travail était comparée à
+ * la 5e de la dernière fois). Une série d'échauffement n'a pas de précédent.
+ * @param {any[]} series        séries live de l'exercice
+ * @param {number} i
+ * @param {any[]|null|undefined} passees  séries de la séance précédente
+ * @returns {any|null}
+ */
+export function seriePrecedente(series, i, passees) {
+  const liste = Array.isArray(series) ? series : [];
+  if (!Array.isArray(passees) || !liste[i] || estEchauffement(liste[i])) return null;
+  let rang = 0;
+  for (let k = 0; k < i; k++) if (!estEchauffement(liste[k])) rang++;
+  return passees.filter((x) => !estEchauffement(x))[rang] || null;
 }
 
 /**
