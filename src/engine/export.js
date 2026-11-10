@@ -9,7 +9,11 @@ const DELIM = ";";
 
 /** Échappe un champ pour le CSV (guillemets si nécessaire). */
 export function csvEscape(valeur) {
-  const s = valeur === null || valeur === undefined ? "" : String(valeur);
+  let s = valeur === null || valeur === undefined ? "" : String(valeur);
+  // Un texte libre (nom de séance, note) commençant par = + - ou @ serait
+  // exécuté comme FORMULE à l'ouverture dans un tableur : on le neutralise
+  // avec une apostrophe. Les nombres (y compris négatifs) restent intacts.
+  if (typeof valeur !== "number" && /^[=+\-@\t\r]/.test(s) && !/^[+-]?\d+([.,]\d+)?$/.test(s)) s = "'" + s;
   if (s.includes(DELIM) || s.includes('"') || s.includes("\n") || s.includes("\r")) {
     return `"${s.replace(/"/g, '""')}"`;
   }

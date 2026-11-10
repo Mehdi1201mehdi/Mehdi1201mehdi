@@ -107,3 +107,18 @@ dont Epley, Brzycki, Lombardi) ; l'AMRAP existait déjà (type de série).
   rien à ajouter, le groupe « bancs » de l'app compte 226 exercices.
 - Audit rejoué : 72 écrans sans débordement ni erreur. 699 tests. Navigateur : 100/101
   (l'échec restant est une image externe bloquée par l'environnement de test).
+
+## Suite du 10 nov. 2026 (nuit)
+
+- Identité : Mehdi a vu trois pistes (bleu actuel, « Volt », « Braise ») et garde le bleu.
+- Consignes rédigées par l'app (`consignesAuto.js`) : 31 mouvements reconnus au nom, 325 fiches
+  complétées et marquées « À vérifier » ; 323 restent incomplètes (mouvement non reconnu :
+  on ne rédige pas). Validées : 1 227, inchangé.
+- Export CSV : il existait déjà (séances et mensurations) ; ajout de la neutralisation des
+  textes ressemblant à une formule de tableur.
+- Vérifié en plus : échauffement et disques en livres ; les 14 sections de Progrès ouvertes à
+  390 et 320 px (8 graphiques, aucun aplati, hors écran ou « NaN ») ; saisie de mensurations.
+- 701 tests.
+
+Reste : relecture humaine des 325 consignes rédigées ; 323 fiches sans consignes ; coach avec
+IA en ligne non testé (clé nécessaire) ; widgets Android ; essai sur téléphone réel.

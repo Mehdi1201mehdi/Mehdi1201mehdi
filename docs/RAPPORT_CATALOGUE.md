@@ -1,14 +1,14 @@
 # Rapport de validation du catalogue d'exercices
 
-Généré le 2026-11-08 par `scripts/rapport-catalogue.mjs` à partir des données réellement chargées par l'application (catalogue maison + extensions + corrections).
+Généré le 2026-11-10 par `scripts/rapport-catalogue.mjs` à partir des données réellement chargées par l'application (catalogue maison + extensions + corrections).
 
 ## Synthèse
 
 | Statut | Fiches | Définition |
 | --- | ---: | --- |
 | Validé | 1 227 | Nom français, nom d'origine, muscle principal, matériel, mouvement, niveau, consignes en français (≥ 2 étapes), source, aucune incohérence |
-| À vérifier | 82 | Complète, mais une règle de cohérence échoue ou le nom français n'a pas pu être établi |
-| Incomplet | 648 | Il manque une information obligatoire (presque toujours les consignes d'exécution) |
+| À vérifier | 407 | Complète, mais une règle de cohérence échoue ou le nom français n'a pas pu être établi |
+| Incomplet | 323 | Il manque une information obligatoire (presque toujours les consignes d'exécution) |
 | Rejeté | 0 | Inutilisable ou doublon masqué |
 | **Total distinct** | **1 957** | Exercices affichés dans la bibliothèque, sans doublon |
 
@@ -19,8 +19,8 @@ Généré le 2026-11-08 par `scripts/rapport-catalogue.mjs` à partir des donné
 | Source | Licence | Validé | À vérifier | Incomplet | Total |
 | --- | --- | ---: | ---: | ---: | ---: |
 | Coach Perso | Projet | 93 | 0 | 0 | 93 |
-| wger | CC-BY-SA 4.0 | 24 | 0 | 216 | 240 |
-| free-exercise-db | Unlicense (domaine public) | 359 | 2 | 432 | 793 |
+| wger | CC-BY-SA 4.0 | 24 | 121 | 95 | 240 |
+| free-exercise-db | Unlicense (domaine public) | 359 | 206 | 228 | 793 |
 | exercises-dataset | MIT (données) | 751 | 80 | 0 | 831 |
 
 Écartés à l'import (non comptés) : doublons internes, doublons du catalogue, exercices de cou — détail en tête de chaque fichier généré (`src/data/exercises-fedb.js`, `src/data/exercises-edb.js`). 52 fiches identiques à une autre sont masquées (`DOUBLONS_MASQUES`) mais restent lisibles pour l'historique.
@@ -29,11 +29,12 @@ Généré le 2026-11-08 par `scripts/rapport-catalogue.mjs` à partir des donné
 
 | Champ | Fiches concernées |
 | --- | ---: |
-| consignes d'exécution | 648 |
+| consignes d'exécution | 323 |
 | nom français | 109 |
 
 | Incohérence détectée | Fiches |
 | --- | ---: |
+| Consignes rédigées par l'app, à vérifier | 325 |
 | Muscle principal … inattendu pour ce mouvement | 31 |
 | Matériel déclaré différent de celui du nom | 5 |
 
@@ -92,6 +93,7 @@ Un exercice peut appartenir à plusieurs familles (un squat est à la fois « sq
 | Bancs | Banc décliné | 23 | 26 |
 | Bancs | Banc réglable | 61 | 78 |
 | Bancs | Banc à lombaires (chaise romaine) | 5 | 7 |
+| Bancs | Pupitre à biceps | 28 | 29 |
 | Haltères | Haltères | 268 | 342 |
 | Haltères | Kettlebells | 39 | 64 |
 | Barres | Barre olympique | 99 | 199 |
@@ -138,6 +140,8 @@ Un exercice peut appartenir à plusieurs familles (un squat est à la fois « sq
 | Accessoires | TRX / sangles de suspension | 6 | 12 |
 | Accessoires | Médecine-ball | 14 | 21 |
 | Accessoires | Swiss ball | 72 | 84 |
+| Accessoires | Box de saut | 5 | 19 |
+| Accessoires | Mur | 9 | 14 |
 | Accessoires | Bosu | 4 | 4 |
 | Accessoires | Rouleau de massage | 6 | 17 |
 | Accessoires | Traîneau / prowler | 0 | 10 |
@@ -145,7 +149,7 @@ Un exercice peut appartenir à plusieurs familles (un squat est à la fois « sq
 | Accessoires | Cordes (battle rope, grimper, corde à sauter) | 3 | 3 |
 | Accessoires | Autres équipements spécialisés | 44 | 119 |
 
-57 machines et équipements référencés. Un exercice peut être compatible avec plusieurs (un développé couché haltères : banc plat + haltères).
+60 machines et équipements référencés. Un exercice peut être compatible avec plusieurs (un développé couché haltères : banc plat + haltères).
 
 ## Matériel déclaré
 

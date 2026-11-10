@@ -73,3 +73,13 @@ test("metriquesVersCSV : lignes triées par date (relevé saisi après coup)", (
 test("nomFichierExport : préfixe + date courte", () => {
   assert.equal(nomFichierExport("seances", "2026-07-15T12:00:00.000Z"), "seances-2026-07-15.csv");
 });
+
+test("csvEscape : un texte qui ressemble à une formule est neutralisé, pas les nombres", () => {
+  assert.equal(csvEscape("=SOMME(A1:A9)"), "'=SOMME(A1:A9)");
+  assert.equal(csvEscape("@cmd"), "'@cmd");
+  assert.equal(csvEscape("+33 6 00"), "'+33 6 00");
+  assert.equal(csvEscape("-2,5"), "-2,5");
+  assert.equal(csvEscape(-2.5), "-2.5");
+  assert.equal(csvEscape("Haut du corps A"), "Haut du corps A");
+  assert.equal(csvEscape('=A1;"x"'), `"'=A1;""x"""`);
+});
