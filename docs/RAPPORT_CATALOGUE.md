@@ -1,14 +1,14 @@
 # Rapport de validation du catalogue d'exercices
 
-Généré le 2026-11-10 par `scripts/rapport-catalogue.mjs` à partir des données réellement chargées par l'application (catalogue maison + extensions + corrections).
+Généré le 2026-11-14 par `scripts/rapport-catalogue.mjs` à partir des données réellement chargées par l'application (catalogue maison + extensions + corrections).
 
 ## Synthèse
 
 | Statut | Fiches | Définition |
 | --- | ---: | --- |
 | Validé | 1 227 | Nom français, nom d'origine, muscle principal, matériel, mouvement, niveau, consignes en français (≥ 2 étapes), source, aucune incohérence |
-| À vérifier | 407 | Complète, mais une règle de cohérence échoue ou le nom français n'a pas pu être établi |
-| Incomplet | 323 | Il manque une information obligatoire (presque toujours les consignes d'exécution) |
+| À vérifier | 352 | Complète, mais une règle de cohérence échoue ou le nom français n'a pas pu être établi |
+| Incomplet | 378 | Il manque une information obligatoire (presque toujours les consignes d'exécution) |
 | Rejeté | 0 | Inutilisable ou doublon masqué |
 | **Total distinct** | **1 957** | Exercices affichés dans la bibliothèque, sans doublon |
 
@@ -19,8 +19,8 @@ Généré le 2026-11-10 par `scripts/rapport-catalogue.mjs` à partir des donné
 | Source | Licence | Validé | À vérifier | Incomplet | Total |
 | --- | --- | ---: | ---: | ---: | ---: |
 | Coach Perso | Projet | 93 | 0 | 0 | 93 |
-| wger | CC-BY-SA 4.0 | 24 | 121 | 95 | 240 |
-| free-exercise-db | Unlicense (domaine public) | 359 | 206 | 228 | 793 |
+| wger | CC-BY-SA 4.0 | 24 | 101 | 115 | 240 |
+| free-exercise-db | Unlicense (domaine public) | 359 | 171 | 263 | 793 |
 | exercises-dataset | MIT (données) | 751 | 80 | 0 | 831 |
 
 Écartés à l'import (non comptés) : doublons internes, doublons du catalogue, exercices de cou — détail en tête de chaque fichier généré (`src/data/exercises-fedb.js`, `src/data/exercises-edb.js`). 52 fiches identiques à une autre sont masquées (`DOUBLONS_MASQUES`) mais restent lisibles pour l'historique.
@@ -29,12 +29,12 @@ Généré le 2026-11-10 par `scripts/rapport-catalogue.mjs` à partir des donné
 
 | Champ | Fiches concernées |
 | --- | ---: |
-| consignes d'exécution | 323 |
+| consignes d'exécution | 378 |
 | nom français | 109 |
 
 | Incohérence détectée | Fiches |
 | --- | ---: |
-| Consignes rédigées par l'app, à vérifier | 325 |
+| Consignes rédigées par l'app, à vérifier | 270 |
 | Muscle principal … inattendu pour ce mouvement | 31 |
 | Matériel déclaré différent de celui du nom | 5 |
 

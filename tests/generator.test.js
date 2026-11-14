@@ -119,3 +119,17 @@ test("« bro_split » à 4 et 3 séances : aucun grand groupe oublié", () => {
   const p3 = genererProgramme(makeProfil(/** @type {any} */ ({ joursParSemaine: 3, niveau: "intermediaire", objectif: "prise_muscle", lieu: "salle", equipements: eq, split: "bro_split" })));
   assert.equal(p3.seances.length, 3);
 });
+
+test("répartition imposée intenable : retour à l'automatique, dit clairement ; noms uniques", () => {
+  const P = (o) => makeProfil(/** @type {any} */ ({ niveau: "intermediaire", objectif: "prise_muscle", ...o }));
+  const ppl2 = genererProgramme(P({ joursParSemaine: 2, split: "push_pull_legs" }));
+  assert.notEqual(ppl2.split, "push_pull_legs");
+  assert.match(JSON.stringify(ppl2), /demande au moins 3 séances/);
+  assert.notEqual(genererProgramme(P({ joursParSemaine: 2, split: "bro_split" })).split, "bro_split");
+  assert.notEqual(genererProgramme(P({ joursParSemaine: 1, split: "haut_bas" })).split, "haut_bas");
+  assert.equal(genererProgramme(P({ joursParSemaine: 3, objectif: "mobilite", split: "full_body" })).split, "mobilite");
+  for (const [split, jours] of [["full_body", 6], ["haut_bas", 6], ["push_pull_legs", 6], ["bro_split", 6]]) {
+    const noms = genererProgramme(P({ joursParSemaine: jours, split })).seances.map((x) => x.nom);
+    assert.equal(new Set(noms).size, noms.length, `${split} ${jours} j : ${noms.join(", ")}`);
+  }
+});

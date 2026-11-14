@@ -95,6 +95,8 @@ function fusionListe(a, b) {
  * @param {"fusionner"|"remplacer"} [mode]
  */
 export function appliquerImport(actuel, src, mode = "fusionner") {
+  // Tout fichier importé est traité comme venant d'un inconnu.
+  src = assainirImport(src);
   if (mode === "remplacer") {
     // Une sauvegarde antérieure aux photos ne porte pas la clé `photos`.
     // L'appliquer telle quelle effacerait les fiches tout en laissant les images
@@ -103,13 +105,12 @@ export function appliquerImport(actuel, src, mode = "fusionner") {
     const photos = Array.isArray(src.photos) ? src.photos : (actuel && actuel.photos) || [];
     // La clé du coach appartient à CET appareil et n'est jamais dans un fichier
     // de sauvegarde : « remplacer les données » ne doit pas la faire disparaître.
-    const coachLocal = actuel && actuel.reglages && actuel.reglages.coachCloud;
-    let reglages = src.reglages;
-    if (coachLocal && (coachLocal.cle || coachLocal.jeton)) {
-      const cs = (src.reglages && src.reglages.coachCloud) || {};
-      reglages = { ...(src.reglages || {}), coachCloud: { ...coachLocal, ...cs, cle: coachLocal.cle, jeton: coachLocal.jeton } };
-    }
-    return normaliserEtat({ ...src, photos, reglages });
+    const reglages = reglagesImportes(src.reglages, actuel && actuel.reglages);
+    // Seules les clés d'une vraie sauvegarde sont reprises : un fichier
+    // fabriqué ne peut pas glisser une séance en cours ou un cache.
+    const propre = {};
+    for (const k of CLES_EXPORT) if (Object.prototype.hasOwnProperty.call(src, k)) propre[k] = src[k];
+    return normaliserEtat({ ...propre, photos, reglages });
   }
   const base = normaliserEtat(actuel);
   const out = { ...base };
@@ -130,16 +131,104 @@ export function appliquerImport(actuel, src, mode = "fusionner") {
   // profil / programme : garde l'actuel s'il existe, sinon reprend l'import.
   out.profil = base.profil || src.profil || null;
   out.programme = base.programme || src.programme || null;
-  out.reglages = { ...base.reglages, ...(src.reglages || {}) };
-  // La sauvegarde ne contient plus de clé (cf. reglagesSansSecret) : fusionner
-  // le bloc coach champ par champ garde celle déjà saisie sur cet appareil.
-  if (base.reglages && base.reglages.coachCloud) {
-    out.reglages.coachCloud = { ...base.reglages.coachCloud, ...((src.reglages && src.reglages.coachCloud) || {}) };
-  }
+  out.reglages = reglagesImportes({ ...base.reglages, ...(src.reglages || {}) }, base.reglages);
   return normaliserEtat(out);
+}
+
+/** Réglages qui décident où partent les conversations du coach. */
+const REGLAGES_COACH = ["coachCloud", "coachIA", "coachPartageHisto"];
+
+/**
+ * Réglages repris d'un fichier importé, SANS ceux du coach en ligne.
+ *
+ * Un fichier de sauvegarde vient parfois d'ailleurs (envoyé, téléchargé). S'il
+ * pouvait régler le fournisseur et l'adresse du coach, ouvrir ce fichier
+ * suffirait à activer le coach en ligne et à envoyer conversations et jeton
+ * vers un serveur choisi par son auteur (audit de sécurité, nov. 2026). Le
+ * coach se configure donc uniquement à la main, sur l'appareil : on garde tel
+ * quel ce qui y est déjà, et rien de ce que dit le fichier.
+ * @param {any} importes  réglages du fichier
+ * @param {any} locaux    réglages actuels de l'appareil
+ */
+export function reglagesImportes(importes, locaux) {
+  const out = { ...(importes || {}) };
+  for (const k of REGLAGES_COACH) {
+    delete out[k];
+    if (locaux && Object.prototype.hasOwnProperty.call(locaux, k)) out[k] = locaux[k];
+  }
+  return out;
 }
 
 /** Nom de fichier de sauvegarde horodaté. */
 export function nomFichierBackup(dateISO = new Date().toISOString()) {
   return `coach-perso-sauvegarde-${dateISO.slice(0, 10)}.json`;
+}
+
+/**
+ * Faut-il rappeler de faire une sauvegarde ? Les données ne vivent que sur
+ * l'appareil : le vrai risque est de perdre ou de changer de téléphone.
+ * Rappel à partir de 5 séances, si la dernière sauvegarde (ou le dernier
+ * « plus tard ») date de plus de 30 jours.
+ * @param {any} reglages  lit `derniereSauvegardeAt` et `rappelSauvegardeAt` (ms)
+ * @param {any[]} logs
+ * @param {number} [maintenant]
+ * @returns {{rappeler: boolean, joursDepuis: number|null, seancesDepuis: number}}
+ */
+export function etatSauvegarde(reglages, logs, maintenant = Date.now()) {
+  const r = reglages || {}, liste = logs || [];
+  const derniere = Number(r.derniereSauvegardeAt) || 0;
+  const repere = Math.max(derniere, Number(r.rappelSauvegardeAt) || 0);
+  const seancesDepuis = liste.filter((l) => Date.parse(l && l.date) > derniere).length;
+  const joursDepuis = derniere ? Math.floor((maintenant - derniere) / 86400000) : null;
+  const rappeler = liste.length >= 5 && seancesDepuis > 0 && maintenant - repere > 30 * 86400000;
+  return { rappeler, joursDepuis, seancesDepuis };
+}
+
+const CLES_INTERDITES = new Set(["__proto__", "constructor", "prototype"]);
+/** Champs toujours numériques : une chaîne non numérique y devient `null`. */
+const CHAMPS_NUMERIQUES = new Set(["age", "tailleCm", "poidsKg", "sommeilH", "joursParSemaine", "dureeSeanceMin", "dureeEstimeeMin",
+  "chargeKg", "reps", "rir", "rpe", "dureeSec", "distanceKm", "distanceM", "reposSec", "series", "difficulte", "masseGrassePct"]);
+
+/**
+ * Copie assainie d'un fichier importé (audit de sécurité, nov. 2026).
+ *
+ * L'interface construit son HTML par chaînes ; la plupart des textes passent
+ * par `esc()`, mais un fichier fabriqué pouvait placer du HTML là où l'app
+ * attend un nombre ou un identifiant (durée d'une séance, muscle d'un exercice
+ * personnel). On ferme la porte à l'entrée plutôt qu'à chaque affichage :
+ * - les chevrons deviennent des guillemets simples typographiques ‹ › ;
+ * - un champ numérique qui n'est pas un nombre est vidé ;
+ * - les clés `__proto__`, `constructor`, `prototype` sont ignorées ;
+ * - profondeur, longueurs de texte et de tableaux sont plafonnées.
+ * Les images intégrées (`data:image/…`) sont conservées telles quelles.
+ * @param {any} v
+ * @param {string} [cle]
+ * @param {number} [profondeur]
+ * @returns {any}
+ */
+export function assainirImport(v, cle = "", profondeur = 0) {
+  if (v == null || typeof v === "boolean") return v;
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v === "string") {
+    if (CHAMPS_NUMERIQUES.has(cle)) {
+      const n = Number(v.replace(",", "."));
+      return v.trim() !== "" && Number.isFinite(n) ? n : null;
+    }
+    if (/^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(v)) return v;
+    return v.slice(0, 20000).replace(/</g, "‹").replace(/>/g, "›");
+  }
+  if (profondeur > 14) return null;
+  if (Array.isArray(v)) {
+    // `series` est un nombre dans une routine, une liste dans un journal.
+    return v.slice(0, 50000).map((x) => assainirImport(x, cle === "series" ? "" : cle, profondeur + 1));
+  }
+  if (typeof v === "object") {
+    const out = {};
+    for (const k of Object.keys(v)) {
+      if (CLES_INTERDITES.has(k)) continue;
+      out[String(k).slice(0, 200).replace(/[<>]/g, "")] = assainirImport(v[k], k, profondeur + 1);
+    }
+    return out;
+  }
+  return null;
 }

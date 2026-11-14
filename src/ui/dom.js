@@ -25,8 +25,8 @@ export const $ = (s, r = document) => r.querySelector(s);
  *
  * @param {unknown} s
  */
-export const esc = (s) => String(s ?? "").replace(/[&<>"]/g,
-  (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+export const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
+  (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 /**
  * Crée un élément depuis une chaîne HTML.

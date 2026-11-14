@@ -14,10 +14,24 @@ import { filtrerExercices, DIFFICULTE_CIBLE } from "./constraints.js";
 /** Répartitions que l'utilisateur peut imposer (Profil → Répartition). */
 export const SPLITS_CHOISISSABLES = ["full_body", "haut_bas", "push_pull_legs", "bro_split"];
 
+/** Nombre de séances par semaine en dessous duquel une répartition laisse des muscles sans travail. */
+const JOURS_MIN_SPLIT = { full_body: 1, haut_bas: 2, push_pull_legs: 3, bro_split: 3 };
+
+/**
+ * La répartition choisie est-elle tenable avec ce nombre de séances ?
+ * « Poussée · Tirage · Jambes » sur 2 jours ne ferait jamais les jambes : on
+ * revient alors à la règle automatique (et la justification le dit).
+ * @param {any} profil
+ */
+export function repartitionApplicable(profil) {
+  const min = JOURS_MIN_SPLIT[profil.split];
+  return !!min && profil.objectif !== "mobilite" && (Number(profil.joursParSemaine) || 0) >= min;
+}
+
 export function choisirSplit(profil) {
   if (profil.objectif === "mobilite") return "mobilite";
   // Choix explicite de l'utilisateur ; « auto » ou absent → règle par défaut.
-  if (SPLITS_CHOISISSABLES.includes(profil.split)) return profil.split;
+  if (repartitionApplicable(profil)) return profil.split;
   const j = profil.joursParSemaine;
   if (j <= 3) return "full_body";
   if (j === 4) return "haut_bas";
@@ -137,11 +151,12 @@ function sequenceSeances(split, jours) {
   switch (split) {
     case "full_body": {
       const rot = ["full_body_A", "full_body_B", "full_body_C"];
-      return Array.from({ length: jours }, (_, i) => ({ nom: `Corps entier ${String.fromCharCode(65 + (i % 3))}`, slots: rot[i % 3] }));
+      // Au-delà de 3 séances la rotation recommence : « A (2) », jamais deux séances du même nom.
+      return Array.from({ length: jours }, (_, i) => ({ nom: `Corps entier ${String.fromCharCode(65 + (i % 3))}${i >= 3 ? " (2)" : ""}`, slots: rot[i % 3] }));
     }
     case "haut_bas": {
       const seq = [["Haut du corps A", "haut"], ["Bas du corps A", "bas"], ["Haut du corps B", "haut"], ["Bas du corps B", "bas"]];
-      return Array.from({ length: jours }, (_, i) => ({ nom: seq[i % 4][0], slots: seq[i % 4][1] }));
+      return Array.from({ length: jours }, (_, i) => ({ nom: seq[i % 4][0] + (i >= 4 ? " (2)" : ""), slots: seq[i % 4][1] }));
     }
     case "push_pull_legs": {
       const seq = [["Poussée", "push"], ["Tirage", "pull"], ["Jambes", "bas"]];
@@ -368,7 +383,15 @@ function justifierGlobal(split, profil) {
   };
   // Répartition imposée : ne pas la justifier par un nombre de séances qui
   // n'est peut-être pas le sien.
-  if (split !== "bro_split" && SPLITS_CHOISISSABLES.includes(profil.split)) {
+  const choisie = SPLITS_CHOISISSABLES.includes(profil.split), appliquee = repartitionApplicable(profil);
+  if (choisie && !appliquee && split !== "mobilite") {
+    // Répartition demandée mais intenable : on le dit, puis on explique celle retenue.
+    return `Programme ${SPLIT_LABELS[split]} — la répartition « ${SPLIT_LABELS[profil.split]} » demande au moins ${JOURS_MIN_SPLIT[profil.split]} séances par semaine ; avec ${profil.joursParSemaine}, certains muscles ne seraient jamais travaillés. ${raisons[split]}`;
+  }
+  if (appliquee && split === "bro_split" && profil.joursParSemaine <= 3) {
+    return `Programme ${SPLIT_LABELS[split]} — avec ${profil.joursParSemaine} séances, les groupes sont réunis (pectoraux, épaules et triceps ; dos et biceps ; jambes) pour qu'aucun ne soit oublié.`;
+  }
+  if (appliquee && split !== "bro_split") {
     return `Programme ${SPLIT_LABELS[split]} — répartition que tu as choisie dans ton profil, sur ${profil.joursParSemaine} séance(s) par semaine.`;
   }
   return `Programme ${SPLIT_LABELS[split]} — ${raisons[split]}`;

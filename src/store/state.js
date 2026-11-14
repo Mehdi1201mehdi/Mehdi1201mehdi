@@ -24,6 +24,8 @@ const IDB_CLE = "state";        // clé de l'état complet dans IndexedDB
 
 /** Écriture IndexedDB différée (anti-rafale) : id du timer en cours. */
 let _timerIDB = null;
+let _dernierLSok = true;
+let _dernierSignal = 0;
 
 export const Etat = {
   data: etatVide(),
@@ -50,6 +52,12 @@ export const Etat = {
     // 1) Repli synchrone immédiat depuis localStorage.
     this.charger();
     const depuisLS = this.data;
+
+    // Demande au navigateur de ne pas évincer les données quand le téléphone
+    // manque de place (sans effet s'il refuse ; jamais bloquant).
+    try {
+      if (typeof navigator !== "undefined" && navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    } catch (e) { /* API absente : on continue */ }
 
     // 2) Lecture IndexedDB (si disponible).
     if (!idbDisponible()) return this.data;
@@ -84,8 +92,26 @@ export const Etat = {
     let okLS = false;
     try { localStorage.setItem(KEY, JSON.stringify(this.data)); okLS = true; }
     catch (e) { console.error("sauver", e); }
+    _dernierLSok = okLS;
+    // Les deux miroirs se couvrent : un échec de localStorage (quota) n'est
+    // grave que si IndexedDB ne prend pas le relais. Sans IndexedDB, on
+    // prévient tout de suite — avant, l'échec passait totalement inaperçu.
+    if (!okLS && !idbDisponible()) this._signalerEchec();
     this._planifierIDB();
     return okLS;
+  },
+
+  /**
+   * Appelée quand AUCUN des deux stockages n'a pu enregistrer. L'interface y
+   * branche un message (`Etat.surEchec = …`) ; au plus un signal par minute.
+   * @type {null | (() => void)}
+   */
+  surEchec: null,
+  _signalerEchec() {
+    const t = Date.now();
+    if (t - _dernierSignal < 60000) return;
+    _dernierSignal = t;
+    try { if (typeof this.surEchec === "function") this.surEchec(); } catch (e) { /* le signal ne doit jamais casser l'enregistrement */ }
   },
 
   /** Programme une écriture IndexedDB de l'état complet (débattue ~250 ms). */
@@ -98,7 +124,7 @@ export const Etat = {
       let instantane;
       try { instantane = JSON.parse(JSON.stringify(this.data)); }
       catch (e) { instantane = this.data; }
-      idbSet(IDB_CLE, instantane).catch((e) => console.error("sauver IDB", e));
+      idbSet(IDB_CLE, instantane).catch((e) => { console.error("sauver IDB", e); if (!_dernierLSok) this._signalerEchec(); });
     }, 250);
   },
 

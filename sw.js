@@ -1,7 +1,7 @@
 /* Service worker — stratégie RÉSEAU D'ABORD pour l'app (toujours la dernière
    version en ligne), cache en secours hors ligne. Les médias de démonstration
    (cross-origin) restent en cache d'abord pour l'usage hors ligne. */
-const CACHE = "coachperso-ia-v170";
+const CACHE = "coachperso-ia-v172";
 const MEDIA_CACHE = "coachperso-media-v1";
 const MEDIA_HOSTS = ["exercisedb.dev", "exercisedb.p.rapidapi.com", "wger.de", "githubusercontent.com", "cloudfront.net"];
 const ASSETS = [
@@ -39,14 +39,22 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(req.url);
 
   // Médias de démonstration (cross-origin) : cache d'abord, pour le hors ligne
-  const estMedia = MEDIA_HOSTS.some((hh) => url.hostname.includes(hh))
-    || (req.destination === "image" && url.origin !== self.location.origin);
+  // Hôte EXACT ou sous-domaine (« wger.de.exemple.com » ne passe plus), et
+  // seulement de vrais médias : les réponses JSON des mêmes hôtes étaient
+  // figées en cache pour toujours.
+  const hoteMedia = MEDIA_HOSTS.some((hh) => url.hostname === hh || url.hostname.endsWith("." + hh));
+  const estMedia = (req.destination === "image" || req.destination === "video")
+    && (hoteMedia || url.origin !== self.location.origin);
   if (estMedia) {
     e.respondWith(caches.open(MEDIA_CACHE).then(async (c) => {
       const hit = await c.match(req);
       if (hit) return hit;
-      try { const res = await fetch(req); c.put(req, res.clone()); return res; }
-      catch (err) { return hit || Response.error(); }
+      try {
+        const res = await fetch(req);
+        // Ni erreur ni réponse partielle en cache : une image en échec y restait.
+        if ((res.ok && res.status === 200) || res.type === "opaque") c.put(req, res.clone()).catch(() => {});
+        return res;
+      } catch (err) { return hit || Response.error(); }
     }));
     return;
   }

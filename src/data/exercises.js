@@ -483,6 +483,7 @@ import { MACHINES, MACHINES_PAR_ID, texteExercice } from "./machines.js";
 import { mouvementsDe, estIsolation, estPolyarticulaire } from "../engine/taxonomie.js";
 import { validerExercice } from "../engine/validationExo.js";
 import { MUSCLE_LABELS, EQUIPMENT_LABELS } from "../models.js";
+const MUSCLES_CONNUS = Object.keys(MUSCLE_LABELS), EQUIPEMENTS_CONNUS = Object.keys(EQUIPMENT_LABELS);
 
 // Catalogue = base originale + exercices de salle (machines/poulies), tous deux
 // rédigés pour ce projet et chargés d'emblée (donc disponibles hors ligne).
@@ -735,10 +736,18 @@ export function enregistrerExercicesPerso(liste) {
   for (let i = CATALOGUE.length - 1; i >= 0; i--) if (CATALOGUE[i].perso) CATALOGUE.splice(i, 1);
   for (const id of Object.keys(EXERCISES_BY_ID)) if (EXERCISES_BY_ID[id].perso) delete EXERCISES_BY_ID[id];
   for (const e of Array.isArray(liste) ? liste : []) {
-    if (!e || !e.id || !e.nom || !(e.musclesPrincipaux || []).length) continue;
+    if (!e || !e.id || !e.nom) continue;
+    // Muscles et matériel sont des IDENTIFIANTS connus, jamais du texte libre :
+    // ils sont affichés à beaucoup d'endroits, et une sauvegarde importée ne
+    // doit pas pouvoir y glisser autre chose (audit de sécurité, nov. 2026).
+    const connus = (l, ref) => (Array.isArray(l) ? l : []).filter((x) => ref.includes(x));
+    const principaux = connus(e.musclesPrincipaux, MUSCLES_CONNUS);
+    if (!principaux.length) continue;
     const f = { ...e, perso: true, source: "perso", statut: "perso", auteur: "Moi", nomsAlternatifs: e.nomEn ? [e.nomEn] : [] };
-    if (!f.equipement || !f.equipement.length) f.equipement = ["poids_du_corps"];
-    f.musclesSecondaires = f.musclesSecondaires || []; f.instructions = f.instructions || []; f.erreurs = f.erreurs || [];
+    f.musclesPrincipaux = principaux;
+    f.equipement = connus(e.equipement, EQUIPEMENTS_CONNUS);
+    if (!f.equipement.length) f.equipement = ["poids_du_corps"];
+    f.musclesSecondaires = connus(e.musclesSecondaires, MUSCLES_CONNUS); f.instructions = f.instructions || []; f.erreurs = f.erreurs || [];
     f.media = f.media || { miniature: null, video: null };
     EXERCISES_BY_ID[f.id] = f;
     // Supprimé mais présent dans l'historique : résolu par son id, absent de la bibliothèque.

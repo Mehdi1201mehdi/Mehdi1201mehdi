@@ -37,14 +37,15 @@ test("construireMessages : contexte absent → mention explicite, pas de crash",
   assert.ok(m[0].content.includes("(aucune donnée)"));
 });
 
-test("endpointPour : OpenAI fixe, Gemini porte le modèle et la clé en URL", () => {
+test("endpointPour : OpenAI fixe, Gemini porte le modèle — et aucune clé dans l'URL", () => {
   assert.equal(endpointPour({ fournisseur: "openai", cle: "sk" }), "https://api.openai.com/v1/chat/completions");
   const g = endpointPour({ fournisseur: "gemini", cle: "AIza secret/x", modele: "gemini-2.0-flash" });
   assert.ok(g.startsWith("https://generativelanguage.googleapis.com/"));
   assert.ok(g.includes("gemini-2.0-flash"));
   assert.ok(g.includes("alt=sse"));
-  // La clé est encodée (le / et l'espace ne doivent pas casser l'URL).
-  assert.ok(g.includes("AIza%20secret%2Fx"));
+  // Une URL finit dans les journaux : la clé n'y figure sous aucune forme.
+  assert.ok(!g.includes("AIza") && !g.includes("key="));
+  assert.equal(entetes({ fournisseur: "gemini", cle: "AIza secret/x" })["x-goog-api-key"], "AIza secret/x");
 });
 
 test("entetes : la clé OpenAI va en Authorization, jamais Gemini", () => {

@@ -47,17 +47,18 @@ export function detecterIntention(q) {
   const n = norm(q);
   const muscle = detecterMuscle(q);
   if (/(remplac|alternativ|a la place|au lieu|substitu|autre exo)/.test(n)) return { intent: "remplacer", muscle };
-  // Bilan avant « progression » : « analyse mes progrès » demande un état des
-  // lieux, pas la règle de surcharge.
-  if (/(analys|bilan|resume|ou j.?en suis|mes perf|mes resultats|mes stats|mes progres)/.test(n)) return { intent: "bilan", muscle };
-  if (/(programme|planning|routine|split|repartition).*(cree|creer|constru|fai[st]|genere|propos|organis)|(cree|creer|constru|genere|propos|organis|aide.*a).*(programme|planning|routine|entrainement)/.test(n)) return { intent: "programme", muscle };
-  if (/(expliqu|comment (faire|executer|realiser|bien faire)|technique d|bonne execution|execution d|c.?est quoi (le|la|les|un|une) )/.test(n)) return { intent: "expliquer", muscle };
   if (/(record|1rm|mon max|perso best|\bpr\b|meilleur.*(charge|perf|soulev))/.test(n)) return { intent: "records", muscle };
   if (/(eau|hydrat|boire|combien.*litre)/.test(n)) return { intent: "eau", muscle };
   if (/(calorie|kcal|prot|macro|glucide|lipide|nutrition|manger|besoin.*(cal|energ|nutri))/.test(n)) return { intent: "nutrition", muscle };
   if (/(seance|entrain).*(aujourd|du jour|ce soir|maintenant)|aujourd.*(seance|entrain|faire)|quoi.*(faire )?(aujourd|maintenant)/.test(n)) return { intent: "seance_jour", muscle };
   if (/(repos|recup|temps.*serie|combien.*(de )?repos|pause entre)/.test(n)) return { intent: "repos", muscle };
+  // Bilan, programme, explication : APRÈS eau, nutrition, séance et repos —
+  // placées avant, ces règles captaient « analyse ma nutrition » ou
+  // « explique-moi le temps de repos » (relecture de code, nov. 2026).
+  if (/(analys|bilan|resume|ou j.?en suis|mes perf|mes resultats|mes stats|mes progres)/.test(n)) return { intent: "bilan", muscle };
   if (/(progress|augment|surcharg|plus lourd|monter.*charge|quand.*(augment|change))/.test(n)) return { intent: "progression", muscle };
+  if (/(programme|planning|routine|split|repartition).*(cree|creer|constru|fai[st]|genere|propos|organis)|(cree|creer|constru|genere|propos|organis).*(programme|planning|routine|entrainement)/.test(n)) return { intent: "programme", muscle };
+  if (/(expliqu|comment (faire|executer|realiser|bien faire)|technique d|bonne execution|execution d|c.?est quoi (le|la|les|un|une) )/.test(n)) return { intent: "expliquer", muscle };
   if (muscle || /(exo|exercice|travailler|muscler|renforcer|bosser|entrainer|developper)/.test(n)) return { intent: "exos_muscle", muscle };
   if (/(bonjour|salut|coucou|hello|aide|aider|peux.?tu|que (sais|peux)|comment (ca|ca) marche|c'est quoi)/.test(n)) return { intent: "aide", muscle };
   return { intent: "inconnu", muscle };
@@ -84,4 +85,22 @@ export function trouverExoParNom(texte, liste) {
     if (score > bestScore) { bestScore = score; best = e; }
   }
   return bestScore >= 1 ? best : null;
+}
+
+/** Mots d'une question qui ne désignent jamais un exercice. */
+const MOTS_VIDES_EXO = new Set(("comment faire pour bien explique expliquer expliques moi quoi est technique execution bonne les des une aux avec sans sur dans "
+  + "poids corps perdre prendre masse muscle muscles temps repos seance jour macros calories progresser mieux faut peux veux dois").split(" "));
+
+/**
+ * Exercice dont parle vraiment une question (« explique-moi le soulevé de
+ * terre »), ou null. Contrairement à `trouverExoParNom`, les mots de liaison
+ * ne comptent pas : « comment faire POUR progresser » trouvait « Haussement
+ * d'épaules POUR le milieu du dos ».
+ * @param {string} question
+ * @param {{id:string,nom:string,nomsAlternatifs?:string[]}[]} liste
+ */
+export function exerciceDeLaQuestion(question, liste) {
+  const utiles = norm(question).split(/[^a-z0-9]+/).filter((t) => t.length > 3 && !MOTS_VIDES_EXO.has(t));
+  if (!utiles.length) return null;
+  return trouverExoParNom(utiles.join(" "), liste);
 }

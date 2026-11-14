@@ -569,6 +569,9 @@ button.linklike{background:transparent;border:none;min-height:44px;display:inlin
 .dossier-choix{flex-wrap:wrap;gap:var(--space-2);margin:var(--space-3) 0}
 .consignes-auto{display:flex;gap:var(--space-2);align-items:flex-start;margin-top:var(--space-3)}
 .consignes-auto svg{flex:none;width:16px;height:16px;margin-top:2px}
+.rappel-sauv{margin-bottom:var(--space-3);display:grid;gap:var(--space-2)}
+.rappel-sauv .row{gap:var(--space-2)}
+.rappel-sauv button{min-height:44px;flex:1}
 .rt-arch{width:100%;margin-top:var(--space-3)}
 .dico-plus{width:100%;margin-top:var(--space-4);min-height:48px}
 /* Accueil : poids et derniers records, côte à côte (une colonne sous 340 px). */
@@ -581,6 +584,7 @@ button.linklike{background:transparent;border:none;min-height:44px;display:inlin
 .duo-rec{display:flex;justify-content:space-between;align-items:baseline;gap:var(--space-2);width:100%;font-size:var(--fs-caption)}
 .duo-rn{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-soft);font-weight:600}
 .duo-rec b{flex:none;font-size:.9rem}
+.duo-note{text-transform:none;letter-spacing:0;font-weight:600;color:var(--ink-soft)}
 .pa-suite{display:inline-flex;align-items:center;gap:var(--space-1);margin-top:var(--space-2);font-size:var(--fs-caption);font-weight:700;color:var(--accent-ink)}
 .pa-suite .cic{width:14px;height:14px}
 .hero .hero-cta{margin:var(--space-3) 0 var(--space-2)}
@@ -2098,7 +2102,7 @@ h1{line-height:1.06}
    entière, alors qu'un code-barres se lit de PRÈS : le bandeau large et bas
    force la bonne distance. C'est ce qui sépare « ça scanne » de « ça marche
    pas ». */
-.scan{position:relative;margin-top:10px;border-radius:var(--r-md);overflow:hidden;
+.scan{position:relative;margin-top:10px;border-radius:var(--radius);overflow:hidden;
   background:#000;aspect-ratio:4/3;max-height:46vh}
 .scan-vid{width:100%;height:100%;object-fit:cover;display:block}
 /* Masque sombre percé d'une fenêtre : l'œil va au bandeau clair sans qu'on ait
@@ -2128,7 +2132,7 @@ h1{line-height:1.06}
    La mesure que la balance ne donne pas. Deux contraintes commandent tout :
    le rapport de forme ne doit JAMAIS être déformé (une silhouette étirée ne
    prouve rien), et la comparaison doit tenir côte à côte sur 320 px. */
-.ph-vig{position:relative;border-radius:var(--r-sm);overflow:hidden;background:var(--surface-2);
+.ph-vig{position:relative;border-radius:var(--radius-sm);overflow:hidden;background:var(--surface-2);
   aspect-ratio:3/4;display:grid;place-items:center}
 .ph-vig img{width:100%;height:100%;object-fit:cover;display:block}
 .ph-perdu{padding:8px;text-align:center}
@@ -2170,12 +2174,12 @@ button.ph-sup{position:absolute;top:5px;right:5px;width:28px;height:28px;min-hei
 @media (min-width:900px){.cat-grille{grid-template-columns:repeat(4,minmax(0,1fr))}}
 .cat-case{position:relative;min-width:0}
 .cat-carte{display:flex;flex-direction:column;gap:6px;width:100%;text-align:left;padding:8px;
-  background:var(--surface);border:1px solid var(--hair);border-radius:var(--r-md);min-width:0}
+  background:var(--surface);border:1px solid var(--hair);border-radius:var(--radius);min-width:0}
 .cat-carte:active{background:var(--surface-2)}
 .cat-media{display:block;width:100%}
 /* La vignette occupe toute la largeur de la carte : c'est elle l'information. */
-.cat-media .exo-vign.lg{width:100%;height:auto;aspect-ratio:1/1;padding:0;border-radius:var(--r-sm)}
-.cat-media .exo-vign.lg .exo-gif{inset:0;width:100%;height:100%;border-radius:var(--r-sm)}
+.cat-media .exo-vign.lg{width:100%;height:auto;aspect-ratio:1/1;padding:0;border-radius:var(--radius-sm)}
+.cat-media .exo-vign.lg .exo-gif{inset:0;width:100%;height:100%;border-radius:var(--radius-sm)}
 .cat-media .exo-vign.lg .exo-matos{right:5px;bottom:5px}
 .cat-nom{display:block;font-size:var(--fs-label);font-weight:750;line-height:1.2;
   overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
@@ -2955,7 +2959,9 @@ button.sem-bilan{display:flex;flex-direction:column;align-items:stretch;gap:10px
 }
 @media (min-width:1024px){
   :root{--rail:232px}
-  body{padding-left:var(--rail);padding-bottom:var(--space-6,32px)}
+  /* Rail réservé seulement quand le menu existe (pas pendant l'accueil initial). */
+  body{padding-bottom:var(--space-6,32px)}
+  body:has(nav.tabs:not([hidden])){padding-left:var(--rail)}
   .wrap{max-width:1080px;padding-inline:32px}
   header.top .wrap{max-width:1080px}
 

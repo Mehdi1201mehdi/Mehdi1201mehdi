@@ -50,3 +50,23 @@ test("detecterIntention : bilan, programme, explication d'un exercice", () => {
   assert.equal(detecterIntention("quand augmenter la charge").intent, "progression");
   assert.equal(detecterIntention("mon record au développé couché").intent, "records");
 });
+
+test("detecterIntention : les nouvelles intentions ne volent pas les anciennes", () => {
+  const i = (q) => detecterIntention(q).intent;
+  assert.equal(i("comment faire pour progresser"), "progression");
+  assert.equal(i("expliquer les macros"), "nutrition");
+  assert.equal(i("explique-moi le temps de repos"), "repos");
+  assert.equal(i("analyse ma nutrition"), "nutrition");
+  assert.equal(i("bilan hydratation"), "eau");
+  assert.equal(i("j'ai besoin d'aide pour ma séance d'entrainement"), "aide");
+  assert.equal(i("fais-moi un bilan de mes progrès"), "bilan");
+});
+
+test("exerciceDeLaQuestion : les mots de liaison ne désignent pas un exercice", async () => {
+  const { exerciceDeLaQuestion } = await import("../src/engine/assistant.js");
+  const cat = [{ id: "a", nom: "Haussement d'épaules pour le milieu du dos" }, { id: "b", nom: "Squat au poids du corps" }, { id: "c", nom: "Soulevé de terre" }, { id: "d", nom: "Hip thrust" }];
+  assert.equal(exerciceDeLaQuestion("comment faire pour perdre du poids", cat), null);
+  assert.equal(exerciceDeLaQuestion("comment faire pour bien faire", cat), null);
+  assert.equal(exerciceDeLaQuestion("explique-moi le soulevé de terre", cat).id, "c");
+  assert.equal(exerciceDeLaQuestion("comment faire un hip thrust", cat).id, "d");
+});

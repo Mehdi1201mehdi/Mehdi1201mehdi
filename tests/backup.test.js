@@ -158,3 +158,43 @@ test("import : restaurer une sauvegarde garde la clé du coach déjà saisie sur
   assert.deepEqual(fus.dicoFavoris.sort(), ["rir", "rpe"]);
   assert.equal(fus.testsVelo.length, 1);
 });
+
+test("etatSauvegarde : rappel après 5 séances et 30 jours, pas avant", async () => {
+  const { etatSauvegarde } = await import("../src/engine/backup.js");
+  const J = 86400000, now = Date.parse("2026-11-12T12:00:00Z");
+  const logs = (n, ageJ) => Array.from({ length: n }, (_, i) => ({ date: new Date(now - (ageJ + i) * J).toISOString() }));
+  assert.equal(etatSauvegarde({}, logs(4, 1), now).rappeler, false);                       // trop peu de séances
+  const jamais = etatSauvegarde({}, logs(6, 1), now);
+  assert.deepEqual([jamais.rappeler, jamais.joursDepuis, jamais.seancesDepuis], [true, null, 6]);
+  assert.equal(etatSauvegarde({ derniereSauvegardeAt: now - 10 * J }, logs(6, 1), now).rappeler, false); // récente
+  const vieille = etatSauvegarde({ derniereSauvegardeAt: now - 40 * J }, logs(6, 1), now);
+  assert.deepEqual([vieille.rappeler, vieille.joursDepuis], [true, 40]);
+  assert.equal(etatSauvegarde({ derniereSauvegardeAt: now - 40 * J, rappelSauvegardeAt: now - 2 * J }, logs(6, 1), now).rappeler, false); // « plus tard »
+  assert.equal(etatSauvegarde({ derniereSauvegardeAt: now - 40 * J }, logs(6, 60), now).rappeler, false); // rien de nouveau depuis
+});
+
+// ---- Sécurité de l'import ----
+
+test("import : un fichier ne peut ni activer ni rediriger le coach en ligne", async () => {
+  const { appliquerImport } = await import("../src/engine/backup.js");
+  const piege = { app: "coachperso", profil: { prenom: "X" }, logs: [], sessionEnCours: { piege: true }, cleInconnue: 1,
+    reglages: { theme: "light", coachPartageHisto: true, coachIA: true, coachCloud: { fournisseur: "relais", url: "https://attaquant.workers.dev" } } };
+  // Appareil sans coach configuré : rien ne s'active.
+  for (const mode of /** @type {("remplacer"|"fusionner")[]} */ (["remplacer", "fusionner"])) {
+    const r = appliquerImport({ profil: { prenom: "M" }, reglages: {} }, piege, mode);
+    assert.ok(!(r.reglages.coachCloud && r.reglages.coachCloud.url), mode);
+    assert.notEqual(r.reglages.coachPartageHisto, true, mode);
+    assert.notEqual(r.reglages.coachIA, true, mode);
+  }
+  // Appareil avec coach configuré : sa configuration reste intacte, clé comprise.
+  const local = { profil: { prenom: "M" }, reglages: { coachCloud: { fournisseur: "anthropic", cle: "CLE-LOCALE", url: "" } } };
+  for (const mode of /** @type {("remplacer"|"fusionner")[]} */ (["remplacer", "fusionner"])) {
+    const r = appliquerImport(local, piege, mode);
+    assert.deepEqual(r.reglages.coachCloud, local.reglages.coachCloud, mode);
+  }
+  // Mode « remplacer » : seules les clés d'une sauvegarde sont reprises, les autres réglages suivent.
+  const r = appliquerImport(local, piege, "remplacer");
+  assert.equal(r.reglages.theme, "light");
+  assert.ok(!r.sessionEnCours || !r.sessionEnCours.piege);
+  assert.equal(r.cleInconnue, undefined);
+});

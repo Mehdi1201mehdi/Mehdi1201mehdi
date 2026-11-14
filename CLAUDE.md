@@ -26,7 +26,7 @@ serveur), éteint par défaut. Application Android via Capacitor (`android/`).
   (`stats`) · Profil (`set`) ; sous-écrans rattachés par `ONGLET_PARENT`.
 - **Offline** : `sw.js` — réseau d'abord pour l'app, cache d'abord pour les médias.
   **Incrémenter `CACHE` (`coachperso-ia-vNN`) à chaque changement d'assets.**
-- **Tests** : `node --test tests/*.test.js` (600) + smokes Playwright dans le scratchpad.
+- **Tests** : `node --test tests/*.test.js` (708) + smokes Playwright dans le scratchpad.
 - **Coach IA** : `src/integrations/coachCloud.js` (fournisseurs, flux, historique),
   `src/engine/coachRoutine.js` (proposition de routine vérifiée, rendu sûr),
   `server/coach-relais/` (Worker Cloudflare, clé en variable d'environnement).

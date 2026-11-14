@@ -60,12 +60,12 @@ export const ARCHETYPES = [
     "Tends les bras en ne bougeant que les avant-bras : les coudes ne s'écartent pas.",
     "Contracte les triceps une seconde quand les bras sont tendus.",
     "Reviens lentement à la position de départ en gardant les coudes immobiles." ] },
-  { id: "curl", re: /\bcurls?\b|flexion (des )?(bras|coudes|biceps)/, sauf: /leg|ischio|jambe|nordique|nordic|developpe|squat|fente|poignet|triche|cheat|trifecta/, etapes: [
+  { id: "curl", re: /\bcurls?\b|flexion (des )?(bras|coudes|biceps)/, sauf: /leg|ischio|jambe|nordique|nordic|developpe|squat|fente|poignet|triche|cheat|trifecta|poulie haute|pupitre/, etapes: [
     "Mets-toi en position{avec}, les bras tendus et les coudes près du buste.",
     "Plie les coudes pour monter la charge, sans balancer le buste ni avancer les coudes.",
     "Contracte les biceps une seconde en haut du mouvement.",
     "Redescends lentement jusqu'à avoir les bras presque tendus." ] },
-  { id: "elevation_laterale", re: /elevations? laterales?|lateral raise/, sauf: /allonge|couche/, etapes: [
+  { id: "elevation_laterale", re: /elevations? laterales?|lateral raise/, sauf: /allonge|couche|penche/, etapes: [
     "Tiens-toi droit{avec}, les bras le long du corps et les coudes légèrement fléchis.",
     "Monte les bras sur les côtés jusqu'à la hauteur des épaules, sans élan.",
     "Garde les épaules basses : elles ne remontent pas vers les oreilles.",
@@ -76,7 +76,7 @@ export const ARCHETYPES = [
     "Marque un court temps d'arrêt en haut.",
     "Redescends lentement à la position de départ." ] },
   { id: "oiseau", re: /oiseau|reverse fly|butterfly inverse|ecartes? inverses?|rear delt|deltoide posterieur/, sauf: /traineau/, etapes: [
-    "Penche le buste vers l'avant, dos plat, ou appuie la poitrine sur le support{avec}.",
+    "Mets-toi en position{avec} : buste penché vers l'avant et dos plat, ou poitrine en appui sur le support.",
     "Écarte les bras vers l'arrière, coudes légèrement fléchis, en resserrant les omoplates.",
     "Marque un temps d'arrêt quand les bras sont à la hauteur des épaules.",
     "Reviens lentement, sans arrondir le dos." ] },
@@ -90,12 +90,12 @@ export const ARCHETYPES = [
     "Pousse à la verticale jusqu'à avoir les bras presque tendus.",
     "Garde le bas du dos neutre : pas de cambrure pour finir la répétition.",
     "Redescends lentement jusqu'à la hauteur des épaules." ] },
-  { id: "developpe", re: /developpe (couche|incline|decline|plat|pectoraux|au sol|allonge)|chest press|bench press/, sauf: /curl|squat|fente|traineau|planches|board|epaule|debout/, etapes: [
+  { id: "developpe", re: /developpe (couche|incline|decline|plat|pectoraux|au sol|allonge)|chest press|bench press/, sauf: /curl|squat|fente|traineau|planches|board|epaule|debout|poulie|allonge|\bez\b|au sol|chaines/, etapes: [
     "Installe-toi{avec}, omoplates resserrées, pieds à plat et fessiers en appui.",
     "Descends la charge vers la poitrine, les coudes à environ 45° du buste.",
     "Pousse jusqu'à avoir les bras tendus, sans décoller les épaules de l'appui.",
     "Garde le contrôle à la descente : pas de rebond sur la poitrine." ] },
-  { id: "pompes", re: /pompes?\b|push.?ups?/, sauf: /hindou|pike|plio|claqu|saute|archer|une main|handstand|poirier|planche/, etapes: [
+  { id: "pompes", re: /pompes?\b|push.?ups?/, sauf: /hindou|pike|plio|claqu|saute|archer|une main|handstand|poirier|planche|diamant|serrees|triceps/, etapes: [
     "Place les mains un peu plus larges que les épaules, le corps aligné de la tête aux talons.",
     "Descends la poitrine près du sol, les coudes à environ 45° du buste.",
     "Pousse dans le sol pour remonter, sans creuser le bas du dos.",
@@ -125,17 +125,17 @@ export const ARCHETYPES = [
     "Tire en amenant les coudes vers le bas et l'arrière, jusqu'au haut de la poitrine.",
     "Garde le buste presque droit : pas de grand balancement vers l'arrière.",
     "Remonte lentement jusqu'à avoir les bras tendus." ] },
-  { id: "shrug", re: /shrugs?|haussements?/, sauf: /epaule\b|arrache/, etapes: [
+  { id: "shrug", re: /shrugs?|haussements?/, sauf: /d.epaule\b|arrache|milieu du dos/, etapes: [
     "Tiens-toi droit{avec}, les bras tendus le long du corps.",
     "Monte les épaules vers les oreilles, à la verticale, sans plier les coudes.",
     "Marque une seconde d'arrêt en haut.",
     "Redescends lentement, sans faire rouler les épaules." ] },
-  { id: "pull_over", re: /pull.?over/, etapes: [
+  { id: "pull_over", re: /pull.?over/, sauf: /poulie/, etapes: [
     "Installe-toi{avec}, les bras tendus au-dessus de la poitrine, coudes légèrement fléchis.",
     "Descends la charge derrière la tête en gardant le même angle aux coudes.",
     "Arrête-toi à un étirement confortable, côtes basses et bas du dos neutre.",
     "Ramène la charge au-dessus de la poitrine en contrôlant le mouvement." ] },
-  { id: "rowing", re: /rowing|tirage|\brows?\b/, sauf: /epaule$|arrache|traineau|bras tendus|menton|visage|explosif|high pull|traction|renegade|vers le cou/, etapes: [
+  { id: "rowing", re: /rowing|tirage|\brows?\b/, sauf: /d.epaule\b|arrache|traineau|bras tendus|menton|visage|explosif|high pull|traction|renegade|vers le cou|poulie haute|dorsal inverse|remo alto/, etapes: [
     "Mets-toi en position{avec}, le dos plat et la poitrine ouverte.",
     "Tire la charge vers le buste en amenant les coudes vers l'arrière.",
     "Resserre les omoplates une seconde en fin de tirage, sans hausser les épaules.",
@@ -145,17 +145,17 @@ export const ARCHETYPES = [
     "Monte sur la pointe des pieds le plus haut possible.",
     "Marque une seconde d'arrêt en haut.",
     "Redescends lentement jusqu'à sentir l'étirement du mollet, sans rebond." ] },
-  { id: "fente", re: /fentes?|lunges?|split squat|bulgare/, sauf: /turkish|get-up|saute|jump|echauffement|sprint/, etapes: [
+  { id: "fente", re: /fentes?|lunges?|split squat|bulgare/, sauf: /turkish|get-up|saute|jump|echauffement|sprint|laterale|croisee|glissee/, etapes: [
     "Tiens-toi droit{avec}, puis fais un grand pas (ou place un pied en arrière selon la variante).",
     "Descends en pliant les deux genoux, le buste droit, le genou avant au-dessus du pied.",
     "Pousse dans le talon du pied avant pour remonter.",
     "Fais toutes les répétitions d'un côté, ou alterne, en gardant l'équilibre." ] },
-  { id: "squat", re: /squats?/, sauf: /pistol|crevette|shrimp|unijambiste|une jambe|sissy|saute|jump|thrust|bulgare|fente|developpe|curl|unilateral|dragon|jefferson|plate movers|sit squats|mollets/, etapes: [
+  { id: "squat", re: /squats?/, sauf: /pistol|crevette|shrimp|unijambiste|une jambe|sissy|saute|jump|thrust|bulgare|fente|developpe|curl|unilateral|dragon|jefferson|plate movers|sit squats|mollets|box|hindou|jerk/, etapes: [
     "Place les pieds à la largeur des épaules{avec}, pointes légèrement ouvertes, abdominaux serrés.",
     "Descends en pliant hanches et genoux, les genoux dans l'axe des pieds et le dos neutre.",
     "Va aussi bas que tu peux en gardant les talons au sol et le dos droit.",
     "Remonte en poussant dans tout le pied, sans laisser les genoux rentrer." ] },
-  { id: "charniere", re: /souleve de terre|deadlift|good morning/, sauf: /arrache|epaule\b|car deadlift|rickshaw|assis|vitesse/, etapes: [
+  { id: "charniere", re: /souleve de terre|deadlift|good morning/, sauf: /arrache|d.epaule\b|car deadlift|rickshaw|assis|vitesse|sumo|ecart large|jambes ecartees|unijambiste|kickstand|good morning|jambes tendues/, etapes: [
     "Place les pieds à la largeur des hanches{avec}, la charge près du corps, le dos plat et gainé.",
     "Recule les hanches en gardant la colonne neutre ; les genoux fléchissent légèrement.",
     "Remonte en poussant les hanches vers l'avant et en serrant les fessiers.",
@@ -175,12 +175,12 @@ export const ARCHETYPES = [
     "Écarte ou rapproche la jambe selon le mouvement, sans donner d'élan avec le buste.",
     "Marque un court temps d'arrêt en fin de mouvement.",
     "Reviens lentement, en freinant la charge." ] },
-  { id: "releve_jambes", re: /releves? (de |des )?(jambes|genoux)|leg raises?|knee raises?/, sauf: /arriere|lateral|montee|step/, etapes: [
+  { id: "releve_jambes", re: /releves? (de |des )?(jambes|genoux)|leg raises?|knee raises?/, sauf: /arriere|lateral|montee|step|avant|debout|assis|leg lift/, etapes: [
     "Suspends-toi ou allonge-toi, le bas du dos stable et les abdominaux serrés.",
     "Monte les jambes (ou les genoux) en enroulant légèrement le bassin, sans élan.",
     "Marque un court temps d'arrêt en haut.",
     "Redescends lentement, sans creuser le bas du dos." ] },
-  { id: "crunch", re: /crunchs?|sit.?ups?|releves? de buste|enroulement/, sauf: /velo|bicycle|traction|inverse|rotations/, etapes: [
+  { id: "crunch", re: /crunchs?|sit.?ups?|releves? de buste|enroulement/, sauf: /velo|bicycle|traction|inverse|rotations|poulie|corde|a genoux/, etapes: [
     "Allonge-toi ou installe-toi{avec}, le bas du dos en appui et le menton décollé de la poitrine.",
     "Enroule le buste en rapprochant les côtes du bassin, en expirant.",
     "Contracte les abdominaux une seconde en haut, sans tirer sur la nuque.",
@@ -201,7 +201,15 @@ export function archetypeDe(e) {
   const t = norm(`${e.nom || ""} ${e.nomEn || ""} ${(e.nomsAlternatifs || []).join(" ")}`);
   // Auto-massage et rouleau : ni étirement ni exercice, aucune consigne type.
   if (/massage|rouleau|foam roll/.test(t)) return null;
-  for (const a of ARCHETYPES) if (a.re.test(t) && !(a.sauf && a.sauf.test(t))) return a;
+  // Suspension et poids du corps : c'est le corps qui se déplace, pas une
+  // charge — les étapes types (« tire la charge », « monte la charge ») y
+  // seraient fausses. Seuls les mouvements pensés pour le poids du corps restent.
+  const sansCharge = /\btrx\b|sangles|poids du corps|bodyweight/.test(t) || (e.equipement || []).includes("trx");
+  const pourLeCorps = new Set(["etirement", "gainage", "pompes", "dips", "tractions", "squat", "fente", "crunch", "releve_jambes", "hip_thrust", "mollets", "rotation"]);
+  for (const a of ARCHETYPES) {
+    if (!a.re.test(t) || (a.sauf && a.sauf.test(t))) continue;
+    return sansCharge && !pourLeCorps.has(a.id) ? null : a;
+  }
   return null;
 }
 

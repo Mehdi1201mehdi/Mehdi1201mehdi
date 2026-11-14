@@ -186,14 +186,15 @@ export function construireMessages(question, contexte, historique = []) {
 
 /**
  * URL de l'endpoint de streaming pour un fournisseur. Fonction PURE.
- * La clé Gemini voyage en paramètre d'URL (protocole de Google) ; les autres en
- * en-tête (cf. `entetes`).
+ * Aucune clé dans l'URL : une URL finit dans les journaux des proxys et des
+ * outils réseau. Toutes les clés voyagent en en-tête (cf. `entetes`) — pour
+ * Gemini, l'en-tête `x-goog-api-key` documenté par Google.
  * @param {{fournisseur:string, modele?:string, cle?:string, url?:string}} cfg
  */
 export function endpointPour(cfg) {
   const c = normaliserConfig(cfg);
   if (c.fournisseur === "gemini") {
-    return `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(c.modele)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(c.cle)}`;
+    return `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(c.modele)}:streamGenerateContent?alt=sse`;
   }
   if (c.fournisseur === "anthropic") return "https://api.anthropic.com/v1/messages";
   if (c.fournisseur === "relais") return c.url;
@@ -206,6 +207,7 @@ export function entetes(cfg) {
   /** @type {Record<string,string>} */
   const base = { "Content-Type": "application/json" };
   if (c.fournisseur === "openai") base.Authorization = `Bearer ${c.cle}`;
+  if (c.fournisseur === "gemini") base["x-goog-api-key"] = c.cle;
   if (c.fournisseur === "anthropic") {
     base["x-api-key"] = c.cle;
     base["anthropic-version"] = "2023-06-01";

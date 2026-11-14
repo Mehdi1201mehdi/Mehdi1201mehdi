@@ -108,7 +108,11 @@ export default {
     if (!autorisee) return erreur(403, "origine non autorisée");
     if (!env.ANTHROPIC_API_KEY) return erreur(500, "relais non configuré (ANTHROPIC_API_KEY manquante)", enteteCors);
 
-    if (env.JETON_ACCES) {
+    // Sans jeton, n'importe qui connaissant l'adresse utiliserait la clé du
+    // propriétaire (l'en-tête Origin se falsifie hors navigateur) : le relais
+    // refuse de servir tant que JETON_ACCES n'est pas défini.
+    if (!env.JETON_ACCES) return erreur(500, "relais non configuré (JETON_ACCES manquant)", enteteCors);
+    {
       const auth = request.headers.get("Authorization") || "";
       const jeton = auth.startsWith("Bearer ") ? auth.slice(7) : "";
       if (!egal(jeton, env.JETON_ACCES)) return erreur(401, "jeton refusé", enteteCors);

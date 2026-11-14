@@ -129,16 +129,30 @@ export function detecterRecords(logsAnterieurs, nouveauLog, resoudreNom = (id) =
  */
 export function recordsRecents(logs, resoudreNom = (id) => id, n = 3) {
   const tries = (logs || []).filter((l) => l && l.date).slice().sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
-  const out = [], vus = new Set();
-  for (let i = tries.length - 1; i >= 1 && out.length < n; i--) {
-    for (const r of detecterRecords(tries.slice(0, i), tries[i], resoudreNom)) {
-      if (!(r.ancien > 0) || r.type === "reps" || vus.has(r.exerciceId)) continue;
-      vus.add(r.exerciceId);
-      out.push({ ...r, date: tries[i].date });
-      if (out.length >= n) break;
+  // UN passage chronologique avec les meilleurs cumulés. La première version
+  // rappelait `detecterRecords` sur tout l'historique à chaque séance : 215 ms
+  // pour 1 000 séances, à chaque affichage de l'accueil.
+  /** @type {Map<string, number>} */
+  const meilleur = new Map();
+  /** @type {Map<string, {exerciceId:string, nom:string, type:string, valeur:number, ancien:number, date:string}>} */
+  const dernier = new Map();
+  for (const l of tries) {
+    for (const e of l.exercices || []) {
+      let top = 0;
+      for (const s of e.series || []) {
+        if (!estSerieTravail(s)) continue;
+        const v = e1rmFiable(Number(s.chargeKg) || 0, Number(s.reps) || 0);
+        if (v > top) top = v;
+      }
+      if (!(top > 0)) continue;
+      const ancien = meilleur.get(e.exerciceId) || 0;
+      if (top > ancien + 0.01) {
+        if (ancien > 0) dernier.set(e.exerciceId, { exerciceId: e.exerciceId, nom: resoudreNom(e.exerciceId), type: "1rm", valeur: Math.round(top * 10) / 10, ancien: Math.round(ancien * 10) / 10, date: l.date });
+        meilleur.set(e.exerciceId, top);
+      }
     }
   }
-  return out;
+  return [...dernier.values()].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)).slice(0, n);
 }
 
 /**

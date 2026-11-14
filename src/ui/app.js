@@ -76,7 +76,7 @@ import {
   seanceDepuisLog, estimerDureeSeance,
 } from "../engine/routines.js";
 import { FORMULE_1RM, classementRecords, detecterRecords, e1rmFiable, recordsRecents, recordEnDirect } from "../engine/records.js";
-import { construireExport, validerImport, appliquerImport, nomFichierBackup } from "../engine/backup.js";
+import { construireExport, validerImport, appliquerImport, nomFichierBackup, etatSauvegarde } from "../engine/backup.js";
 import { disquesParCote, echauffement, rampeEchauffement } from "../engine/powerlifting.js";
 import {
   estimer1RMComplet, pctPourReps, chargesParZone, tableComplete,
@@ -136,7 +136,7 @@ function trouverParentSeance(seanceId) {
 import { seancesVersCSV, metriquesVersCSV, nomFichierExport } from "../engine/export.js";
 import { echauffementPour, ETIREMENTS, dureeSequence } from "../data/mobilite.js";
 import { serieActuelle, meilleureSerie, grilleJours, defis } from "../engine/defis.js";
-import { detecterIntention, trouverExoParNom } from "../engine/assistant.js";
+import { detecterIntention, trouverExoParNom, exerciceDeLaQuestion } from "../engine/assistant.js";
 import {
   fcMaxTheorique, tableZonesCardio, MORPHOTYPES, tableMorphotypes, dureeSeance,
   maxDepuisSerie, grilleMax, composition, adipositeNavy, categorieAdiposite,
@@ -539,7 +539,7 @@ const STEPS = [
   { t: "Bienvenue", pourquoi: "Ton prénom personnalise l'app. L'âge et la taille servent à des repères, jamais à un diagnostic.", champ: renderStepIdentite },
   { t: "Ton objectif", pourquoi: "L'objectif détermine le nombre de séries, de répétitions et les temps de repos.", champ: renderStepObjectif },
   { t: "Ton niveau", pourquoi: "Le niveau filtre les exercices trop techniques et ajuste le volume.", champ: renderStepNiveau },
-  { t: "Ta disponibilité", pourquoi: "Le nombre de jours choisit le découpage (corps entier, haut/bas…), la durée limite le nombre d'exercices.", champ: renderStepDispo },
+  { t: "Ta disponibilité", pourquoi: "Le nombre de jours choisit le découpage, sauf si tu imposes une répartition plus bas (corps entier, haut/bas…), la durée limite le nombre d'exercices.", champ: renderStepDispo },
   { t: "Ton matériel", pourquoi: "On ne te proposera que des exercices réalisables avec ce que tu as.", champ: renderStepMateriel },
 ];
 // Cinq étapes, pas plus : l'objectif est de commencer à s'entraîner vite.
@@ -910,6 +910,21 @@ function vDash(v) {
   // l'app fermée par Android) en pleine séance, l'accueil n'affichait que
   // « Prochaine séance · Commencer » — les séries déjà validées étaient bien
   // sauvegardées, mais rien ne disait qu'on pouvait les reprendre.
+  // Rappel de sauvegarde : tout est sur l'appareil, rien n'est copié ailleurs.
+  // Affiché SOUS la séance du jour : il ne doit pas repousser le bouton principal.
+  let rappelSauv = null;
+  {
+    const es = etatSauvegarde(Etat.data.reglages, Etat.data.logs);
+    if (es.rappeler) {
+      const c = h(`<div class="card rappel-sauv" role="region" aria-label="Rappel de sauvegarde">
+        <div class="eyebrow">Protège ton historique</div>
+        <div class="small">${es.joursDepuis == null ? "Tu n'as encore jamais fait de sauvegarde" : `Dernière sauvegarde il y a ${es.joursDepuis} jours`} · ${es.seancesDepuis} séance${es.seancesDepuis > 1 ? "s" : ""} non sauvegardée${es.seancesDepuis > 1 ? "s" : ""}. Tes données ne sont que sur cet appareil.</div>
+        <div class="row"><button class="primary" data-a="go">Sauvegarder</button><button class="ghost" data-a="tard">Plus tard</button></div></div>`);
+      c.querySelector('[data-a="go"]').addEventListener("click", () => nav("set"));
+      c.querySelector('[data-a="tard"]').addEventListener("click", () => { Etat.data.reglages.rappelSauvegardeAt = Date.now(); Etat.sauver(); c.remove(); });
+      rappelSauv = c;
+    }
+  }
   const seanceLive = LIVE && !LIVE.fini ? trouverSeance(LIVE.seanceId) : null;
   if (seanceLive) {
     const faites = Object.values(LIVE.data || {}).reduce((n, e) => n + (e.series || []).filter((x) => x.done).length, 0);
@@ -960,6 +975,7 @@ function vDash(v) {
 
   // Statistiques d'un coup d'œil — grille 2 colonnes, chiffres dominants.
   // Toutes les valeurs viennent de l'historique réel, aucune n'est inventée.
+  if (rappelSauv) v.append(rappelSauv);
   v.append(h(`<div class="eyebrow dash-lbl">Mes chiffres</div>`));
   // Sans aucune séance, quatre tuiles à zéro ne disent rien : on annonce ce
   // qui apparaîtra, plutôt qu'un tableau vide.
@@ -1305,7 +1321,8 @@ function blocExplorer(v) {
  */
 let VOIR_ARCHIVES = false;
 /** Noms de dossiers utilisés par des routines, triés à la française. */
-const dossiersRoutines = (liste) => [...new Set((liste || []).map((r) => (r.dossier || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "fr"));
+const dossierDe = (r) => String((r && r.dossier) || "").trim();
+const dossiersRoutines = (liste) => [...new Set((liste || []).map(dossierDe).filter(Boolean))].sort((a, b) => a.localeCompare(b, "fr"));
 
 /** Ranger une routine dans un dossier existant, nouveau, ou la sortir de tout dossier. */
 async function rangerRoutine(r) {
@@ -1328,8 +1345,8 @@ async function rangerRoutine(r) {
       if (existants.length) {
         const choix = h(`<div class="row dossier-choix" role="group" aria-label="Dossiers existants"></div>`);
         existants.forEach((d) => {
-          const b = h(`<button type="button" class="chip${d === r.dossier ? " on" : ""}">${esc(d)}</button>`);
-          b.addEventListener("click", () => { champ.value = d; choix.querySelectorAll(".chip").forEach((c) => c.classList.toggle("on", c === b)); });
+          const b = h(`<button type="button" class="chip${d === r.dossier ? " on" : ""}" aria-pressed="${d === r.dossier}">${esc(d)}</button>`);
+          b.addEventListener("click", () => { champ.value = d; choix.querySelectorAll(".chip").forEach((c) => { c.classList.toggle("on", c === b); c.setAttribute("aria-pressed", String(c === b)); }); });
           choix.append(b);
         });
         inner.insertBefore(choix, ancre);
@@ -1338,6 +1355,7 @@ async function rangerRoutine(r) {
   });
   if (v == null) return;
   const nom = String(v).trim().slice(0, 40);
+  if (!nom && !dossierDe(r)) return;
   if (nom) r.dossier = nom; else delete r.dossier;
   Etat.sauver(); render();
   toast(nom ? `Rangée dans « ${nom} »` : "Routine sortie du dossier");
@@ -1363,9 +1381,9 @@ function carteRoutines(v) {
   // Dossiers : les routines sans dossier d'abord, puis un intertitre par
   // dossier (ordre alphabétique). Un dossier n'existe que s'il contient une
   // routine — rien à créer ni à supprimer à part.
-  miennes.filter((r) => !r.dossier).forEach(carte);
+  miennes.filter((r) => !dossierDe(r)).forEach(carte);
   for (const d of dossiersRoutines(miennes)) {
-    const dedans = miennes.filter((r) => r.dossier === d);
+    const dedans = miennes.filter((r) => dossierDe(r) === d);
     v.append(h(`<div class="eyebrow rt-dossier"><span class="cic">${IC.layers}</span>${esc(d)} <span class="muted">· ${dedans.length}</span></div>`));
     dedans.forEach(carte);
   }
@@ -2378,7 +2396,7 @@ function vCatalogue(v) {
         const row = h(`<button class="exline">
           <span class="lx-vig">${vignetteHTML(e, "sm")}</span>
           <span class="meta"><span class="nm">${esc(e.nom)}</span>
-            <span class="muted small">${e.musclesPrincipaux.map((m) => MUSCLE_LABELS[m] || m).join(", ")} · ${e.equipement.map((q) => EQUIPMENT_LABELS[q] || q).join(", ")}${e.perso ? ` · <span class="tag tag-perso">perso</span>` : e.source === "wger" ? ` · <span class="tag">wger</span>` : ""}${!e.perso && validerExercice(e).statut === "incomplet" ? ` · <span class="tag tag-inc">consignes à venir</span>` : ""}</span>
+            <span class="muted small">${esc(e.musclesPrincipaux.map((m) => MUSCLE_LABELS[m] || m).join(", "))} · ${esc(e.equipement.map((q) => EQUIPMENT_LABELS[q] || q).join(", "))}${e.perso ? ` · <span class="tag tag-perso">perso</span>` : e.source === "wger" ? ` · <span class="tag">wger</span>` : ""}${!e.perso && validerExercice(e).statut === "incomplet" ? ` · <span class="tag tag-inc">consignes à venir</span>` : ""}</span>
             <span class="lx-niv" role="img" aria-label="Niveau ${niv} sur 4 : ${DIFF_LABEL[niv]}">${
               [1, 2, 3, 4].map((i) => `<i${i <= niv ? ' class="on"' : ""}></i>`).join("")}</span></span>
           </button>`);
@@ -2690,7 +2708,7 @@ function ouvrirEditeurExercice(exo) {
     <label class="out-field"><span>Erreurs à éviter (une par ligne)</span><textarea name="err" rows="2" maxlength="600">${esc(lignes(base?.erreurs))}</textarea></label>
     <label class="out-field"><span>Lien vidéo (YouTube, ta propre vidéo en ligne…)</span><input name="video" type="url" inputmode="url" placeholder="https://…" value="${esc(base?.media?.video || "")}"></label>
     <label class="out-field"><span>Image</span><input name="image" type="file" accept="image/*"></label>
-    <div class="pf-img">${base?.media?.image ? `<img src="${base.media.image}" alt="Image de l'exercice">` : ""}</div>
+    <div class="pf-img">${base?.media?.image ? `<img src="${esc(/^(data:image\/|blob:)/.test(base.media.image) ? base.media.image : "")}" alt="Image de l'exercice">` : ""}</div>
     <div><div class="eyebrow">Variantes et remplacements</div><div class="pf-liens"></div>
       <div class="row"><button type="button" class="chip" data-add="variantes">${IC.plus}Variante</button><button type="button" class="chip" data-add="remplacements">${IC.plus}Remplacement</button></div></div>
     <div class="pf-err warn small" hidden></div>
@@ -3420,8 +3438,10 @@ function carteExoLive(e, seance) {
           dureePrecedente: dp ? minutesSaisie(dp.dureeSec) : null,
           dureeConseil: dureePrevue >= 60 ? minutesSaisie(dureePrevue) : null,
         } : {
-          chargePrecedente: uAffLive(dp && dp.chargeKg), chargeConseil: uAffLive(sug.chargeKg),
-          repsPrecedentes: dp && dp.reps, repsConseil: plage && plage[0],
+          // Une série d'approche laissée vide ne prend pas la charge de travail
+          // conseillée : l'affichage ne la proposait déjà plus, l'enregistrement si.
+          chargePrecedente: uAffLive(dp && dp.chargeKg), chargeConseil: approche ? null : uAffLive(sug.chargeKg),
+          repsPrecedentes: dp && dp.reps, repsConseil: approche ? null : plage && plage[0],
         });
         row.querySelectorAll("input[data-f]").forEach((inp) => {
           const f = inp.dataset.f;
@@ -3510,7 +3530,7 @@ function carteExoLive(e, seance) {
   const repere = () => {
     const saisie = (st.series || []).find((x) => x.type !== "echauffement" && x.charge !== "" && x.charge != null);
     if (saisie) return saisie.charge;
-    const d0 = derniere && derniere.series && derniere.series[0];
+    const d0 = derniere && derniere.series && (derniere.series.find((x) => x.type !== "echauffement") || derniere.series[0]);
     const kg = (d0 && d0.chargeKg) || sug.chargeKg;
     return kg ? uAffLive(kg) : "";
   };
@@ -3568,9 +3588,12 @@ async function ajouterEchauffementLive(st, exo, repere) {
   const gardees = st.series.filter((x) => !(x.type === "echauffement" && !x.done));
   const nouvelles = rampe.map((x) => ({ ...nouvelleSerie(null), charge: frNb(x.charge), reps: String(x.reps), type: "echauffement" }));
   const faites = gardees.filter((x) => x.type === "echauffement");
-  st.series = [...faites, ...nouvelles, ...gardees.filter((x) => x.type !== "echauffement")];
+  // Une approche déjà validée (même charge, mêmes reps) n'est pas rajoutée.
+  const dejaFaite = (n) => faites.some((f) => nbSaisi(f.charge) === nbSaisi(n.charge) && Number(f.reps) === Number(n.reps));
+  const aAjouter = nouvelles.filter((x) => !dejaFaite(x));
+  st.series = [...faites, ...aAjouter, ...gardees.filter((x) => x.type !== "echauffement")];
   persistLive(true); render();
-  toast(`${nouvelles.length} série${nouvelles.length > 1 ? "s" : ""} d'échauffement ajoutée${nouvelles.length > 1 ? "s" : ""}`);
+  toast(aAjouter.length ? `${aAjouter.length} série${aAjouter.length > 1 ? "s" : ""} d'échauffement ajoutée${aAjouter.length > 1 ? "s" : ""}` : "Ces séries d'échauffement sont déjà faites");
 }
 
 /** Disques à mettre de chaque côté de la barre, sans quitter la séance. */
@@ -3590,7 +3613,7 @@ function calculerDisquesLive(exo, repere) {
       const choix = h(`<div class="row disq-barres" role="group" aria-label="Poids de la barre"></div>`);
       const res = h(`<div class="disq-res" aria-live="polite"></div>`);
       const maj = () => {
-        choix.querySelectorAll("button").forEach((b) => b.classList.toggle("on", Number(b.dataset.b) === barre));
+        choix.querySelectorAll("button").forEach((b) => { const on = Number(b.dataset.b) === barre; b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on)); });
         const cible = nbSaisi(champ.value);
         if (!cible) { res.innerHTML = `<span class="muted small">Saisis la charge totale, barre comprise.</span>`; return; }
         const d = disquesParCote(cible, barre, disques);
@@ -5001,20 +5024,25 @@ function carteCorpsEtRecords(logs) {
   if (poids.length < 2 && !recs.length) return null;
   const box = h(`<div class="duo-acc"></div>`);
   if (poids.length >= 2) {
+    // Référence : la dernière pesée datant d'au moins 30 jours, sinon la plus
+    // ancienne. Avant, avec deux pesées espacées de 60 jours, la référence
+    // retombait sur la dernière et la carte disait « stable ».
     const dernier = poids[poids.length - 1], borne = Date.parse(dernier.iso) - 30 * 86400000;
-    const ref = poids.find((x) => Date.parse(x.iso) >= borne) || poids[0];
+    const avant = poids.filter((x) => Date.parse(x.iso) <= borne);
+    const ref = avant.length ? avant[avant.length - 1] : poids[0];
     const ecart = Math.round((uAff(dernier.v) - uAff(ref.v)) * 10) / 10;
+    const depuis = new Date(ref.iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
     const c = h(`<button class="card duo-c" type="button" aria-label="Voir l'évolution du poids">
       <span class="eyebrow">Poids</span>
       <b class="num duo-v">${esc(uCharge(dernier.v))}</b>
-      <span class="duo-sub">${ecart === 0 ? "stable" : `${ecart > 0 ? "+" : "−"}${String(Math.abs(ecart)).replace(".", ",")} ${uUnite()}`} sur 30 j</span>
+      <span class="duo-sub">${ecart === 0 ? "stable" : `${ecart > 0 ? "+" : "−"}${String(Math.abs(ecart)).replace(".", ",")} ${uUnite()}`} depuis le ${esc(depuis)}</span>
       <span class="duo-spark" aria-hidden="true">${sparkAire(poids.slice(-12).map((x) => x.v))}</span></button>`);
     c.addEventListener("click", () => nav("stats"));
     box.append(c);
   }
   if (recs.length) {
     const c = h(`<button class="card duo-c" type="button" aria-label="Voir mes records">
-      <span class="eyebrow">Derniers records</span>
+      <span class="eyebrow">Derniers records <span class="duo-note">· 1RM estimé</span></span>
       ${recs.map((r) => `<span class="duo-rec"><span class="duo-rn">${esc(r.nom)}</span><b class="num">${esc(uCharge(r.valeur))}</b></span>`).join("")}</button>`);
     c.addEventListener("click", () => nav("stats"));
     box.append(c);
@@ -5244,7 +5272,10 @@ function carteMoteur(v) {
       ? h(`<button class="primary big hero-cta"><span class="btn-ico">${IC.play}</span>Reprendre la séance</button>`)
       : h(`<button class="primary big hero-cta"><span class="btn-ico">${IC.play}</span>Commencer la séance</button>`);
     b.addEventListener("click", enCours ? () => nav("train") : demarrerAuto);
-    c.append(b);
+    // Séance entamée : la carte « Séance en cours » au-dessus porte déjà le
+    // bouton Reprendre — deux boutons identiques avec deux décomptes différents
+    // prêtaient à confusion.
+    if (!(enCours && LIVE && !LIVE.fini)) c.append(b);
     c.append(liste);
     if (enCours) {
       c.append(h(`<div class="hint" style="margin-top:8px">Séance en cours · ${enCours} série${enCours > 1 ? "s" : ""} renseignée${enCours > 1 ? "s" : ""}.</div>`));
@@ -6148,7 +6179,7 @@ function repondreAssistant(q) {
       if (suite >= 2) txt(`Tu enchaînes <b>${suite} semaines</b> avec au moins une séance.`);
       const recs = recordsRecents(logs, nomExo, 3);
       if (recs.length) {
-        txt("Derniers records battus :");
+        txt("Derniers records battus (1RM estimé à partir de tes séries, pas une charge réellement soulevée) :");
         recs.forEach((r) => box.append(h(`<div class="spread small"><span>${esc(r.nom)}</span><b>${esc(uCharge(r.valeur))} <span class="muted">(avant ${esc(uCharge(r.ancien))})</span></b></div>`)));
       } else txt("Aucun record battu sur tes dernières séances.");
       const spm = seriesParMuscle(logs, getExercise, 7);
@@ -6171,15 +6202,23 @@ function repondreAssistant(q) {
       break;
     }
     case "expliquer": {
-      const exo = /** @type {any} */ (trouverExoParNom(q, CATALOGUE));
-      if (!exo) { txt("Dis-moi quel exercice, par exemple : « explique-moi le soulevé de terre »."); break; }
-      txt(`<b>${esc(exo.nom)}</b> — ${esc((exo.musclesPrincipaux || []).map((m) => MUSCLE_LABELS[m] || m).join(", ") || "muscles non renseignés")}${(exo.musclesSecondaires || []).length ? `, avec ${esc(exo.musclesSecondaires.map((m) => MUSCLE_LABELS[m] || m).join(", "))} en soutien` : ""}.`);
-      const etapes = exo.instructions || [];
-      if (etapes.length) box.append(h(`<ol class="small det-steps">${etapes.slice(0, 4).map((x) => `<li>${esc(x)}</li>`).join("")}</ol>`));
-      else txt("Les consignes détaillées de cet exercice ne sont pas encore rédigées dans l'application ; la fiche indique les muscles, le matériel et les repères généraux du mouvement.");
-      const bf = h(`<button class="secondary big">Ouvrir la fiche complète</button>`);
-      bf.addEventListener("click", () => ouvrirDetail(exo));
-      box.append(bf);
+      // La bibliothèque complète (1 957 fiches) ne se charge qu'à la demande :
+      // sans cela, « explique le hip thrust » ne trouvait rien avant la
+      // première visite de l'onglet Exercices. La réponse s'écrit donc après
+      // le chargement (ou tout de suite s'il échoue, hors ligne).
+      const repondre = () => {
+        const exo = /** @type {any} */ (exerciceDeLaQuestion(q, CATALOGUE));
+        if (!exo) { txt("Dis-moi quel exercice, par exemple : « explique-moi le soulevé de terre »."); return; }
+        txt(`<b>${esc(exo.nom)}</b> — ${esc((exo.musclesPrincipaux || []).map((m) => MUSCLE_LABELS[m] || m).join(", ") || "muscles non renseignés")}${(exo.musclesSecondaires || []).length ? `, avec ${esc(exo.musclesSecondaires.map((m) => MUSCLE_LABELS[m] || m).join(", "))} en soutien` : ""}.`);
+        const etapes = exo.instructions || [];
+        if (etapes.length) box.append(h(`<ol class="small det-steps">${etapes.slice(0, 4).map((x) => `<li>${esc(x)}</li>`).join("")}</ol>`));
+        else txt("Les consignes détaillées de cet exercice ne sont pas encore rédigées dans l'application ; la fiche indique les muscles, le matériel et les repères généraux du mouvement.");
+        if (exo.consignesAuto) txt("Ces étapes sont des consignes générales rédigées par l'app pour ce type de mouvement, pas encore relues pour cette variante.");
+        const bf = h(`<button class="secondary big">Ouvrir la fiche complète</button>`);
+        bf.addEventListener("click", () => ouvrirDetail(exo));
+        box.append(bf);
+      };
+      chargerCatalogueEtendu().then(repondre, repondre);
       break;
     }
     case "aide":
@@ -8481,8 +8520,10 @@ function vSet(v) {
   v.append(ps);
 
   // Lignes d'informations
-  const info = h(`<div class="deflist" style="margin-top:12px"></div>`);
-  const ligneI = (k, val) => { if (val) info.append(h(`<div class="spread small"><span class="muted">${k}</span><b>${esc(val)}</b></div>`)); };
+  // « ficheProfil », pas « info » : ce nom masquait la fonction info() dans tout
+  // l'écran, et un fichier d'import invalide ne donnait aucun message (erreur muette).
+  const ficheProfil = h(`<div class="deflist" style="margin-top:12px"></div>`);
+  const ligneI = (k, val) => { if (val) ficheProfil.append(h(`<div class="spread small"><span class="muted">${k}</span><b>${esc(val)}</b></div>`)); };
   ligneI("Objectif", GOAL_LABELS[p.objectif] || p.objectif);
   ligneI("Niveau", LEVEL_LABELS[p.niveau] || p.niveau);
   ligneI("Jours par semaine", `${p.joursParSemaine} jours`);
@@ -8490,7 +8531,7 @@ function vSet(v) {
   ligneI("Durée de séance", `${p.dureeSeanceMin} min`);
   ligneI("Lieu", p.lieu);
   ligneI("Unité de poids", uImp() ? "Livres (lb)" : "Kilogrammes (kg)");
-  v.append(info);
+  v.append(ficheProfil);
 
   // Outils (accès aux rubriques hors barre de navigation)
   const outils = h(`<div class="card" style="padding:6px 4px"></div>`);
@@ -8699,6 +8740,8 @@ function vSet(v) {
     <div class="small muted">Tout est stocké localement sur cet appareil, sans compte ni serveur. Seule exception, si tu l'actives : les questions posées au coach IA connecté partent chez le fournisseur choisi (Compte → Coach). Exporte régulièrement une sauvegarde.</div></div>`);
   const bExp = h(`<button><span class="cic">${IC.download || IC.cornerDown}</span>Sauvegarde complète (JSON)</button>`);
   bExp.addEventListener("click", async () => {
+    // Date de la dernière sauvegarde : sert au rappel de l'accueil.
+    Etat.data.reglages.derniereSauvegardeAt = Date.now(); Etat.sauver();
     const contenu = JSON.stringify(construireExport(Etat.data), null, 1);
     if (estNatif()) {
       try { if (await partagerFichier(nomFichierBackup(), contenu, `Sauvegarde ${IDENTITE.nom}`)) return; }
@@ -8762,6 +8805,8 @@ function vSet(v) {
  */
 async function amorcerApp() {
   // Planche anatomique partagée par toutes les vignettes de muscle.
+  // Plus aucun stockage ne répond (quota plein, mode privé) : on le dit.
+  Etat.surEchec = () => toast("Enregistrement impossible : la mémoire de l'appareil est pleine. Fais une sauvegarde depuis Profil.");
   if (!document.getElementById("anat-sprite")) document.body.insertAdjacentHTML("afterbegin", spriteAnatomie());
   try {
     await Etat.init();
