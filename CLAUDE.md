@@ -20,7 +20,8 @@ serveur), éteint par défaut. Application Android via Capacitor (`android/`).
   clé `coachperso.ia.v1`, migrations dans `src/store/migrate.js`.
 - **Moteur** (`src/engine/*`) : génération de programme, progression, records, stats,
   nutrition, powerlifting, sauvegarde, cycles 4-12 semaines (`cycle.js`), adaptation
-  de séance (`adaptation.js`), volume par muscle (`volume.js`). Pur, testé.
+  de séance (`adaptation.js`), volume par muscle (`volume.js`), journal des séances
+  passées (`journal.js`). Pur, testé.
   Conformité au cahier des charges « coach » : `docs/MOTEUR_PROGRAMMATION.md`.
 - **UI** : helper `h()` dans `src/ui/app.js` ; vues `vDash / vProg / vTrain / vStats /
   vNutrition / vAnatoly / vCatalogue / vSet`.
@@ -28,7 +29,7 @@ serveur), éteint par défaut. Application Android via Capacitor (`android/`).
   (`stats`) · Profil (`set`) ; sous-écrans rattachés par `ONGLET_PARENT`.
 - **Offline** : `sw.js` — réseau d'abord pour l'app, cache d'abord pour les médias.
   **Incrémenter `CACHE` (`coachperso-ia-vNN`) à chaque changement d'assets.**
-- **Tests** : `node --test tests/*.test.js` (741) + smokes Playwright dans le scratchpad.
+- **Tests** : `node --test tests/*.test.js` (748) + smokes Playwright dans le scratchpad.
 - **Coach IA** : `src/integrations/coachCloud.js` (fournisseurs, flux, historique),
   `src/engine/coachRoutine.js` (proposition de routine vérifiée, rendu sûr),
   `server/coach-relais/` (Worker Cloudflare, clé en variable d'environnement).

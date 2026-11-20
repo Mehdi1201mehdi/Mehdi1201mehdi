@@ -3058,3 +3058,42 @@ button.sem-bilan{display:flex;flex-direction:column;align-items:stretch;gap:10px
 .bc-ligne{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:7px 0;border-bottom:1px solid var(--hair)}
 .bc-ligne:last-child{border-bottom:0}
 .bc-ligne b{white-space:nowrap;flex:none}
+
+/* ======================================================================
+   JOURNAL DES SÉANCES — historique, détail, ajout / correction après coup
+   ====================================================================== */
+.journal-tete{align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.journal-add{min-height:40px;display:inline-flex;align-items:center;gap:6px}
+.journal-mois{padding:10px 12px;margin-bottom:10px}
+.journal-mois .eyebrow{margin-bottom:4px}
+.journal-ligne{display:grid;grid-template-columns:72px 1fr auto;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--hair);padding:10px 0;min-height:52px;color:var(--ink);cursor:pointer}
+.journal-mois .journal-ligne:first-of-type{border-top:0}
+.journal-ligne:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:var(--radius-sm)}
+.jr-date{font-size:.75rem;font-weight:700;color:var(--ink-soft)}
+.jr-corps{display:flex;flex-direction:column;gap:2px;min-width:0}
+.jr-corps b{font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.jr-tag{align-self:flex-start;font-size:.65rem;padding:1px 7px;margin-top:1px;background:var(--accent-soft);color:var(--accent)}
+.journal-ligne .chev{color:var(--ink-soft);font-size:1.2rem}
+.jr-stats{margin:12px 0}
+.jr-stats .stat{padding:10px}
+.jr-stats b{font-size:1.05rem}
+.jr-stats span{font-size:.7rem;color:var(--ink-soft)}
+.jr-exo{padding:10px 12px;margin-top:8px}
+.jr-serie{display:grid;grid-template-columns:22px 1fr auto;gap:8px;padding:5px 0;border-top:1px solid var(--hair)}
+.jr-actions{margin-top:14px;gap:8px}
+.jr-actions button{flex:1;min-height:48px;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.jr-actions .btn-ico svg{width:18px;height:18px}
+
+.je-grille{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;margin:8px 0 12px}
+.je-grille label{display:flex;flex-direction:column;gap:4px;font-size:.72rem;font-weight:650;color:var(--ink-soft)}
+.je-grille input{width:100%;min-height:44px}
+.je-grille .je-nom{grid-column:1 / -1}
+.je-prog,.je-ress{margin-bottom:10px}
+.je-exo{padding:10px 12px;margin-top:8px}
+.je-serie{display:grid;grid-template-columns:22px repeat(var(--n,3),minmax(0,1fr)) 40px;align-items:center;gap:6px;margin-top:6px}
+.je-entete span{text-align:center}
+.je-entete{margin-top:8px}
+.je-serie input{min-width:0;width:100%;min-height:44px;text-align:center;padding:0 4px;font-size:1rem}
+.je-del{min-height:44px;min-width:40px;padding:0;display:grid;place-items:center;color:var(--ink-soft)}
+.je-del svg{width:16px;height:16px}
+.je-plus{margin-top:6px;min-height:40px;display:inline-flex;align-items:center;gap:6px}

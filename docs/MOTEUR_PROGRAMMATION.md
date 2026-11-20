@@ -62,6 +62,14 @@ Poids, charges, séances, volume hebdomadaire, volume par muscle, records, régu
 mensurations, photos facultatives — onglet Progrès (existant). Bilans de cycle conservés
 (`bilansCycles`, inclus dans la sauvegarde).
 
+**Journal des séances** (`src/engine/journal.js`, Progrès → « Historique des séances »),
+idées reprises du travail de Bachelor « Sports Training » (V. Jalley, HEG Genève, 2017) :
+toutes les séances par mois ; détail d'une séance ; **correction** (date, durée, nom,
+ressenti, exercices, séries) ; **suppression** avec confirmation explicite ; **ajout d'une
+séance faite sans l'app**, éventuellement à partir d'une séance du programme ;
+**ressenti gardé séance par séance**. Records, statistiques, cycles et rotation se
+recalculent à partir de l'historique corrigé.
+
 ## 7. Adaptation — `src/engine/adaptation.js`
 - **Séance manquée** : la rotation reprend là où on s'est arrêté (avant : le jour de la
   semaine décidait et la séance manquée était sautée). Jamais deux séances le même jour.

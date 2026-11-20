@@ -18,6 +18,7 @@ import { genererProgramme, PRESCRIPTIONS, plageReps } from "../engine/generator.
 import { recommander, arrondirCharge, detecterStagnation } from "../engine/progression.js";
 import { PHASES, creerCycle, etatCycle, besoinDeload, bilanCycle, programmeSuivant, dureeCycleConseillee, phasesCycle } from "../engine/cycle.js";
 import { adapterSeance } from "../engine/adaptation.js";
+import { construireLog, validerLog, ajouterLog, remplacerLog, supprimerLog, parMois } from "../engine/journal.js";
 import { bilanVolume, fourchetteVolume, MUSCLES_SUIVIS } from "../engine/volume.js";
 import { alternatives, variantes } from "../engine/replacement.js";
 import { chercherDemonstration, lienYouTube } from "../integrations/exercisedb.js";
@@ -4013,7 +4014,7 @@ function menuExoLive(e, exo, st, seance, repere = "") {
   item(IC.message, st.note ? "Modifier la note" : "Ajouter une note", () => noterExerciceLive(st, exo));
   item(IC.clock, "Minuteur EMOM / Tabata", () => ouvrirOutils("intervalles"));
   item(IC.swap, "Remplacer l'exercice", () => remplacer(e.exerciceId));
-  item(IC.target || IC.alert, st.techniqueDegradee ? "Technique de nouveau propre" : "Technique dégradée", () => {
+  item(IC.cible, st.techniqueDegradee ? "Technique de nouveau propre" : "Technique dégradée", () => {
     st.techniqueDegradee = !st.techniqueDegradee; persistLive(true);
     if (st.techniqueDegradee) toast("Noté : pas de hausse de charge la prochaine fois, on consolide");
     render();
@@ -4369,7 +4370,7 @@ function ecranFinSeance(log, prs) {
   }
 
   // Ressenti (correctif subjectif borné) puis impact musculaire de la séance.
-  inner.append(blocRessenti());
+  inner.append(blocRessenti(log));
   inner.append(blocImpactSeance(log));
 
   const bEtir = h(`<button class="card wcard sil warm-cta" style="width:100%;margin-top:16px;text-align:left"><span class="mi mi-indigo" style="width:34px;height:34px">${IC.wind}</span><span class="g"><b>Étirements guidés</b><br><span class="muted small">${ETIREMENTS.length} mouvements · ~${Math.round(dureeSequence(ETIREMENTS) / 60)} min · retour au calme</span></span><span class="chev" aria-hidden="true">›</span></button>`);
@@ -5202,8 +5203,12 @@ function blocImpactSeance(log) {
   return c;
 }
 
-/** Rangée de choix du ressenti, ajoutée à l'écran de fin de séance. */
-function blocRessenti() {
+/**
+ * Rangée de choix du ressenti, ajoutée à l'écran de fin de séance. Le choix
+ * règle l'estimation de récupération ET reste attaché à la séance : il se
+ * retrouve dans l'historique, séance par séance.
+ */
+function blocRessenti(log = null) {
   const c = h(`<div class="card stack" style="margin-top:14px"></div>`);
   c.append(h(`<div class="spread"><b>Comment te sens-tu ?</b><span class="muted small">optionnel</span></div>`));
   c.append(h(`<div class="muted small">Ajuste légèrement l'estimation de récupération. Tes séries enregistrées restent la référence.</div>`));
@@ -5213,6 +5218,8 @@ function blocRessenti() {
     const b = h(`<button class="ressenti ${actuel === r.v ? "on" : ""}"><span>${r.ic}</span><b>${esc(r.nom)}</b></button>`);
     b.addEventListener("click", () => {
       Etat.data.reglages.ressenti = Etat.data.reglages.ressenti === r.v ? 0 : r.v;
+      const l = log && Etat.data.logs.find((x) => x.id === log.id);
+      if (l) { if (Etat.data.reglages.ressenti) l.ressenti = r.v; else delete l.ressenti; }
       Etat.sauver();
       row.querySelectorAll("button").forEach((x) => x.classList.remove("on"));
       if (Etat.data.reglages.ressenti === r.v) b.classList.add("on");
@@ -8775,18 +8782,236 @@ function vStats(v) {
   cb.append(bBilan);
   section(v, "bilan", "Bilan & ajustement", (b) => b.append(cb));
 
-  // historique
+  // Historique : toutes les séances, par mois — ouvrir, corriger, supprimer,
+  // ou ajouter une séance faite sans l'app.
   if (logs.length) {
-    const hist = h(`<div class="card stack"></div>`);
-    logs.slice(-8).reverse().forEach((l) => {
-      hist.append(h(`<div class="spread small" style="padding:6px 0;border-bottom:1px solid var(--line)">
-        <span>${new Date(l.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} — ${esc(l.seanceNom || "")}</span>
-        <span class="muted">${(l.exercices || []).length} exos</span></div>`));
-    });
-    section(v, "historique", "Historique des séances", (b) => b.append(hist), { resume: `${logs.length}` });
+    section(v, "historique", "Historique des séances", (b) => carteJournal(b), { resume: `${logs.length}` });
   } else {
     v.append(h(`<div class="notice small">Réalise ta première séance pour voir tes statistiques se remplir.</div>`));
+    const bAdd = h(`<button class="secondary" style="margin-top:8px"><span class="btn-ico">${IC.plus}</span>Ajouter une séance déjà faite</button>`);
+    bAdd.addEventListener("click", () => editerSeancePassee(null));
+    v.append(bAdd);
   }
+}
+
+/* ======================================================================
+   JOURNAL — séances passées : voir, corriger, supprimer, ajouter après coup
+   (engine/journal.js). L'historique est la source des records, statistiques,
+   cycles et de la rotation : tout se recalcule après une modification.
+   ====================================================================== */
+
+let JOURNAL_LIMITE = 20;
+const ressentiDe = (v) => RESSENTIS.find((r) => r.v === v) || null;
+const dateCourte = (iso) => { const t = new Date(iso).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" }); return t.charAt(0).toUpperCase() + t.slice(1); };
+
+function carteJournal(b) {
+  const logs = Etat.data.logs || [];
+  const tete = h(`<div class="spread journal-tete"><span class="small muted">${logs.length} séance${logs.length > 1 ? "s" : ""} enregistrée${logs.length > 1 ? "s" : ""}</span></div>`);
+  const bAdd = h(`<button class="secondary small journal-add"><span class="btn-ico">${IC.plus}</span>Ajouter une séance passée</button>`);
+  bAdd.addEventListener("click", () => editerSeancePassee(null));
+  tete.append(bAdd);
+  b.append(tete);
+  let restant = JOURNAL_LIMITE;
+  for (const mois of parMois(logs)) {
+    if (restant <= 0) break;
+    const bloc = h(`<div class="card journal-mois"><div class="eyebrow">${esc(mois.libelle)} · ${mois.logs.length}</div></div>`);
+    for (const l of mois.logs.slice(0, restant)) {
+      const min = Math.round((l.dureeSec || 0) / 60);
+      const vol = Math.round(volumeLog(l));
+      const r = ressentiDe(l.ressenti);
+      const meta = [`${(l.exercices || []).length} exo${(l.exercices || []).length > 1 ? "s" : ""}`, min ? `${min} min` : null, vol ? uVolume(vol) : null, r ? r.nom : null].filter(Boolean).join(" · ");
+      const tag = l.ajoutManuel ? `<span class="pill jr-tag">ajoutée</span>` : l.modifieLe ? `<span class="pill jr-tag">corrigée</span>` : "";
+      const row = h(`<button class="journal-ligne" aria-label="${esc(`${dateCourte(l.date)}, ${l.seanceNom || "Séance"}, ${meta}`)}">
+        <span class="jr-date num">${esc(dateCourte(l.date))}</span>
+        <span class="jr-corps"><b>${esc(l.seanceNom || "Séance")}</b>${tag}<span class="small muted">${esc(meta)}</span></span>
+        <span class="chev" aria-hidden="true">›</span></button>`);
+      row.addEventListener("click", () => ouvrirSeancePassee(l.id));
+      bloc.append(row);
+    }
+    restant -= mois.logs.length;
+    b.append(bloc);
+  }
+  if (logs.length > JOURNAL_LIMITE) {
+    const plus = h(`<button class="ghost" style="width:100%">Afficher plus (${logs.length - JOURNAL_LIMITE} autres)</button>`);
+    plus.addEventListener("click", () => { JOURNAL_LIMITE += 30; render(); });
+    b.append(plus);
+  }
+}
+
+/** Détail d'une séance passée, avec Corriger et Supprimer. */
+function ouvrirSeancePassee(id) {
+  const l = (Etat.data.logs || []).find((x) => x.id === id);
+  if (!l) return;
+  const sheet = h(`<div class="sheet" role="dialog" aria-modal="true" aria-label="Séance passée"><div class="inner"></div></div>`);
+  const inner = sheet.querySelector(".inner");
+  const fermer = () => sheet.remove();
+  const d = new Date(l.date);
+  const min = Math.round((l.dureeSec || 0) / 60);
+  const r = ressentiDe(l.ressenti);
+  inner.append(h(`<div class="spread"><div><div class="eyebrow">${esc(d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }))} · ${d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</div>
+    <h2 style="margin:2px 0 0">${esc(l.seanceNom || "Séance")}</h2></div><button class="chip" aria-label="Fermer">✕</button></div>`));
+  inner.querySelector(".chip").addEventListener("click", fermer);
+  inner.append(h(`<div class="statgrid jr-stats">
+    <div class="stat"><b class="num">${min || "—"}</b><span>minutes</span></div>
+    ${(() => { const n = (l.exercices || []).reduce((a, e) => a + (e.series || []).length, 0); return `<div class="stat"><b class="num">${n}</b><span>série${n > 1 ? "s" : ""}</span></div>`; })()}
+    <div class="stat"><b class="num">${esc(uVolume(Math.round(volumeLog(l))))}</b><span>volume</span></div>
+    <div class="stat"><b>${r ? esc(r.nom) : "—"}</b><span>ressenti</span></div></div>`));
+  if (l.ajoutManuel) inner.append(h(`<div class="hint">Séance ajoutée après coup.</div>`));
+  else if (l.modifieLe) inner.append(h(`<div class="hint">Corrigée le ${esc(new Date(l.modifieLe).toLocaleDateString("fr-FR", { day: "numeric", month: "long" }))}.</div>`));
+  for (const e of l.exercices || []) {
+    const exo = getExercise(e.exerciceId);
+    const c = h(`<div class="card jr-exo"><div class="spread"><b>${esc(exo ? exo.nom : e.exerciceId)}</b>${e.douleur ? `<span class="pill" style="color:var(--danger)">douleur</span>` : ""}</div></div>`);
+    (e.series || []).forEach((x, i) => c.append(h(`<div class="jr-serie small"><span class="muted num">${x.type === "echauffement" ? "É" : i + 1}</span><span class="num">${esc(texteSerieLog(x, (kg) => uCharge(kg)))}</span>${x.rir != null ? `<span class="muted">RIR ${x.rir}</span>` : ""}</div>`)));
+    if (e.note) c.append(h(`<div class="small muted">${esc(e.note)}</div>`));
+    inner.append(c);
+  }
+  const row = h(`<div class="row jr-actions"></div>`);
+  const bMod = h(`<button class="primary">Corriger</button>`);
+  bMod.addEventListener("click", () => { fermer(); editerSeancePassee(l); });
+  const bDel = h(`<button class="danger"><span class="btn-ico">${IC.trash}</span>Supprimer</button>`);
+  bDel.addEventListener("click", async () => {
+    const ok = await confirmer(`Supprimer définitivement la séance « ${l.seanceNom || "Séance"} » du ${d.toLocaleDateString("fr-FR", { day: "numeric", month: "long" })} ? Ses séries disparaissent de l'historique, des records et des statistiques. Seule une sauvegarde permet de la retrouver.`,
+      { danger: true, ok: "Supprimer définitivement", titre: "Supprimer la séance" });
+    if (!ok) return;
+    Etat.data.logs = supprimerLog(Etat.data.logs, l.id);
+    AUTO = null; Etat.sauver(); fermer(); render(); toast("Séance supprimée");
+  });
+  row.append(bMod, bDel);
+  inner.append(row);
+  document.body.append(sheet);
+}
+
+/**
+ * Éditeur de séance passée : ajout après coup (log = null) ou correction.
+ * Les valeurs sont saisies dans l'unité de l'utilisateur (kg ou lb) et avec
+ * sa mesure d'effort (RIR ou RPE), puis converties comme en séance live.
+ */
+function editerSeancePassee(log) {
+  const lb = uImp();
+  const enRpe = metriqueEffort() === "RPE";
+  const versSaisie = (x) => ({
+    type: x.type || "normale",
+    charge: x.chargeKg != null && x.chargeKg !== 0 ? String(uAff(x.chargeKg)).replace(".", ",") : x.chargeKg === 0 ? "0" : "",
+    reps: x.reps != null ? String(x.reps) : "",
+    rir: enRpe ? (x.rpe != null ? String(x.rpe) : x.rir != null ? String(10 - x.rir) : "") : (x.rir != null ? String(x.rir) : ""),
+    distanceKm: kmSaisie(x.distanceM), dureeMin: minutesSaisie(x.dureeSec), dureeSec: x.dureeSec ? String(x.dureeSec) : "",
+  });
+  const maintenant = new Date();
+  const d = log ? new Date(log.date) : maintenant;
+  const E = {
+    jour: jourLocal(d),
+    heure: `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`,
+    dureeMin: log ? Math.round((log.dureeSec || 0) / 60) : 60,
+    nom: log ? log.seanceNom || "" : "",
+    seanceId: log ? log.seanceId ?? null : null,
+    ressenti: log ? log.ressenti ?? null : null,
+    exos: (log ? log.exercices : []).map((e) => {
+      const exo = getExercise(e.exerciceId);
+      const s0 = (e.series || [])[0];
+      return { ...e, mode: modeSaisie(exo, s0 && !s0.reps ? s0 : null), series: (e.series || []).map(versSaisie) };
+    }),
+  };
+  const sheet = h(`<div class="sheet je" role="dialog" aria-modal="true" aria-label="${log ? "Corriger la séance" : "Ajouter une séance passée"}"><div class="inner"></div></div>`);
+  const inner = sheet.querySelector(".inner");
+  const fermer = () => sheet.remove();
+  const serieVide = (mode) => ({ type: "normale", charge: "", reps: "", rir: "", distanceKm: "", dureeMin: "", dureeSec: mode === "temps" ? "30" : "" });
+
+  const dessiner = () => {
+    inner.innerHTML = "";
+    inner.append(h(`<div class="spread"><h2 style="margin:0">${log ? "Corriger la séance" : "Séance déjà faite"}</h2><button class="chip" aria-label="Fermer">✕</button></div>`));
+    inner.querySelector(".chip").addEventListener("click", fermer);
+    if (!log) inner.append(h(`<div class="small muted" style="margin:4px 0 10px">Une séance faite sans l'app : elle compte dans tes records, tes statistiques et la suite de ton programme.</div>`));
+    // Date, heure de fin, durée, nom
+    const champs = h(`<div class="je-grille">
+      <label>Jour<input type="date" data-k="jour" max="${jourLocal(new Date())}" value="${E.jour}"></label>
+      <label>Fin<input type="time" data-k="heure" value="${E.heure}"></label>
+      <label>Durée (min)<input type="number" inputmode="numeric" min="0" max="600" data-k="dureeMin" value="${E.dureeMin}"></label>
+      <label class="je-nom">Nom<input type="text" maxlength="80" data-k="nom" placeholder="ex. Jambes" value="${esc(E.nom)}"></label></div>`);
+    champs.querySelectorAll("input").forEach((i) => i.addEventListener("input", () => { E[i.dataset.k] = i.value; }));
+    inner.append(champs);
+    // Partir d'une séance du programme (ajout seulement)
+    const prog = Etat.data.programme;
+    if (!log && prog && prog.seances && prog.seances.length) {
+      const r = h(`<div class="je-prog"><div class="eyebrow">Partir d'une séance du programme</div><div class="row version-row"></div></div>`);
+      prog.seances.forEach((se) => {
+        const b = h(`<button class="chip ${E.seanceId === se.id ? "on" : ""}" aria-pressed="${E.seanceId === se.id}">${esc(se.nom)}</button>`);
+        b.addEventListener("click", () => {
+          E.seanceId = se.id; E.nom = se.nom;
+          E.exos = se.exercices.map((e) => {
+            const exo = getExercise(e.exerciceId);
+            const travail = (e.series || []).filter((x) => x.type !== "echauffement");
+            const mode = modeSaisie(exo, travail[0]);
+            return { exerciceId: e.exerciceId, mode, series: (travail.length ? travail : [{}]).map(() => serieVide(mode)) };
+          });
+          dessiner();
+        });
+        r.querySelector(".row").append(b);
+      });
+      inner.append(r);
+    }
+    // Ressenti
+    const rr = h(`<div class="je-ress"><div class="eyebrow">Ressenti (facultatif)</div><div class="ressenti-row"></div></div>`);
+    RESSENTIS.forEach((x) => {
+      const b = h(`<button class="ressenti ${E.ressenti === x.v ? "on" : ""}" aria-pressed="${E.ressenti === x.v}"><span>${x.ic}</span><b>${esc(x.nom)}</b></button>`);
+      b.addEventListener("click", () => { E.ressenti = E.ressenti === x.v ? null : x.v; dessiner(); });
+      rr.querySelector(".ressenti-row").append(b);
+    });
+    inner.append(rr);
+    // Exercices et séries
+    E.exos.forEach((e, k) => {
+      const exo = getExercise(e.exerciceId);
+      const c = h(`<div class="card je-exo"><div class="spread"><b>${esc(exo ? exo.nom : e.exerciceId)}</b><button class="chip" aria-label="Retirer ${esc(exo ? exo.nom : "l'exercice")}">✕</button></div></div>`);
+      c.querySelector(".chip").addEventListener("click", () => { E.exos.splice(k, 1); dessiner(); });
+      const cols = e.mode === "distance" ? [["distanceKm", "km"], ["dureeMin", "min"]]
+        : e.mode === "temps" ? [["charge", lb ? "lb" : "kg"], ["dureeSec", "s"]]
+        : [["charge", lb ? "lb" : "kg"], ["reps", "reps"], ["rir", enRpe ? "RPE" : "RIR"]];
+      c.append(h(`<div class="je-serie je-entete small muted" style="--n:${cols.length}"><span>#</span>${cols.map(([, lab]) => `<span>${lab}</span>`).join("")}<span></span></div>`));
+      e.series.forEach((x, i) => {
+        const ligne = h(`<div class="je-serie" style="--n:${cols.length}"><span class="muted num">${x.type === "echauffement" ? "É" : i + 1}</span></div>`);
+        cols.forEach(([champ, lab]) => {
+          const inp = h(`<input inputmode="decimal" aria-label="Série ${i + 1}, ${lab}" value="${esc(x[champ] ?? "")}">`);
+          inp.addEventListener("input", () => { x[champ] = inp.value; });
+          ligne.append(inp);
+        });
+        const del = h(`<button class="ghost je-del" aria-label="Supprimer la série ${i + 1}">${IC.trash || "✕"}</button>`);
+        del.addEventListener("click", () => { e.series.splice(i, 1); dessiner(); });
+        ligne.append(del);
+        c.append(ligne);
+      });
+      const add = h(`<button class="ghost small je-plus"><span class="btn-ico">${IC.plus}</span>Série</button>`);
+      add.addEventListener("click", () => {
+        const der = e.series[e.series.length - 1];
+        e.series.push(der ? { ...der, type: "normale" } : serieVide(e.mode)); dessiner();
+      });
+      c.append(add);
+      inner.append(c);
+    });
+    const bExo = h(`<button class="secondary" style="width:100%;margin-top:6px"><span class="btn-ico">${IC.plus}</span>Ajouter un exercice</button>`);
+    bExo.addEventListener("click", () => choisirExercice((id) => {
+      const mode = modeSaisie(getExercise(id));
+      E.exos.push({ exerciceId: id, mode, series: [serieVide(mode)] }); dessiner();
+    }));
+    inner.append(bExo);
+    const err = h(`<div class="warn small" role="alert" hidden></div>`);
+    inner.append(err);
+    const bOk = h(`<button class="primary big" style="margin-top:12px">${log ? "Enregistrer la correction" : "Enregistrer la séance"}</button>`);
+    bOk.addEventListener("click", () => {
+      const exercices = E.exos.map((e) => ({
+        ...Object.fromEntries(Object.entries(e).filter(([k]) => k !== "mode" && k !== "series")),
+        series: e.series.map((x) => serieLogDepuisLive(x, { lb, enRpe, mode: e.mode })),
+      }));
+      const nouveau = construireLog({ id: log ? log.id : Etat.uid(), base: log || undefined, jour: E.jour, heure: E.heure, dureeMin: E.dureeMin,
+        nom: E.nom || (log ? log.seanceNom : "Séance"), seanceId: E.seanceId, ressenti: E.ressenti, exercices });
+      const pb = validerLog(nouveau);
+      if (pb) { err.textContent = pb; err.hidden = false; err.scrollIntoView({ block: "center" }); return; }
+      Etat.data.logs = log ? remplacerLog(Etat.data.logs, log.id, nouveau) : ajouterLog(Etat.data.logs, nouveau);
+      AUTO = null; Etat.sauver(); fermer(); render();
+      toast(log ? "Séance corrigée" : "Séance ajoutée à l'historique");
+    });
+    inner.append(bOk);
+  };
+  dessiner();
+  document.body.append(sheet);
 }
 
 /* ---------- Santé Connect : lecture seule, import sur demande ---------- */
