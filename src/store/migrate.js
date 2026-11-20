@@ -23,6 +23,9 @@ export function etatVide() {
     exercicesPerso: [],       // exercices créés par l'utilisateur — étape 4
     sessionEnCours: null,     // séance en cours, pour la reprise après refresh — étape 4
     seanceAuto: null,         // dernière séance générée par le moteur automatique
+    seanceAdaptee: null,      // version courte / allégée de la séance lancée
+    cycle: null,              // cycle d'entraînement en cours (engine/cycle.js)
+    bilansCycles: [],         // bilans des cycles terminés
     reposEnCours: null,       // minuteur de repos en cours { finAt, totalSec, label }
     logs: [],                 // séances réalisées
     metrics: [],              // poids / mensurations
@@ -98,6 +101,9 @@ export function normaliserEtat(brut) {
   // sessionEnCours : conservée telle quelle si présente (objet), sinon null.
   out.sessionEnCours = brut.sessionEnCours && typeof brut.sessionEnCours === "object" ? brut.sessionEnCours : null;
   out.seanceAuto = brut.seanceAuto && typeof brut.seanceAuto === "object" ? brut.seanceAuto : null;
+  out.seanceAdaptee = brut.seanceAdaptee && typeof brut.seanceAdaptee === "object" && Array.isArray(brut.seanceAdaptee.exercices) ? brut.seanceAdaptee : null;
+  out.cycle = brut.cycle && typeof brut.cycle === "object" && Array.isArray(brut.cycle.phases) && Number.isFinite(Date.parse(brut.cycle.debut)) ? brut.cycle : null;
+  out.bilansCycles = toArray(brut.bilansCycles).filter((b) => b && typeof b === "object").slice(-20);
 
   out.profil = normaliserProfil(brut.profil);
   // Le programme aussi : un `series: 4` au lieu d'un tableau faisait lever une

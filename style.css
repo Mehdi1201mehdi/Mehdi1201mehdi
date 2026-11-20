@@ -1639,6 +1639,7 @@ nav.tabs button:active{transform:scale(.94)}
 .pa-txt{display:block;min-width:0}
 .pa-nom{display:block;margin-top:3px;font-size:1.16rem;font-weight:850;letter-spacing:-.03em;line-height:1.2}
 .pa-meta{display:block;margin-top:4px;font-size:var(--fs-caption);font-weight:650;color:var(--ink-soft)}
+.pa-cycle{display:block;margin-top:3px;font-size:var(--fs-caption);font-weight:700;color:var(--accent)}
 .pa-ring{flex:0 0 auto;display:block;line-height:0}
 
 /* Résumé du corps : carte propre sous la séance du jour */
@@ -3001,3 +3002,59 @@ button.sem-bilan{display:flex;flex-direction:column;align-items:stretch;gap:10px
   #view[data-ecran="cat"] .cat-ligne{break-inside:avoid}
   #view[data-ecran="cat"] div:has(> .cat-ligne)>:not(.cat-ligne){column-span:all}
 }
+
+/* ======================================================================
+   CYCLES, VERSION DE SÉANCE, VOLUME PAR MUSCLE, « POUR TOI »
+   (moteur de programmation — nov. 2026)
+   ====================================================================== */
+.cycle-card{margin:0 0 12px}
+.cycle-t{margin:2px 0 0;font-size:1.15rem;letter-spacing:-.01em;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}
+.cycle-res{font-size:.8rem;font-weight:700;color:var(--accent);letter-spacing:0}
+.cycle-piste{display:flex;gap:4px;margin:12px 0 6px}
+.cycle-seg{flex:1;height:10px;border-radius:999px;background:color-mix(in srgb,var(--seg) 32%,var(--surface-2));position:relative}
+.cycle-seg.passe{background:var(--seg)}
+.cycle-seg.now{background:var(--seg);box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--seg)}
+.cycle-leg{display:flex;flex-wrap:wrap;gap:4px 12px;margin-bottom:8px}
+.cycle-leg span{display:inline-flex;align-items:center;gap:5px}
+.cycle-leg i{width:8px;height:8px;border-radius:999px;background:var(--seg);display:inline-block}
+.cycle-detail{line-height:1.45;color:var(--ink)}
+.cycle-deload{margin-top:10px;display:flex;flex-direction:column;gap:2px}
+.cycle-deload .secondary{align-self:flex-start}
+.cycle-regl{margin-top:8px;display:inline-flex;align-items:center;gap:6px;min-height:40px}
+.cycle-regl svg{width:16px;height:16px}
+.cycle-durees{flex-wrap:wrap}
+.semaine-msg{display:flex;gap:8px;align-items:flex-start;margin:0 0 10px;line-height:1.4}
+.semaine-msg .mi{flex:none}
+
+.version-seance{margin:12px 0 4px}
+.version-row{flex-wrap:wrap;gap:6px;margin-top:6px}
+.version-row .chip{min-height:40px}
+.version-info{margin-top:8px;line-height:1.45}
+
+.vol-prog{display:flex;flex-direction:column;gap:9px}
+.vp-ligne{display:grid;grid-template-columns:minmax(78px,30%) 1fr auto;align-items:center;gap:10px}
+.vp-nom{font-size:.8rem;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vp-barre{position:relative;height:10px;border-radius:999px;background:var(--surface-2);overflow:hidden}
+.vp-zone{position:absolute;top:0;bottom:0;background:var(--accent-soft)}
+.vp-val{position:absolute;left:0;top:2px;bottom:2px;border-radius:999px;background:var(--accent)}
+.vp-bas .vp-val{background:var(--amber)}
+.vp-num{font-size:.8rem;font-weight:750;min-width:52px;text-align:right}
+.vp-num em{font-style:normal;color:var(--ink-soft);font-weight:600;margin-left:5px}
+
+.pour-toi{margin-top:12px;padding:12px;border-radius:var(--radius);background:var(--surface-2);display:flex;flex-direction:column;gap:8px}
+.pt-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(64px,1fr));gap:8px}
+.pt-grid span{display:flex;flex-direction:column;gap:2px;font-size:.7rem;color:var(--ink-soft);font-weight:650}
+.pt-grid b{font-size:1.05rem;color:var(--ink);font-weight:800}
+.pt-lien{display:flex;align-items:center;gap:6px;text-align:left;background:none;border:0;padding:6px 0;color:var(--ink);min-height:40px;cursor:pointer}
+.pt-lien .chev{margin-left:auto;color:var(--ink-soft)}
+
+.bilan-cycle .bc-stats .stat{padding:10px}
+.bilan-cycle .bc-stats b{font-size:1.2rem}
+.bilan-cycle .bc-stats span{font-size:.7rem;color:var(--ink-soft)}
+.bc-progres{color:var(--ok)}.bc-stagne{color:var(--amber)}.bc-regression{color:var(--danger)}.bc-insuffisant{color:var(--ink-soft);font-weight:600}
+.bc-dec{margin:0;padding-left:18px;line-height:1.45}
+.coach-stag{padding:10px 12px;display:flex;flex-direction:column;gap:3px}
+@media (prefers-reduced-motion:reduce){.cycle-seg{transition:none}}
+.bc-ligne{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:7px 0;border-bottom:1px solid var(--hair)}
+.bc-ligne:last-child{border-bottom:0}
+.bc-ligne b{white-space:nowrap;flex:none}

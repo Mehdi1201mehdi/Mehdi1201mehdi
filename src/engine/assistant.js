@@ -48,6 +48,15 @@ export function detecterIntention(q) {
   const muscle = detecterMuscle(q);
   if (/(remplac|alternativ|a la place|au lieu|substitu|autre exo)/.test(n)) return { intent: "remplacer", muscle };
   if (/(record|1rm|mon max|perso best|\bpr\b|meilleur.*(charge|perf|soulev))/.test(n)) return { intent: "records", muscle };
+  // Les « pourquoi » du programme (stagnation, volume, séries, choix d'un
+  // exercice, muscle à travailler, technique) passent AVANT les règles
+  // génériques, qui captaient « exercice », « augmenter » ou « travailler ».
+  if (/(stagn|plateau|bloque|progresse (plus|pas)|n.?avance plus|ne monte plus)/.test(n)) return { intent: "stagnation", muscle };
+  if (/\bvolume\b/.test(n)) return { intent: "volume", muscle };
+  if (/(quel|quels|quelle|quelles).*(muscle|groupe).*(travailler|davantage|plus|retard|faible|prioris)|muscle.*(en retard|a la traine|faible|neglig)|(travailler|muscler) davantage/.test(n)) return { intent: "muscle_retard", muscle };
+  if (/pourquoi.*(serie|autant)|combien de series/.test(n)) return { intent: "pourquoi_series", muscle };
+  if (/pourquoi.*(exo|exercice|mouvement|choisi|ce programme|mon programme)/.test(n)) return { intent: "pourquoi_exercice", muscle };
+  if (/(amelior|corrig|perfection).*(technique|execution|forme|posture)/.test(n)) return { intent: "technique", muscle };
   if (/(eau|hydrat|boire|combien.*litre)/.test(n)) return { intent: "eau", muscle };
   if (/(calorie|kcal|prot|macro|glucide|lipide|nutrition|manger|besoin.*(cal|energ|nutri))/.test(n)) return { intent: "nutrition", muscle };
   if (/(seance|entrain).*(aujourd|du jour|ce soir|maintenant)|aujourd.*(seance|entrain|faire)|quoi.*(faire )?(aujourd|maintenant)/.test(n)) return { intent: "seance_jour", muscle };
@@ -89,7 +98,11 @@ export function trouverExoParNom(texte, liste) {
 
 /** Mots d'une question qui ne désignent jamais un exercice. */
 const MOTS_VIDES_EXO = new Set(("comment faire pour bien explique expliquer expliques moi quoi est technique execution bonne les des une aux avec sans sur dans "
-  + "poids corps perdre prendre masse muscle muscles temps repos seance jour macros calories progresser mieux faut peux veux dois").split(" "));
+  + "poids corps perdre prendre masse muscle muscles temps repos seance jour macros calories progresser mieux faut peux veux dois "
+  // Mots des questions « pourquoi » du coach : « pourquoi est-ce que je
+  // stagne » trouvait sinon « Haussement d'épaules POUR le milieu du dos ».
+  + "pourquoi stagne stagner stagnation plateau bloque augmenter diminuer baisser reduire charge charges volume series serie autant "
+  + "ameliorer corriger travailler davantage choisi choisie exercice exercices programme cette entrainement quel quelle quels quelles").split(" "));
 
 /**
  * Exercice dont parle vraiment une question (« explique-moi le soulevé de

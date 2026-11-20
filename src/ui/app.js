@@ -14,8 +14,11 @@ import { mouvementsDe, LIB_MOUVEMENT, MOUVEMENTS, typeCharge, reperesDe } from "
 import { validerExercice, LIB_STATUT, nomAnglais } from "../engine/validationExo.js";
 import { GIFS } from "../data/gifs.js";
 import { ANATOLY_INFO, ANATOLY_SEMAINES } from "../data/anatoly.js";
-import { genererProgramme } from "../engine/generator.js";
-import { recommander } from "../engine/progression.js";
+import { genererProgramme, PRESCRIPTIONS, plageReps } from "../engine/generator.js";
+import { recommander, arrondirCharge, detecterStagnation } from "../engine/progression.js";
+import { PHASES, creerCycle, etatCycle, besoinDeload, bilanCycle, programmeSuivant, dureeCycleConseillee, phasesCycle } from "../engine/cycle.js";
+import { adapterSeance } from "../engine/adaptation.js";
+import { bilanVolume, fourchetteVolume, MUSCLES_SUIVIS } from "../engine/volume.js";
 import { alternatives, variantes } from "../engine/replacement.js";
 import { chercherDemonstration, lienYouTube } from "../integrations/exercisedb.js";
 import { muscleDiagram, muscleHeatmap, miniSilhouette, spriteAnatomie } from "./anatomy.js";
@@ -57,7 +60,7 @@ import { POSES, nouvellePhoto, trierPhotos, paireComparaison, poidsProche, resum
   formaterOctets, incoherences } from "../engine/photos.js";
 import { reduire, choisirImage, urlObjet } from "./photoCapture.js";
 import { photoSet, photoGet, photoDel, photoCles } from "../store/db.js";
-import { Etat, seanceDuJour, planningJours } from "../store/state.js";
+import { Etat, seanceDuJour, planningJours, etatSemaine } from "../store/state.js";
 import {
   nouvelleSession, nouvelleSerie, seriePrecedente, ajouterSerie, retirerDerniereSerie,
   serialiser, restaurer, estReprenable, dureeSecondes,
@@ -120,6 +123,8 @@ function toutesSeances() {
   // Séance générée par le moteur automatique : présente pour que la reprise
   // après fermeture et l'enregistrement fonctionnent comme pour les autres.
   if (Etat.data.seanceAuto) out.push({ seance: Etat.data.seanceAuto, source: { nom: "Automatique" } });
+  // Version courte / allégée lancée depuis l'aperçu (engine/adaptation.js).
+  if (Etat.data.seanceAdaptee) out.push({ seance: Etat.data.seanceAdaptee, source: { nom: "Adaptée" } });
   if (Etat.data.programme) for (const s of Etat.data.programme.seances) out.push({ seance: s, source: Etat.data.programme });
   for (const r of Etat.data.programmesPerso || []) for (const s of r.seances) out.push({ seance: s, source: r });
   return out;
@@ -619,9 +624,9 @@ function renderStepObjectif(c) { cardsChoix(c, GOALS.map((g) => [g, GOAL_LABELS[
 function renderStepNiveau(c) { cardsChoix(c, LEVELS.map((l) => [l, LEVEL_LABELS[l]]), (v) => DRAFT.niveau === v, (v) => DRAFT.niveau = v, LEVEL_ICONS); }
 function renderStepDispo(c) {
   field(c, "Jours par semaine", chipsInline([1, 2, 3, 4, 5, 6].map((n) => [n, `${n} j`]), (v) => DRAFT.joursParSemaine === v, (v) => DRAFT.joursParSemaine = v), "Pour une reprise, 3 jours est idéal.");
-  field(c, "Répartition", chipsInline([["auto", "Auto"], ["full_body", "Corps entier"], ["haut_bas", "Haut / Bas"], ["push_pull_legs", "Poussée · Tirage · Jambes"], ["bro_split", "Par groupe"]],
+  field(c, "Répartition", chipsInline([["auto", "Auto"], ["full_body", "Corps entier"], ["half_body", "Half body"], ["haut_bas", "Haut / Bas"], ["push_pull_legs", "Poussée · Tirage · Jambes"], ["bro_split", "Par groupe"]],
     (v) => (DRAFT.split || "auto") === v, (v) => DRAFT.split = v),
-    "Auto choisit selon tes jours par semaine. « Par groupe » : un groupe musculaire par séance (pectoraux, dos, jambes, épaules, bras).");
+    "Auto choisit selon tes jours, ton niveau et ton objectif. « Half body » : chaîne avant / chaîne arrière (haut et bas du corps à chaque séance). « Par groupe » : un groupe musculaire par séance.");
   field(c, "Durée d'une séance", chipsInline([30, 45, 60, 75].map((n) => [n, `${n} min`]), (v) => DRAFT.dureeSeanceMin === v, (v) => DRAFT.dureeSeanceMin = v));
   field(c, "Lieu", chipsInline([["maison", "Maison"], ["salle", "Salle"], ["exterieur", "Extérieur"]], (v) => DRAFT.lieu === v, (v) => DRAFT.lieu = v));
 }
@@ -1260,26 +1265,258 @@ function vProg(v) {
   actions.append(bNew, bGen);
   v.append(actions);
 
-  // ---- Une carte par séance du programme. Le ruban de jours a laissé la place
-  // aux cartes : le jour n'a pas disparu, il est devenu le sous-titre de chaque
-  // carte, et toutes les séances sont visibles d'un coup au lieu d'une seule.
+  // ---- Cycle en cours (4 à 12 semaines) : où on en est et ce que la semaine change.
+  carteCycle(v, prog, p);
+
+  // ---- Une carte par séance du programme. La rotation reprend là où on
+  // s'est arrêté : la carte « ensuite » est la prochaine séance à faire, pas
+  // celle du jour de la semaine (une séance manquée n'est jamais sautée).
   const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
   const planning = planningJours(prog.seances.length);
-  const auj = ((new Date().getDay() + 6) % 7) + 1;
+  const semaine = etatSemaine(prog);
+  if (semaine && semaine.message) v.append(h(`<div class="notice small semaine-msg">${mi(IC.calendar, "mi-blue")}${esc(semaine.message)}</div>`));
   prog.seances.forEach((s, i) => {
     const jour = planning[i] ? JOURS[planning[i] - 1] : null;
+    const ensuite = semaine && semaine.seance.id === s.id;
     const exos = (s.exercices || []).map((e) => getExercise(e.exerciceId)).filter(Boolean);
-    const meta = [jour, `${s.exercices.length} exos`, s.dureeEstimeeMin ? `${s.dureeEstimeeMin} min` : null]
+    const meta = [ensuite ? "À faire ensuite" : jour, `${s.exercices.length} exos`, s.dureeEstimeeMin ? `${s.dureeEstimeeMin} min` : null]
       .filter(Boolean).join(" · ");
     const ouvrir = () => { LIVE = null; APERCU = s.id; nav("train"); };
     v.append(carteRoutineFitai({
       nom: s.nom, soustitre: meta, exercices: exos,
-      actif: planning[i] === auj, onOuvrir: ouvrir, onDemarrer: ouvrir,
+      actif: ensuite, onOuvrir: ouvrir, onDemarrer: ouvrir,
     }));
   });
   if (prog.justificationGlobale) v.append(h(`<div class="hint">${esc(prog.justificationGlobale)}</div>`));
 
+  // ---- Volume hebdomadaire et fréquence par muscle : décidés par le moteur,
+  // visibles et comparés aux repères du niveau.
+  section(v, "volume-prog", "Volume par muscle", (b) => carteVolumeProgramme(b, prog, p), {
+    resume: (() => { const bas = bilanVolume(prog, getExercise, p?.niveau).filter((x) => x.statut === "bas").length; return bas ? `${bas} sous le repère` : "dans les repères"; })(),
+  });
+
   carteRoutines(v);
+}
+
+/* ======================================================================
+   CYCLES D'ENTRAÎNEMENT — engine/cycle.js
+   ====================================================================== */
+
+/**
+ * Cycle du programme actuel. Créé à la première ouverture (semaine en cours)
+ * et recréé quand le programme change. Le cycle ne modifie jamais le
+ * programme : il dit quelle semaine on vit, et l'aperçu de séance en tient
+ * compte quand l'utilisateur lance la séance.
+ */
+function assurerCycle() {
+  const prog = Etat.data.programme, p = Etat.data.profil;
+  if (!prog || !Array.isArray(prog.seances) || !prog.seances.length || !p) return null;
+  let c = Etat.data.cycle;
+  if (!c || c.programmeId !== prog.id) {
+    c = creerCycle(prog, p, { debut: new Date() });
+    Etat.data.cycle = c; Etat.sauver();
+  }
+  return c;
+}
+
+/** Phase du cycle à appliquer à une séance du programme (null sinon). */
+function phasePourSeance(seance) {
+  const prog = Etat.data.programme;
+  if (!prog || !seance || !(prog.seances || []).some((x) => x.id === (seance.origineId || seance.id))) return null;
+  const c = assurerCycle();
+  if (!c) return null;
+  const e = etatCycle(c, Etat.data.logs);
+  return e.termine ? null : e.phase;
+}
+
+// Intensification = la couleur « fatigue » de l'app (rose) : c'est la semaine
+// la plus exigeante ; récupération = ambre, comme les alertes de fatigue.
+/**
+ * Date de la dernière vraie semaine allégée : un deload avancé, une semaine de
+ * récupération passée du cycle en cours, ou la fin du cycle précédent (qui se
+ * termine toujours par une récupération). Null s'il n'y en a jamais eu : les
+ * semaines d'avant le cycle comptent alors pour la fatigue accumulée.
+ */
+function dernierDeloadDe(c) {
+  const dates = [];
+  if (c && c.deloadAvance) dates.push(Date.parse(c.debut) + c.deloadAvance.semaine * 7 * 864e5);
+  if (c) {
+    const idx = etatCycle(c, Etat.data.logs).semaine - 1;
+    c.phases.forEach((ph, i) => { if (ph === "recuperation" && i < idx) dates.push(Date.parse(c.debut) + i * 7 * 864e5); });
+  }
+  const bilans = Etat.data.bilansCycles || [];
+  if (bilans.length) dates.push(Date.parse(bilans[bilans.length - 1].fin) - 7 * 864e5);
+  const ok = dates.filter(Number.isFinite);
+  return ok.length ? new Date(Math.max(...ok)).toISOString() : null;
+}
+
+const COULEUR_PHASE = { adaptation: "var(--ink-soft)", progression: "var(--accent)", intensification: "var(--pink)", recuperation: "var(--amber)" };
+
+function carteCycle(v, prog, p) {
+  const c = assurerCycle();
+  if (!c) return;
+  const e = etatCycle(c, Etat.data.logs);
+  const card = h(`<div class="card cycle-card" role="region" aria-label="Cycle d'entraînement"></div>`);
+  if (e.termine) {
+    card.append(h(`<div class="eyebrow">Cycle de ${c.semaines} semaines terminé</div>`));
+    card.append(h(`<h3 class="cycle-t">Bilan et programme suivant</h3>`));
+    card.append(h(`<div class="small muted">${e.seancesFaites} séance${e.seancesFaites > 1 ? "s" : ""} faite${e.seancesFaites > 1 ? "s" : ""} pendant le cycle. L'app analyse tes résultats et te propose le programme du cycle suivant — rien ne change sans ton accord.</div>`));
+    const b = h(`<button class="primary" style="margin-top:12px;width:100%">Voir le bilan du cycle</button>`);
+    b.addEventListener("click", () => ouvrirBilanCycle());
+    card.append(b);
+    v.append(card);
+    return;
+  }
+  const ph = e.infos;
+  card.append(h(`<div class="cycle-tete"><div class="eyebrow">Cycle · semaine ${e.semaine} sur ${e.total}</div>
+    <h3 class="cycle-t">${esc(ph.nom)}<span class="cycle-res">${esc(ph.resume)}</span></h3></div>`));
+  // Piste des semaines : une case par semaine, couleur = rôle de la semaine.
+  const piste = h(`<div class="cycle-piste" role="img" aria-label="${esc(c.phases.map((x, i) => `Semaine ${i + 1} : ${PHASES[x].nom}`).join(", "))}"></div>`);
+  c.phases.forEach((x, i) => {
+    const phaseReelle = c.deloadAvance && i === c.deloadAvance.semaine ? "recuperation" : x;
+    piste.append(h(`<span class="cycle-seg${i + 1 === e.semaine ? " now" : ""}${i + 1 < e.semaine ? " passe" : ""}" style="--seg:${COULEUR_PHASE[phaseReelle]}" title="S${i + 1} · ${esc(PHASES[phaseReelle].nom)}"></span>`));
+  });
+  card.append(piste);
+  card.append(h(`<div class="cycle-leg small muted"><span><i style="--seg:${COULEUR_PHASE.adaptation}"></i>Adaptation</span><span><i style="--seg:${COULEUR_PHASE.progression}"></i>Progression</span>${c.phases.includes("intensification") ? `<span><i style="--seg:${COULEUR_PHASE.intensification}"></i>Intensification</span>` : ""}<span><i style="--seg:${COULEUR_PHASE.recuperation}"></i>Récupération</span></div>`));
+  card.append(h(`<div class="small cycle-detail">${esc(ph.detail)}</div>`));
+
+  // Fatigue réelle : on PROPOSE d'avancer la semaine de récupération.
+  if (e.phase !== "recuperation") {
+    const d = besoinDeload(Etat.data.logs, { ressenti: Etat.data.reglages.ressenti, dernierDeload: dernierDeloadDe(c) });
+    if (d.deload) {
+      const alerte = h(`<div class="warn small cycle-deload">${mi(IC.alert, "mi-amber")}<span><b>Fatigue accumulée.</b> ${esc(d.raisons.join(" "))} Une semaine de récupération maintenant serait plus utile que de forcer.</span></div>`);
+      const bD = h(`<button class="secondary" style="margin-top:8px">Passer cette semaine en récupération</button>`);
+      bD.addEventListener("click", async () => {
+        if (!await confirmer("Cette semaine devient une semaine de récupération : une série de moins par exercice et charges −10 % quand tu lances une séance. Le reste du cycle ne change pas.", { ok: "Passer en récupération" })) return;
+        Etat.data.cycle = { ...c, deloadAvance: { semaine: e.semaine - 1, raisons: d.raisons, le: new Date().toISOString() } };
+        Etat.sauver(); toast("Semaine de récupération activée"); render();
+      });
+      alerte.append(bD);
+      card.append(alerte);
+    }
+  }
+  const bR = h(`<button class="ghost small cycle-regl">${IC.sliders}Durée du cycle · ${c.semaines} semaines</button>`);
+  bR.addEventListener("click", () => reglerCycle(c, p));
+  card.append(bR);
+  v.append(card);
+}
+
+/** Choix de la durée du cycle (4 à 12 semaines) et redémarrage éventuel. */
+async function reglerCycle(c, p) {
+  let choix = c.semaines;
+  const conseil = dureeCycleConseillee(p);
+  const r = await dialogue({
+    titre: "Durée du cycle",
+    message: `Conseillé pour ton niveau : ${conseil} semaines. Plus long = plus de semaines de progression ; à partir de 8 semaines, une semaine de récupération est ajoutée au milieu (sauf débutant).`,
+    cancelVal: null,
+    actions: [{ label: "Annuler", valeur: null }, { label: "Recommencer cette semaine", valeur: "reset" }, { label: "Enregistrer", valeur: "ok", primary: true }],
+    onMount: (inner) => {
+      const row = h(`<div class="row cycle-durees" style="margin-bottom:12px"></div>`);
+      for (let n = 4; n <= 12; n++) {
+        const b = h(`<button class="chip ${n === choix ? "on" : ""}" aria-pressed="${n === choix}">${n} sem${n === conseil ? " · conseillé" : ""}</button>`);
+        b.addEventListener("click", () => { choix = n; row.querySelectorAll(".chip").forEach((x) => { x.classList.remove("on"); x.setAttribute("aria-pressed", "false"); }); b.classList.add("on"); b.setAttribute("aria-pressed", "true"); });
+        row.append(b);
+      }
+      inner.insertBefore(row, inner.querySelector(".row:last-child"));
+    },
+  });
+  if (r === "ok") {
+    Etat.data.cycle = { ...c, semaines: choix, phases: phasesCycle(choix, p && p.niveau), deloadAvance: null };
+    Etat.sauver(); toast(`Cycle de ${choix} semaines`); render();
+  } else if (r === "reset") {
+    Etat.data.cycle = creerCycle(Etat.data.programme, p, { debut: new Date(), semaines: choix });
+    Etat.sauver(); toast("Cycle redémarré cette semaine"); render();
+  }
+}
+
+/**
+ * Bilan de fin de cycle et proposition du programme suivant. Appliquer le
+ * nouveau programme demande une confirmation explicite ; l'ancien est rangé
+ * dans « Mes routines » (archivé) pour ne rien perdre.
+ */
+async function ouvrirBilanCycle() {
+  const c = Etat.data.cycle, prog = Etat.data.programme, p = Etat.data.profil;
+  if (!c || !prog || !p) return;
+  const b = bilanCycle(c, Etat.data.logs, getExercise, prog, p);
+  const suite = programmeSuivant(b, p, prog, genererProgramme);
+  const pct = (x) => `${x > 0 ? "+" : ""}${Math.round(x * 1000) / 10} %`.replace(".", ",");
+  const lib = { progres: "progrès", stagne: "stagne", regression: "baisse", insuffisant: "trop peu de séances" };
+  const ordre = { regression: 0, stagne: 1, insuffisant: 3, progres: 2 };
+  const r = await dialogue({
+    titre: "Bilan du cycle",
+    cancelVal: null,
+    actions: [{ label: "Plus tard", valeur: null }, { label: "Appliquer le programme suivant", valeur: "ok", primary: true }],
+    onMount: (inner) => {
+      const box = h(`<div class="stack bilan-cycle" style="margin-bottom:12px"></div>`);
+      box.append(h(`<div class="statgrid bc-stats">
+        <div class="stat"><b class="num">${b.seances}/${b.prevues}</b><span>séances</span></div>
+        <div class="stat"><b class="num">${Math.round(b.assiduite * 100)} %</b><span>assiduité</span></div>
+        <div class="stat"><b class="num">${b.progres}</b><span>exos en progrès</span></div>
+        <div class="stat"><b class="num">${b.stagnes + b.regressions}</b><span>sans progrès</span></div></div>`));
+      const liste = h(`<div class="deflist"></div>`);
+      // Ce qui demande une décision d'abord : baisses et stagnations.
+      [...b.exercices].sort((x, y) => ordre[x.statut] - ordre[y.statut]).forEach((x) => liste.append(h(`<div class="bc-ligne small"><span>${esc(x.nom)}</span><b class="bc-${x.statut}">${x.variation != null ? `${pct(x.variation)} · ` : ""}${lib[x.statut]}</b></div>`)));
+      box.append(h(`<div class="eyebrow">Progression par exercice (1ʳᵉ moitié → 2ᵈᵉ moitié du cycle)</div>`), liste);
+      box.append(h(`<div class="eyebrow">Décisions pour le cycle suivant</div>`));
+      box.append(h(`<ul class="small bc-dec">${b.decisions.map((d) => `<li>${esc(d)}</li>`).join("")}</ul>`));
+      if (suite.retires.length || suite.ajoutes.length) {
+        box.append(h(`<div class="small"><b>Changements :</b> ${suite.retires.map((id) => esc(nomExo(id))).join(", ") || "aucun retrait"} → ${suite.ajoutes.map((id) => esc(nomExo(id))).join(", ") || "aucun ajout"}.</div>`));
+      } else box.append(h(`<div class="small muted">Mêmes exercices qu'au cycle précédent.</div>`));
+      box.append(h(`<div class="hint">Ton profil n'est pas modifié. L'ancien programme sera conservé dans « Mes routines » (archivé).</div>`));
+      inner.insertBefore(box, inner.querySelector(".row:last-child"));
+    },
+  });
+  if (r !== "ok") return;
+  // L'ancien programme devient une routine archivée : rien n'est perdu.
+  const archive = { ...creerRoutine(`${prog.nom} (cycle terminé)`), archive: true, justificationGlobale: prog.justificationGlobale || "",
+    seances: prog.seances.map((x) => ({ ...JSON.parse(JSON.stringify(x)), id: `${x.id}-arch-${Etat.uid()}` })) };
+  (Etat.data.programmesPerso ||= []).push(archive);
+  Etat.data.bilansCycles = [...(Etat.data.bilansCycles || []), { ...b, exercices: b.exercices.map(({ id, statut, variation }) => ({ id, statut, variation })) }].slice(-20);
+  Etat.data.programme = suite.programme;
+  Etat.data.cycle = creerCycle(suite.programme, p, { debut: new Date(), semaines: c.semaines });
+  Etat.sauver(); toast("Nouveau cycle lancé"); render();
+}
+
+/**
+ * Prescription d'un exercice pour l'utilisateur : celle du programme s'il y
+ * figure, sinon celle que le générateur appliquerait (objectif, niveau).
+ * @returns {{plage:[number,number], series:number, reposSec:number, rir:number|null, source:string}}
+ */
+function planExo(exId) {
+  const p = Etat.data.profil || {};
+  const prog = Etat.data.programme;
+  for (const se of (prog && prog.seances) || []) {
+    const e = se.exercices.find((x) => x.exerciceId === exId);
+    if (!e) continue;
+    const t = e.series.filter((x) => x.type !== "echauffement");
+    const t0 = t[0] || {};
+    if (t0.repsCible) return { plage: t0.repsCible, series: t.length, reposSec: t0.reposSec || 90, rir: t0.rirCible ?? null, source: `ton programme (${se.nom})` };
+  }
+  const exo = getExercise(exId) || { repsPertinent: [8, 12] };
+  const P = PRESCRIPTIONS[p.objectif] || PRESCRIPTIONS.remise_forme;
+  const poly = ["squat", "charniere_hanche", "fente", "poussee_horizontale", "poussee_verticale", "tirage_horizontal", "tirage_vertical"].includes(exo.patron);
+  const role = poly ? "principal" : "isolation";
+  let n = P.sets[role] ?? 3;
+  if (p.niveau === "grand_debutant") n = Math.max(2, n - 1);
+  return { plage: plageReps(exo.repsPertinent || [8, 12], P.reps), series: n, reposSec: poly ? P.repos : Math.min(P.repos, 75), rir: P.rir ?? null, source: `ton objectif (${GOAL_LABELS[p.objectif] || "—"})` };
+}
+
+/** Volume hebdomadaire par muscle du programme, comparé aux repères du niveau. */
+function carteVolumeProgramme(b, prog, p) {
+  const lignes = bilanVolume(prog, getExercise, p?.niveau);
+  const maxAxe = Math.max(...lignes.map((x) => Math.max(x.max, x.series))) || 1;
+  const box = h(`<div class="card vol-prog"></div>`);
+  box.append(h(`<div class="small muted" style="margin-bottom:10px">Séries de travail par semaine (muscle secondaire = ½ série) et nombre de séances qui le travaillent. La zone claire est le repère pour ton niveau.</div>`));
+  lignes.forEach((x) => {
+    const g = (n) => `${Math.round((n / maxAxe) * 1000) / 10}%`;
+    box.append(h(`<div class="vp-ligne vp-${x.statut}">
+      <span class="vp-nom">${esc(x.muscle === "abdominaux" ? "Abdos" : muscleCourt(x.muscle))}</span>
+      <span class="vp-barre" role="img" aria-label="${x.series} séries, repère ${x.min} à ${x.max}"><i class="vp-zone" style="left:${g(x.min)};width:${g(x.max - x.min)}"></i><i class="vp-val" style="width:${g(x.series)}"></i></span>
+      <span class="vp-num num">${String(x.series).replace(".", ",")}<em>${x.frequence}×</em></span></div>`));
+  });
+  const bas = lignes.filter((x) => x.statut === "bas");
+  if (bas.length) box.append(h(`<div class="hint">Sous le repère : ${esc(bas.map((x) => MUSCLE_LABELS[x.muscle] || x.muscle).join(", "))}. Pour y remédier, mets-les en priorité dans ton profil ou allonge la durée des séances — le programme ajoutera des séries s'il en a le temps.</div>`));
+  b.append(box);
 }
 
 /** Crée une routine vide et ouvre son éditeur. Partagé par les deux entrées. */
@@ -1773,7 +2010,7 @@ function dupliquerSeancePassee() {
   sheet.querySelector("#fx").addEventListener("click", () => sheet.remove());
   document.body.append(sheet);
 }
-function splitLabel(s) { return ({ full_body: "Corps entier", haut_bas: "Haut / Bas", push_pull_legs: "Push · Pull · Legs", mobilite: "Mobilité" }[s] || s); }
+function splitLabel(s) { return ({ full_body: "Corps entier", half_body: "Half body", haut_bas: "Haut / Bas", push_pull_legs: "Push · Pull · Legs", mobilite: "Mobilité" }[s] || s); }
 const DIFF_LABEL = ["", "Grand débutant", "Débutant", "Intermédiaire", "Avancé"];
 /** Patron biomécanique lisible (au lieu de l'identifiant interne « poussee_horizontale »). */
 const LIB_PATRON = {
@@ -1868,6 +2105,24 @@ function ouvrirDetail(exo) {
     <span class="difbar" title="Difficulté">${[1, 2, 3, 4].map((i) => `<i class="${i <= diff ? "on" : ""}"></i>`).join("")}</span>
     <span class="pill">${DIFF_LABEL[diff] || "—"}${exo.niveauEstime ? " · estimé" : ""}</span></div>`));
   if (!estRealisable(exo)) inner.append(h(`<div class="warn small" style="margin-top:10px">${mi(IC.alert, "mi-amber")}Pas réalisable avec ton matériel / tes limitations actuels.</div>`));
+  // Prescription pour l'utilisateur : séries, répétitions, repos, réserve —
+  // celles du programme, ou celles de son objectif. Plus la variante facile
+  // et, si le matériel manque, l'alternative réalisable.
+  if (Etat.data.profil && (exo.repsPertinent || [])[1] > 1) {
+    const pl = planExo(exo.id);
+    const pourToi = h(`<div class="pour-toi" role="group" aria-label="Pour toi">
+      <div class="eyebrow">Pour toi · selon ${esc(pl.source)}</div>
+      <div class="pt-grid"><span><b class="num">${pl.series}</b>séries</span><span><b class="num">${pl.plage[0]}–${pl.plage[1]}</b>reps</span><span><b class="num">${esc(formatRepos(pl.reposSec))}</b>repos</span>${pl.rir != null ? `<span><b class="num">${pl.rir}</b>en réserve</span>` : ""}</div></div>`);
+    const facile = variantes(exo.id, 1).plusFacile[0];
+    const sansMateriel = !estRealisable(exo) ? (alternatives(exo.id, Etat.data.profil)[0] || null) : null;
+    const liens = [[facile, "Version plus facile"], [sansMateriel && sansMateriel.exercice, "Avec ton matériel"]].filter(([x]) => x);
+    liens.forEach(([x, lab]) => {
+      const b = h(`<button class="pt-lien small"><span class="muted">${lab} :</span> <b>${esc(x.nom)}</b><span class="chev" aria-hidden="true">›</span></button>`);
+      b.addEventListener("click", () => ouvrirDetail(x));
+      pourToi.append(b);
+    });
+    inner.append(pourToi);
+  }
   inner.append(actions);
 
   // Sections dépliables plutôt que des onglets : tout le contenu d'un exercice
@@ -2927,6 +3182,63 @@ function carteExoApercu(e, num) {
   return c;
 }
 /** Aperçu d'une séance : liste des exercices (façon programme) + bouton Commencer. */
+/** Version choisie dans l'aperçu (normale · courte · allégée), par séance.
+ * @type {{id: string|null, mode: "normale"|"courte"|"allegee", minutes: number}} */
+let APERCU_VERSION = { id: null, mode: "normale", minutes: 30 };
+
+/**
+ * Séance telle qu'elle sera lancée : phase du cycle appliquée, version
+ * courte ou allégée choisie. Renvoie la séance d'origine si rien ne change.
+ */
+function seanceALancer(s) {
+  const ver = APERCU_VERSION.id === s.id ? APERCU_VERSION : { id: s.id, mode: /** @type {"normale"} */ ("normale"), minutes: 30 };
+  return adapterSeance(s, {
+    mode: ver.mode, minutes: ver.minutes, phase: phasePourSeance(s),
+    musclesPrioritaires: (Etat.data.profil && Etat.data.profil.musclesPrioritaires) || [], getExercise,
+  });
+}
+
+/** Démarre la version choisie ; une séance adaptée est gardée pour la reprise. */
+async function demarrerVersion(s) {
+  const a = seanceALancer(s);
+  if (a !== s) { Etat.data.seanceAdaptee = a; Etat.sauver(); }
+  return demarrer(a);
+}
+
+/** Sélecteur de version de séance : temps limité, fatigue, phase du cycle. */
+function choixVersion(v, s) {
+  if (APERCU_VERSION.id !== s.id) APERCU_VERSION = { id: s.id, mode: "normale", minutes: 30 };
+  const ver = APERCU_VERSION;
+  const phase = phasePourSeance(s);
+  const box = h(`<div class="card version-seance" role="group" aria-label="Version de la séance"></div>`);
+  box.append(h(`<div class="eyebrow">Version de la séance</div>`));
+  const row = h(`<div class="row version-row"></div>`);
+  [["normale", phase && phase !== "progression" ? PHASES[phase].nom : "Complète"], ["courte", "Je manque de temps"], ["allegee", "Je suis fatigué"]].forEach(([k, lab]) => {
+    const b = h(`<button class="chip ${ver.mode === k ? "on" : ""}" aria-pressed="${ver.mode === k}">${esc(lab)}</button>`);
+    b.addEventListener("click", () => { APERCU_VERSION = { ...ver, mode: /** @type {any} */ (k) }; render(); });
+    row.append(b);
+  });
+  box.append(row);
+  if (ver.mode === "courte") {
+    const rm = h(`<div class="row version-row" style="margin-top:6px"></div>`);
+    [20, 30, 45].forEach((m) => {
+      const b = h(`<button class="chip ${ver.minutes === m ? "on" : ""}" aria-pressed="${ver.minutes === m}">${m} min</button>`);
+      b.addEventListener("click", () => { APERCU_VERSION = { ...ver, minutes: m }; render(); });
+      rm.append(b);
+    });
+    box.append(rm);
+  }
+  const a = seanceALancer(s);
+  if (a !== s && a.adaptation) {
+    const quoi = a.adaptation.changements.join(" · ");
+    box.append(h(`<div class="small version-info">${phase === "recuperation" && ver.mode === "normale" ? "<b>Semaine de récupération du cycle.</b> " : ""}${esc(quoi.charAt(0).toUpperCase() + quoi.slice(1))}. Durée estimée : <b class="num">${a.dureeEstimeeMin} min</b>.</div>`));
+  } else if (phase === "progression") {
+    box.append(h(`<div class="small muted version-info">Semaine de progression : l'app te propose l'objectif de chaque série (charge, répétitions).</div>`));
+  }
+  v.append(box);
+  return a;
+}
+
 function vApercuSeance(v, seanceId) {
   const s = trouverSeance(seanceId);
   if (!s) { APERCU = null; render(); return; }
@@ -2934,7 +3246,9 @@ function vApercuSeance(v, seanceId) {
   back.addEventListener("click", () => { APERCU = null; render(); });
   v.append(back);
   v.append(h(`<h1 style="margin:0 0 3px">${esc(s.nom)}</h1>`));
-  v.append(h(`<div class="muted small">${s.exercices.length} exercices · ~${s.dureeEstimeeMin || 0} min</div>`));
+  // En-tête : la version qui sera réellement lancée (courte, allégée…).
+  const prevue = seanceALancer(s);
+  v.append(h(`<div class="muted small">${prevue.exercices.length} exercices · ~${prevue.dureeEstimeeMin || s.dureeEstimeeMin || 0} min</div>`));
   const muscles = musclesSeance(s);
   // Muscles ciblés en illustrations (une silhouette surlignée par groupe)
   const rangee = bandeRecuperation(muscles, s);
@@ -2947,20 +3261,22 @@ function vApercuSeance(v, seanceId) {
     muscles.slice(0, 6).forEach((m) => mc.append(h(`<span class="pill">${esc(MUSCLE_LABELS[m] || m)}</span>`)));
     v.append(mc);
   }
+  // Version : séance complète (avec la phase du cycle), courte ou allégée.
+  const lancee = choixVersion(v, s);
   const start = h(`<button class="primary big" style="margin:6px 0 8px"><span class="btn-ico">${IC.play}</span>Commencer la séance</button>`);
-  start.addEventListener("click", () => { APERCU = null; demarrer(s); });
+  start.addEventListener("click", () => { APERCU = null; demarrerVersion(s); });
   v.append(start);
   const guide = h(`<button class="secondary big" style="margin:0 0 14px"><span class="btn-ico">${IC.forward}</span>Mode guidé (pas à pas)</button>`);
   // `demarrer` est asynchrone (elle peut demander confirmation) : sans `await`,
   // le lecteur pas-à-pas s'ouvrait avant que la séance existe.
-  guide.addEventListener("click", async () => { APERCU = null; if (await demarrer(s)) ouvrirGuide(); });
+  guide.addEventListener("click", async () => { APERCU = null; if (await demarrerVersion(s)) ouvrirGuide(); });
   v.append(guide);
   // Échauffement guidé, adapté aux muscles de la séance.
   const echauf = echauffementPour(muscles);
   const bEch = h(`<button class="card wcard sil warm-cta" style="width:100%;margin-top:8px;text-align:left"><span class="mi mi-orange" style="width:34px;height:34px">${IC.wind}</span><span class="g"><b>Échauffement guidé</b><br><span class="muted small">${echauf.length} mouvements · ~${Math.round(dureeSequence(echauf) / 60)} min · adapté à cette séance</span></span><span class="chev" aria-hidden="true">›</span></button>`);
   bEch.addEventListener("click", () => ouvrirSequence("Échauffement", echauf));
   v.append(bEch);
-  s.exercices.forEach((e, i) => v.append(carteExoApercu(e, i + 1)));
+  lancee.exercices.forEach((e, i) => v.append(carteExoApercu(e, i + 1)));
 }
 /** Met à jour le chrono de séance (mm:ss) à partir de l'heure de début. */
 function majChrono() {
@@ -3273,7 +3589,25 @@ function carteExoLive(e, seance) {
   const t = e.series.find((s) => s.type === "travail") || e.series[0];
   const plage = t?.repsCible || exo.repsPertinent;
   const [derniere, avant] = Etat.perfs(st.exId);
-  const sug = recommander(st.exId, plage, derniere || null, avant || null);
+  const sugBrut = recommander(st.exId, plage, derniere || null, avant || null, Etat.historique(st.exId));
+  // Semaine de récupération ou version allégée : charge conseillée −10 %,
+  // arrondie à ce que le matériel permet de charger.
+  const facteur = Number(seance && seance.chargeFacteur) || 1;
+  const sug = facteur !== 1 && sugBrut.chargeKg ? { ...sugBrut, chargeKg: arrondirCharge(sugBrut.chargeKg * facteur, exo),
+    message: `${sugBrut.message} Version allégée : charge réduite d'environ 10 %.` } : sugBrut;
+  // Objectif de la séance, série par série : c'est ce que l'app propose de
+  // faire (charge conseillée, répétitions visées), la séance précédente
+  // restant affichée en colonne « Préc. ».
+  const chargeVisee = sug.chargeKg != null && sug.action !== "debut" ? sug.chargeKg : null;
+  const repsVisees = (rang) => (sug.objectifReps && sug.objectifReps.length ? sug.objectifReps[Math.min(rang, sug.objectifReps.length - 1)] : null);
+  // Valeur « de référence » d'une série de travail, à un seul endroit pour
+  // l'affichage, le recalcul à la frappe, « Reprendre » et la validation sans
+  // saisie : l'objectif du jour s'il existe, sinon la séance précédente.
+  const rangTravail = (i) => st.series.slice(0, i).filter((x) => x.type !== "echauffement").length;
+  const refCharge = (i, dpi) => (st.series[i] && st.series[i].type === "echauffement" ? null
+    : chargeVisee != null ? uAffLive(chargeVisee) : uAffLive(dpi && dpi.chargeKg));
+  const refReps = (i, dpi) => (st.series[i] && st.series[i].type === "echauffement" ? null
+    : repsVisees(rangTravail(i)) ?? (dpi && dpi.reps));
   // Ce qui se MESURE sur cet exercice décide des colonnes : charge × reps,
   // maintien chronométré (planche) ou distance + durée (course, rameur…).
   const mode = modeSaisie(exo, st.series[0]);
@@ -3297,7 +3631,9 @@ function carteExoLive(e, seance) {
 
   // Ligne de contexte unique, dépliable : repos, charge conseillée, objectif.
   const objectif = mode === "reps" && sug.chargeKg
-    ? `${texteCharge(sug.chargeKg, uLive())} × ${plage[0]}–${plage[1]}` : null;
+    ? `${texteCharge(sug.chargeKg, uLive())} × ${sug.objectifReps && sug.objectifReps.length ? sug.objectifReps.join("·") : `${plage[0]}–${plage[1]}`}`
+    : mode === "reps" && sug.objectifReps && sug.objectifReps.length ? `${sug.objectifReps.join("·")} reps` : null;
+  const rirVise = t && t.rirCible != null ? t.rirCible : null;
   const tempo = modeAvance() && (t?.tempo || exo.tempoDefaut) ? (t?.tempo || exo.tempoDefaut) : null;
   const metaTxt = `<span class="cic">${IC.clock}</span>repos ${formatRepos(t?.reposSec || 60)}`
     + (objectif ? ` · <span class="cic">${IC.dumbbell}</span>objectif <b class="sug">${objectif}</b>` : "")
@@ -3305,7 +3641,7 @@ function carteExoLive(e, seance) {
   // Le texte dans UNE boîte qui coule en ligne : posés directement dans le
   // bouton flex, chaque morceau devenait une colonne (« 2- / 0- / 1 ») à 360 px.
   const meta = h(`<button class="exometa muted small" aria-expanded="false"><span class="exometa-t">${metaTxt}</span><span class="cic exometa-i">${IC.info}</span></button>`);
-  const conseil = h(`<div class="notice small" hidden>${esc(sug.message)}</div>`);
+  const conseil = h(`<div class="notice small" hidden>${esc(sug.message)}${rirVise != null && mode === "reps" ? `<br><b>Réserve visée :</b> environ ${rirVise} répétition${rirVise > 1 ? "s" : ""} avant l'échec sur chaque série de travail.` : ""}</div>`);
   meta.addEventListener("click", () => {
     const ouvert = conseil.hidden;
     conseil.hidden = !ouvert;
@@ -3349,8 +3685,8 @@ function carteExoLive(e, seance) {
       }
       const dpi = seriePrecedente(st.series, i, derniere && derniere.series);
       const app = st.series[i] && st.series[i].type === "echauffement";
-      const cc = valeurSerie(st.series, i, "charge", uAffLive(dpi && dpi.chargeKg), app ? null : uAffLive(sug.chargeKg));
-      const rr = valeurSerie(st.series, i, "reps", dpi && dpi.reps, app ? null : plage && plage[0]);
+      const cc = valeurSerie(st.series, i, "charge", refCharge(i, dpi), app ? null : uAffLive(sug.chargeKg));
+      const rr = valeurSerie(st.series, i, "reps", refReps(i, dpi), app ? null : plage && plage[0]);
       const ic = row.querySelector('input[data-f="charge"]');
       if (ic) ic.placeholder = cc == null ? "—" : String(cc);
       const ir = row.querySelector('input[data-f="reps"]');
@@ -3388,8 +3724,8 @@ function carteExoLive(e, seance) {
     // rien taper. Les deux doivent être calculées au même endroit, sans quoi
     // l'écran promet une chose et l'historique en garde une autre.
     const approche = s.type === "echauffement";
-    const chargeAff = valeurSerie(st.series, i, "charge", uAffLive(dp && dp.chargeKg), approche ? null : uAffLive(sug.chargeKg));
-    const repsAff = valeurSerie(st.series, i, "reps", dp && dp.reps, approche ? null : plage && plage[0]);
+    const chargeAff = valeurSerie(st.series, i, "charge", refCharge(i, dp), approche ? null : uAffLive(sug.chargeKg));
+    const repsAff = valeurSerie(st.series, i, "reps", refReps(i, dp), approche ? null : plage && plage[0]);
     // Le repère de type (É, D, MAX…) se voit même hors mode avancé : une
     // série d'approche ajoutée par « Échauffement calculé » ressemblait sinon
     // à une série de travail.
@@ -3440,8 +3776,8 @@ function carteExoLive(e, seance) {
         } : {
           // Une série d'approche laissée vide ne prend pas la charge de travail
           // conseillée : l'affichage ne la proposait déjà plus, l'enregistrement si.
-          chargePrecedente: uAffLive(dp && dp.chargeKg), chargeConseil: approche ? null : uAffLive(sug.chargeKg),
-          repsPrecedentes: dp && dp.reps, repsConseil: approche ? null : plage && plage[0],
+          chargePrecedente: refCharge(i, dp), chargeConseil: approche ? null : uAffLive(sug.chargeKg),
+          repsPrecedentes: refReps(i, dp), repsConseil: approche ? null : plage && plage[0],
         });
         row.querySelectorAll("input[data-f]").forEach((inp) => {
           const f = inp.dataset.f;
@@ -3499,7 +3835,7 @@ function carteExoLive(e, seance) {
     : !enTemps && (derniere || sug.chargeKg) && st.series.some((s) => !s.charge || !s.reps);
   if (peutRemplir) {
     const bFill = h(`<button class="chip"><span class="cic">${IC.cornerDown}</span>Reprendre</button>`);
-    bFill.title = "Pré-remplir avec la dernière fois / le conseil";
+    bFill.title = "Pré-remplir avec l'objectif du jour (charge conseillée, répétitions visées)";
     bFill.addEventListener("click", () => {
       st.series.forEach((s, i) => {
         const dp = seriePrecedente(st.series, i, derniere && derniere.series);
@@ -3508,8 +3844,11 @@ function carteExoLive(e, seance) {
           if (!s.dureeMin && dp?.dureeSec) s.dureeMin = minutesSaisie(dp.dureeSec);
           return;
         }
-        if (!s.charge && (dp?.chargeKg != null || sug.chargeKg != null)) s.charge = String(uAffLive(dp?.chargeKg ?? sug.chargeKg));
-        if (!s.reps && (dp?.reps != null || plage?.[0] != null)) s.reps = String(dp?.reps ?? plage[0]);
+        if (s.type === "echauffement") return;
+        const kg = refCharge(i, dp) ?? uAffLive(sug.chargeKg);
+        const reps = refReps(i, dp) ?? plage?.[0];
+        if (!s.charge && kg != null) s.charge = String(kg);
+        if (!s.reps && reps != null) s.reps = String(reps);
       });
       persistLive(true); toast("Séries pré-remplies — ajuste puis valide ✓"); render();
     });
@@ -3674,10 +4013,14 @@ function menuExoLive(e, exo, st, seance, repere = "") {
   item(IC.message, st.note ? "Modifier la note" : "Ajouter une note", () => noterExerciceLive(st, exo));
   item(IC.clock, "Minuteur EMOM / Tabata", () => ouvrirOutils("intervalles"));
   item(IC.swap, "Remplacer l'exercice", () => remplacer(e.exerciceId));
-  item(IC.alert, st.douleur ? "Retirer la douleur signalée" : "Signaler une douleur", () => {
-    st.douleur = !st.douleur; persistLive(true);
-    if (st.douleur) info("Douleur vive, articulaire ou inhabituelle : arrête cet exercice aujourd'hui. Si elle persiste, consulte un professionnel de santé.", { titre: "⚠️ Douleur signalée" });
+  item(IC.target || IC.alert, st.techniqueDegradee ? "Technique de nouveau propre" : "Technique dégradée", () => {
+    st.techniqueDegradee = !st.techniqueDegradee; persistLive(true);
+    if (st.techniqueDegradee) toast("Noté : pas de hausse de charge la prochaine fois, on consolide");
     render();
+  }, st.techniqueDegradee ? "on" : "");
+  item(IC.alert, st.douleur ? "Retirer la douleur signalée" : "Signaler une douleur", async () => {
+    if (st.douleur) { st.douleur = false; persistLive(true); render(); return; }
+    await trierDouleur(e.exerciceId, st, exo);
   }, st.douleur ? "on" : "");
   item(IC.trash, "Retirer de la séance", async () => {
     // Retirer efface la saisie déjà faite : on le dit, avec le compte exact.
@@ -3801,6 +4144,62 @@ function choisirExercice(onPick) {
   document.body.append(sheet);
   search.focus();
 }
+/**
+ * Douleur ou fatigue ? Les confondre est l'erreur classique : la brûlure de
+ * fin de série est normale, une douleur articulaire ou vive ne l'est pas.
+ * On fait trancher l'utilisateur, puis on propose une adaptation prudente :
+ * remplacer l'exercice, l'arrêter pour aujourd'hui, ou continuer allégé.
+ */
+async function trierDouleur(exId, st, exo) {
+  const nature = await dialogue({
+    titre: "Douleur ou fatigue ?",
+    message: "Brûlure, lourdeur, muscle qui tremble en fin de série : c'est de la fatigue musculaire normale, elle passe en quelques minutes. Douleur vive, pincement, douleur dans une articulation ou qui reste au repos : c'est une douleur — on n'insiste pas.",
+    cancelVal: null,
+    actions: [
+      { label: "Annuler", valeur: null },
+      { label: "Fatigue musculaire", valeur: "fatigue" },
+      { label: "C'est une douleur", valeur: "douleur", danger: true },
+    ],
+  });
+  if (nature === "fatigue") {
+    info("Fatigue normale : prends ton repos complet, garde 1 à 2 répétitions en réserve sur les séries suivantes. Si une douleur apparaît, arrête l'exercice.", { titre: "Pas de douleur signalée" });
+    return;
+  }
+  if (nature !== "douleur") return;
+  st.douleur = true; persistLive(true);
+  const suite = await dialogue({
+    titre: "Douleur signalée",
+    message: `La progression automatique de « ${exo.nom} » est suspendue. Que fais-tu maintenant ? Si la douleur persiste ou revient, consulte un professionnel de santé.`,
+    cancelVal: "rien",
+    actions: [
+      { label: "Remplacer par une alternative", valeur: "remplacer" },
+      { label: "Arrêter cet exercice aujourd'hui", valeur: "arreter" },
+      { label: "Continuer plus léger (−30 %, amplitude sans douleur)", valeur: "alleger" },
+    ],
+  });
+  if (suite === "remplacer") {
+    LIVE.douleurs = [...new Set([...(LIVE.douleurs || []), exId])];
+    const avant = Object.keys(LIVE.data);
+    await remplacer(exId);
+    // Le remplaçant démarre sans douleur ; l'exercice d'origine la garde.
+    for (const id of Object.keys(LIVE.data)) if (!avant.includes(id)) LIVE.data[id].douleur = false;
+    persistLive(true); render();
+  } else if (suite === "arreter") {
+    // Les séries déjà validées sont gardées ; les autres sont retirées.
+    st.series = st.series.filter((x) => x.done);
+    if (!st.series.length) { LIVE.douleurs = [...new Set([...(LIVE.douleurs || []), exId])]; delete LIVE.data[exId]; }
+    persistLive(true); render();
+    toast("Exercice arrêté pour aujourd'hui");
+  } else if (suite === "alleger") {
+    for (const x of st.series) if (!x.done && x.charge !== "" && x.charge != null) {
+      const v = parseFloat(String(x.charge).replace(",", "."));
+      if (Number.isFinite(v)) x.charge = String(Math.round(v * 0.7 * 2) / 2);
+    }
+    persistLive(true); render();
+    toast("Charges restantes réduites de 30 %");
+  } else render();
+}
+
 async function remplacer(exId) {
   const seance = trouverSeance(LIVE.seanceId);
   const presents = seance.exercices.map((x) => x.exerciceId);
@@ -3846,10 +4245,16 @@ async function terminer() {
     if (series.length || st.douleur) {
       exercices.push({
         exerciceId: exId, series, douleur: st.douleur,
+        techniqueDegradee: st.techniqueDegradee || undefined,
         supersetGroupe: st.supersetGroupe || undefined,
         note: st.note ? String(st.note).slice(0, 500) : undefined,
       });
     }
+  }
+  // Exercices remplacés ou arrêtés à cause d'une douleur : la douleur est
+  // enregistrée (sans séries) pour suspendre leur progression automatique.
+  for (const id of LIVE.douleurs || []) {
+    if (!exercices.some((x) => x.exerciceId === id)) exercices.push({ exerciceId: id, series: [], douleur: true });
   }
   // Une séance sans la moindre série n'est pas une séance. L'enregistrer
   // polluerait l'historique : elle compterait comme un jour d'entraînement pour
@@ -3870,7 +4275,10 @@ async function terminer() {
   const nouveauLog = {
     id: Etat.uid(), date: fin, debut, fin,
     dureeSec: dureeSecondes(debut, fin),
-    seanceId: seance.id, seanceNom: seance.nom, exercices,
+    // Une version courte ou allégée compte comme la séance du programme dont
+    // elle vient : la rotation et les bilans de cycle la retrouvent.
+    seanceId: seance.origineId || seance.id, seanceNom: seance.nom, exercices,
+    ...(seance.adaptation ? { adaptation: seance.adaptation.phase && seance.adaptation.mode === "normale" ? seance.adaptation.phase : seance.adaptation.mode } : {}),
   };
   // Détecte les nouveaux records AVANT d'ajouter la séance à l'historique.
   const prs = recordsDeSeance(Etat.data.logs, nouveauLog);
@@ -5060,6 +5468,13 @@ function carteProgrammeActuel(prog, logs, profil) {
     <span class="eyebrow">Programme actuel</span>
     <b class="pa-nom">${esc(prog?.nom || "Aucun programme")}</b>
     <span class="pa-meta">${cible} séance${cible > 1 ? "s" : ""} / semaine · ${sm.seances} faite${sm.seances > 1 ? "s" : ""}</span>
+    ${(() => {
+      // Cycle et rotation : la semaine du cycle et la prochaine séance du
+      // programme (une séance manquée n'est pas sautée).
+      const c = assurerCycle(), e = c ? etatCycle(c, logs) : null, sem = etatSemaine(prog);
+      const bouts = [e && !e.termine ? `Semaine ${e.semaine}/${e.total} · ${e.infos.nom}` : e && e.termine ? "Cycle terminé — bilan prêt" : "", sem && !sem.semaineFaite ? `Ensuite : ${sem.seance.nom}` : ""].filter(Boolean);
+      return bouts.length ? `<span class="pa-cycle">${esc(bouts.join(" · "))}</span>` : "";
+    })()}
     ${suite >= 2 ? `<span class="pa-suite"><span class="cic">${IC.flame}</span><b class="num">${suite}</b> semaines d'affilée</span>` : ""}
   </span>`));
   c.append(h(`<span class="pa-ring">${anneauSignature(pct, `${sm.seances}`, "sur " + cible)}</span>`));
@@ -5945,6 +6360,10 @@ function outilTestVelo() {
 
 /** Exemples de questions proposés à l'utilisateur (aussi utiles que l'aide). */
 const COACH_EXEMPLES = [
+  "Pourquoi est-ce que je stagne ?",
+  "Dois-je augmenter mon volume ?",
+  "Quel muscle travailler davantage ?",
+  "Pourquoi autant de séries ?",
   "Par quoi remplacer les tractions ?",
   "Quelle séance aujourd'hui ?",
   "Combien de protéines par jour ?",
@@ -6162,8 +6581,118 @@ function repondreAssistant(q) {
       break;
     }
     case "progression": {
-      txt("La règle appliquée par l'app : quand tu atteins le <b>haut de la fourchette de répétitions sur toutes tes séries</b>, tu augmentes la charge à la séance suivante (environ +2,5 % ou le plus petit disque disponible), puis tu repars en bas de la fourchette.");
-      txt("Le conseil affiché sur chaque exercice pendant la séance tient déjà compte de tes deux dernières performances.");
+      const exo = /** @type {any} */ (exerciceDeLaQuestion(q, CATALOGUE));
+      const [dern, avant] = exo ? Etat.perfs(exo.id) : [];
+      if (exo && dern) {
+        const pl = planExo(exo.id);
+        const r = recommander(exo.id, pl.plage, dern, avant || null, Etat.historique(exo.id));
+        txt(`<b>${esc(exo.nom)}</b>, d'après ta dernière séance (${esc(dern.series.map((x) => `${x.chargeKg ? uCharge(x.chargeKg) + " × " : ""}${x.reps || 0}`).join(" · "))}) et ta plage de ${pl.plage[0]}-${pl.plage[1]} répétitions :`);
+        txt(esc(r.message));
+        txt(`<span class="muted">${esc(r.audit)}</span>`);
+      } else {
+        txt("La règle appliquée par l'app (double progression) : à charge égale, tu ajoutes <b>une répétition par série</b> quand il te restait de la réserve. Quand <b>toutes les séries atteignent le haut de la plage</b> avec une technique propre et au moins 2 répétitions en réserve, la charge augmente du plus petit cran (2 à 2,5 kg) et tu repars en bas de la plage.");
+        txt("Garde-fous : jamais plus de 10 % d'un coup (sur une charge légère, on prolonge d'abord la plage de 2 répétitions), aucune hausse si tu as signalé une douleur ou une technique dégradée, et la charge baisse d'environ 10 % après deux séances ratées.");
+        txt("Pourquoi augmenter ? Le muscle s'adapte à ce qu'on lui demande : sans demande un peu supérieure, il n'a plus de raison de progresser (surcharge progressive). Pendant la séance, l'objectif de chaque série est déjà calculé.");
+      }
+      break;
+    }
+    case "pourquoi_exercice": {
+      const prog = Etat.data.programme;
+      if (!prog) { txt("Tu n'as pas de programme généré : les routines que tu écris toi-même n'ont pas de justification automatique."); break; }
+      const exo = /** @type {any} */ (exerciceDeLaQuestion(q, CATALOGUE));
+      const places = prog.seances.flatMap((se) => se.exercices.filter((e) => !exo || e.exerciceId === exo.id).map((e) => ({ se, e })));
+      if (exo && !places.length) { txt(`<b>${esc(exo.nom)}</b> n'est pas dans ton programme actuel.`); break; }
+      if (exo) {
+        const { se, e } = places[0];
+        txt(`<b>${esc(exo.nom)}</b> (séance « ${esc(se.nom)} ») : ${esc(e.justification || "choisi pour le muscle visé par cette place de la séance.")}`);
+      } else txt("Chaque exercice occupe une place précise de la séance (mouvement principal, secondaire, isolation, gainage) et a été choisi pour :");
+      if (!exo) places.slice(0, 6).forEach(({ e }) => box.append(h(`<div class="small">• <b>${esc(nomExo(e.exerciceId))}</b> — ${esc(e.justification || "")}</div>`)));
+      txt("Critères du choix, dans l'ordre : le muscle visé en muscle principal, le type de mouvement demandé (poussée, tirage, squat, charnière…), ton matériel et tes limitations, ton niveau, tes exercices préférés, puis la variété d'une séance à l'autre. À profil égal, le même programme : rien n'est tiré au hasard.");
+      if (prog.justificationGlobale) txt(`<span class="muted">${esc(prog.justificationGlobale)}</span>`);
+      break;
+    }
+    case "pourquoi_series": {
+      const P = PRESCRIPTIONS[p.objectif] || PRESCRIPTIONS.remise_forme;
+      txt(`Pour ton objectif « ${esc(GOAL_LABELS[p.objectif] || p.objectif || "?")} » et ton niveau (${esc(LEVEL_LABELS[p.niveau] || p.niveau || "?")}) : <b>${P.sets.principal} séries</b> sur les mouvements principaux, ${P.sets.isolation} sur l'isolation, ${P.reps[0]} à ${P.reps[1]} répétitions${P.rir != null ? `, environ ${P.rir} répétition${P.rir > 1 ? "s" : ""} en réserve` : ""}.`);
+      txt("La raison : la progression dépend surtout du <b>nombre de séries difficiles par muscle et par semaine</b> (relation dose-réponse). Trop peu, le muscle n'a pas de raison de s'adapter ; trop, la récupération ne suit plus. L'app vise une fourchette selon ton niveau, en répartissant ces séries sur au moins deux séances par muscle quand tes jours le permettent.");
+      const prog = Etat.data.programme;
+      if (prog) {
+        const bv = bilanVolume(prog, getExercise, p.niveau).filter((x) => x.series > 0).slice(0, 6);
+        bv.forEach((x) => box.append(h(`<div class="spread small"><span>${esc(MUSCLE_LABELS[x.muscle])}</span><b>${String(x.series).replace(".", ",")} séries/sem · repère ${x.min}-${x.max}</b></div>`)));
+      }
+      if ((p.recuperation || 3) <= 2 || (p.sommeilH || 8) < 6) txt("Ton profil indique une récupération ou un sommeil limités : une série a été retirée par exercice.");
+      break;
+    }
+    case "stagnation": {
+      const logs = Etat.data.logs || [];
+      const exoQ = /** @type {any} */ (exerciceDeLaQuestion(q, CATALOGUE));
+      const ids = exoQ ? [exoQ.id] : [...new Set(logs.slice(-40).flatMap((l) => (l.exercices || []).map((e) => e.exerciceId)))];
+      const stag = ids.map((id) => ({ id, st: detecterStagnation(Etat.historique(id)) })).filter((x) => x.st);
+      if (!logs.length) { txt("Je n'ai pas encore de séances à analyser. La stagnation se mesure sur au moins 4 séances d'un même exercice."); break; }
+      if (!stag.length) {
+        txt(exoQ ? `Pas de stagnation sur <b>${esc(exoQ.nom)}</b> : ta meilleure performance a progressé sur les dernières séances (ou il y en a encore trop peu pour juger).` : "Aucune stagnation détectée : aucun exercice n'est resté 3 séances sans progrès.");
+        txt("Si tu as l'impression de stagner quand même, regarde d'abord le sommeil, l'alimentation (assez de protéines et de calories) et la régularité.");
+        break;
+      }
+      txt(`${stag.length} exercice${stag.length > 1 ? "s" : ""} sans progrès sur les 3 dernières séances. J'analyse dans l'ordre : intensité, volume, récupération, technique.`);
+      stag.slice(0, 4).forEach(({ id, st }) => {
+        box.append(h(`<div class="card coach-stag"><b>${esc(nomExo(id))}</b><div class="small">${st.causes.length ? st.causes.map(esc).join("<br>") : "Volume, effort et récupération semblent corrects."}</div><div class="small muted" style="margin-top:4px">${esc(st.conseil)}</div></div>`));
+      });
+      txt("À la fin du cycle, ces exercices seront remplacés par une variante si rien ne bouge — avec ton accord.");
+      break;
+    }
+    case "muscle_retard": {
+      const logs = Etat.data.logs || [];
+      const parMuscle = Object.fromEntries(seriesParMuscle(logs, getExercise, 28).map((x) => [x.muscle, x.series / 4]));
+      const source = logs.length ? "réalisé sur les 4 dernières semaines" : "prévu par ton programme";
+      const prog = Etat.data.programme;
+      const prevu = prog ? Object.fromEntries(bilanVolume(prog, getExercise, p.niveau).map((x) => [x.muscle, x.series])) : {};
+      const lignes = MUSCLES_SUIVIS.map((m) => {
+        const [min, max] = fourchetteVolume(m, p.niveau);
+        const v = logs.length ? (parMuscle[m] || 0) : (prevu[m] || 0);
+        return { m, v, min, max, ratio: v / min };
+      }).sort((a, b) => a.ratio - b.ratio);
+      const faibles = lignes.filter((x) => x.v < x.min).slice(0, 3);
+      if (!faibles.length) { txt(`Tous tes groupes sont dans leur repère de volume (${source}). Pour un développement harmonieux, garde l'équilibre actuel ; si un muscle te semble en retard visuellement, mets-le en priorité dans ton profil.`); break; }
+      txt(`D'après le volume ${source}, les groupes les moins travaillés par rapport à leur repère :`);
+      faibles.forEach((x) => box.append(h(`<div class="spread small"><span>${esc(MUSCLE_LABELS[x.m])}</span><b>${String(Math.round(x.v * 2) / 2).replace(".", ",")} séries/sem · repère ${x.min}-${x.max}</b></div>`)));
+      txt("Pour les renforcer sans allonger toutes les séances : mets-les en <b>muscles prioritaires</b> dans ton profil, puis regénère le programme — l'app ajoute des séries là où le temps le permet.");
+      const bp = h(`<button class="secondary big">Choisir mes muscles prioritaires</button>`);
+      bp.addEventListener("click", () => { fermerCoach(); nav("set"); });
+      box.append(bp);
+      break;
+    }
+    case "volume": {
+      const logs = Etat.data.logs || [];
+      if (logs.length < 4) { txt("Il me faut au moins quelques semaines de séances pour juger ton volume. En attendant, suis le volume prévu par le programme : il est déjà dans les repères de ton niveau."); break; }
+      const d = besoinDeload(logs, { ressenti: Etat.data.reglages.ressenti, dernierDeload: dernierDeloadDe(Etat.data.cycle) });
+      const parMuscle = Object.fromEntries(seriesParMuscle(logs, getExercise, 28).map((x) => [x.muscle, x.series / 4]));
+      const bas = MUSCLES_SUIVIS.filter((m) => (parMuscle[m] || 0) < fourchetteVolume(m, p.niveau)[0]);
+      const hauts = MUSCLES_SUIVIS.filter((m) => (parMuscle[m] || 0) > fourchetteVolume(m, p.niveau)[1]);
+      const recs = recordsRecents(logs, nomExo, 5);
+      if (d.deload) {
+        txt(`<b>Diminue temporairement.</b> ${esc(d.raisons.join(" "))} Une semaine allégée (une série de moins, charges −10 %) laissera la fatigue retomber ; tu reprendras ensuite au volume actuel.`);
+      } else if (hauts.length && d.score >= 2) {
+        txt(`<b>Réduis un peu</b> le volume de ${esc(hauts.map((m) => MUSCLE_LABELS[m]).join(", "))} : au-dessus du repère, avec des signes de fatigue (${esc(d.raisons.join(" "))}).`);
+      } else if (bas.length && recs.length) {
+        txt(`<b>Augmente légèrement</b> (1 à 2 séries par semaine) pour ${esc(bas.slice(0, 4).map((m) => MUSCLE_LABELS[m]).join(", "))} : sous leur repère, et tu récupères bien (records récents, pas de signe de fatigue).`);
+      } else {
+        txt(`<b>Garde ton volume actuel.</b> ${recs.length ? `Tu progresses (${recs.length} record${recs.length > 1 ? "s" : ""} récent${recs.length > 1 ? "s" : ""})` : "Aucun signe de fatigue excessive"} : changer maintenant n'apporterait rien. On réévalue en fin de cycle.`);
+      }
+      txt("Règle suivie : on n'ajoute du volume que si la récupération suit et que la progression ralentit ; on en retire quand la fatigue s'accumule.");
+      break;
+    }
+    case "technique": {
+      const exo = /** @type {any} */ (exerciceDeLaQuestion(q, CATALOGUE));
+      if (exo) {
+        txt(`<b>${esc(exo.nom)}</b>`);
+        if ((exo.instructions || []).length) box.append(h(`<ol class="small det-steps">${exo.instructions.slice(0, 5).map((x) => `<li>${esc(x)}</li>`).join("")}</ol>`));
+        if ((exo.erreurs || []).length) txt(`<b>Erreurs fréquentes :</b> ${esc(exo.erreurs.join(" · "))}`);
+        if (exo.securite) txt(`<b>Sécurité :</b> ${esc(exo.securite)}`);
+      }
+      txt("Pour améliorer ta technique : <b>baisse la charge</b> de 10 à 20 % le temps de corriger, contrôle la descente (2 à 3 secondes), cherche l'amplitude complète sans douleur, et garde 2 répétitions en réserve. <b>Filme-toi</b> de profil : c'est le moyen le plus fiable de voir ce que tu ne sens pas.");
+      txt("Pendant la séance, le menu ⋯ d'un exercice permet de signaler « Technique dégradée » : l'app n'augmentera pas la charge la fois suivante.");
+      if (!exo) txt("Pour un exercice précis, demande par exemple : « comment améliorer ma technique au squat ? »");
       break;
     }
     case "bilan": {
@@ -8527,7 +9056,7 @@ function vSet(v) {
   ligneI("Objectif", GOAL_LABELS[p.objectif] || p.objectif);
   ligneI("Niveau", LEVEL_LABELS[p.niveau] || p.niveau);
   ligneI("Jours par semaine", `${p.joursParSemaine} jours`);
-  ligneI("Répartition", ({ full_body: "Corps entier", haut_bas: "Haut / Bas", push_pull_legs: "Poussée · Tirage · Jambes", bro_split: "Par groupe musculaire" })[p.split] || "Automatique");
+  ligneI("Répartition", ({ full_body: "Corps entier", half_body: "Half body (avant / arrière)", haut_bas: "Haut / Bas", push_pull_legs: "Poussée · Tirage · Jambes", bro_split: "Par groupe musculaire" })[p.split] || "Automatique");
   ligneI("Durée de séance", `${p.dureeSeanceMin} min`);
   ligneI("Lieu", p.lieu);
   ligneI("Unité de poids", uImp() ? "Livres (lb)" : "Kilogrammes (kg)");

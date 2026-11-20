@@ -396,6 +396,7 @@ export function restaurer(brut) {
     data[exId] = {
       exId: st.exId || exId,
       douleur: !!st.douleur,
+      techniqueDegradee: !!st.techniqueDegradee,
       // Préférences d'affichage et groupe de superset : elles font partie de la
       // séance en cours, les perdre à la reprise reviendrait à réinitialiser
       // l'écran sous les doigts de l'utilisateur.
@@ -425,6 +426,9 @@ export function restaurer(brut) {
     // Unité dans laquelle les charges ont été SAISIES (kg ou lb). Une séance
     // enregistrée avant l'apparition des livres était forcément en kg.
     unite: brut.unite === "lb" ? "lb" : "kg",
+    // Exercices retirés ou remplacés à cause d'une douleur : la douleur reste
+    // enregistrée pour eux (la progression automatique se suspend).
+    douleurs: Array.isArray(brut.douleurs) ? brut.douleurs.filter((x) => typeof x === "string").slice(0, 30) : [],
     data,
   };
 }

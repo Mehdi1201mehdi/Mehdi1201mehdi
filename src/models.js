@@ -47,7 +47,7 @@ export const EQUIPMENT_LABELS = {
 /** Objectifs d'entraînement. */
 export const GOALS = /** @type {const} */ ([
   "prise_muscle", "perte_graisse", "recomposition", "force",
-  "endurance", "remise_forme", "mobilite", "prepa_physique",
+  "endurance", "remise_forme", "mobilite", "prepa_physique", "harmonie",
 ]);
 
 export const GOAL_LABELS = {
@@ -55,6 +55,7 @@ export const GOAL_LABELS = {
   recomposition: "Recomposition corporelle", force: "Force",
   endurance: "Endurance", remise_forme: "Remise en forme",
   mobilite: "Mobilité", prepa_physique: "Préparation physique",
+  harmonie: "Développement harmonieux",
 };
 
 /** Niveaux d'expérience. */
@@ -99,7 +100,7 @@ export const SPLITS = /** @type {const} */ ([
  * @property {number} dureeSeanceMin      // ex. 30, 45, 60, 75
  * @property {"maison"|"salle"|"exterieur"} lieu
  * @property {typeof EQUIPMENTS[number][]} equipements
- * @property {"auto"|"full_body"|"haut_bas"|"push_pull_legs"|"bro_split"|string} [split] répartition imposée (absent ou "auto" = choisie selon les jours)
+ * @property {"auto"|"full_body"|"half_body"|"haut_bas"|"push_pull_legs"|"bro_split"|string} [split] répartition imposée (absent ou "auto" = choisie selon les jours)
  * @property {typeof MUSCLES[number][]} musclesPrioritaires
  * @property {string[]} exercicesAimes     // ids d'exercices
  * @property {string[]} exercicesRefuses   // ids d'exercices

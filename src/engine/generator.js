@@ -7,15 +7,17 @@
  */
 import { MUSCLE_LABELS, GOAL_LABELS } from "../models.js";
 import { filtrerExercices, DIFFICULTE_CIBLE } from "./constraints.js";
+import { equilibrerVolume } from "./volume.js";
+import { getExercise } from "../data/exercises.js";
 
 /* ------------------------------------------------------------------ */
 /* 1. Choix du split hebdomadaire                                      */
 /* ------------------------------------------------------------------ */
 /** Répartitions que l'utilisateur peut imposer (Profil → Répartition). */
-export const SPLITS_CHOISISSABLES = ["full_body", "haut_bas", "push_pull_legs", "bro_split"];
+export const SPLITS_CHOISISSABLES = ["full_body", "half_body", "haut_bas", "push_pull_legs", "bro_split"];
 
 /** Nombre de séances par semaine en dessous duquel une répartition laisse des muscles sans travail. */
-const JOURS_MIN_SPLIT = { full_body: 1, haut_bas: 2, push_pull_legs: 3, bro_split: 3 };
+const JOURS_MIN_SPLIT = { full_body: 1, half_body: 2, haut_bas: 2, push_pull_legs: 3, bro_split: 3 };
 
 /**
  * La répartition choisie est-elle tenable avec ce nombre de séances ?
@@ -32,10 +34,15 @@ export function choisirSplit(profil) {
   if (profil.objectif === "mobilite") return "mobilite";
   // Choix explicite de l'utilisateur ; « auto » ou absent → règle par défaut.
   if (repartitionApplicable(profil)) return profil.split;
+  // Règle automatique : disponibilités d'abord (chaque muscle ≥ 2 fois par
+  // semaine dès que possible), puis niveau et objectif.
   const j = profil.joursParSemaine;
+  const novice = profil.niveau === "grand_debutant" || profil.niveau === "debutant";
   if (j <= 3) return "full_body";
-  if (j === 4) return "haut_bas";
-  if (j === 5) return "push_pull_legs";
+  if (j === 4) return profil.niveau === "grand_debutant" ? "full_body" : "haut_bas";
+  // À 5-6 séances, un débutant ou un objectif de force garde une fréquence
+  // élevée sur les mouvements de base : haut / bas plutôt que trois séances.
+  if (novice || profil.objectif === "force") return "haut_bas";
   return "push_pull_legs";
 }
 
@@ -84,6 +91,24 @@ const SLOTS = {
     S("fessiers", "secondaire", ["charniere_hanche"]),
     S("mollets", "isolation"),
     S("abdominaux", "gainage"),
+  ],
+  // Half body « antérieur / postérieur » : chaque séance couvre la moitié des
+  // chaînes musculaires, haut ET bas du corps (différent du haut / bas).
+  anterieur: [
+    S("quadriceps", "principal", ["squat"]),
+    S("pectoraux", "principal", ["poussee_horizontale"]),
+    S("epaules", "secondaire", ["poussee_verticale"]),
+    S("quadriceps", "secondaire", ["fente"]),
+    S("triceps", "isolation"),
+    S("abdominaux", "gainage"),
+  ],
+  posterieur: [
+    S("ischios", "principal", ["charniere_hanche"]),
+    S("dorsaux", "principal", ["tirage_vertical", "tirage_horizontal"]),
+    S("dorsaux", "secondaire", ["tirage_horizontal"]),
+    S("fessiers", "secondaire", ["charniere_hanche", "fente"]),
+    S("biceps", "isolation"),
+    S("mollets", "isolation"),
   ],
   push: [
     S("pectoraux", "principal", ["poussee_horizontale"]),
@@ -153,6 +178,10 @@ function sequenceSeances(split, jours) {
       const rot = ["full_body_A", "full_body_B", "full_body_C"];
       // Au-delà de 3 séances la rotation recommence : « A (2) », jamais deux séances du même nom.
       return Array.from({ length: jours }, (_, i) => ({ nom: `Corps entier ${String.fromCharCode(65 + (i % 3))}${i >= 3 ? " (2)" : ""}`, slots: rot[i % 3] }));
+    }
+    case "half_body": {
+      const seq = [["Chaîne antérieure A", "anterieur"], ["Chaîne postérieure A", "posterieur"], ["Chaîne antérieure B", "anterieur"], ["Chaîne postérieure B", "posterieur"]];
+      return Array.from({ length: jours }, (_, i) => ({ nom: seq[i % 4][0] + (i >= 4 ? " (2)" : ""), slots: seq[i % 4][1] }));
     }
     case "haut_bas": {
       const seq = [["Haut du corps A", "haut"], ["Bas du corps A", "bas"], ["Haut du corps B", "haut"], ["Bas du corps B", "bas"]];
@@ -241,10 +270,13 @@ function choisirPourSlot(slot, pool, profil, dejaPris, patronsUtilises, usedGlob
 /* ------------------------------------------------------------------ */
 /* 9. Prescription séries/reps/repos/tempo/intensité selon l'objectif   */
 /* ------------------------------------------------------------------ */
-const PRESCRIPTIONS = {
+export const PRESCRIPTIONS = {
   force: { reps: [4, 6], repos: 180, rir: 2, sets: { principal: 4, secondaire: 3, isolation: 3 } },
   prise_muscle: { reps: [8, 12], repos: 105, rir: 1, sets: { principal: 4, secondaire: 3, isolation: 3 } },
   hypertrophie: { reps: [8, 12], repos: 105, rir: 1, sets: { principal: 4, secondaire: 3, isolation: 3 } },
+  // Développement harmonieux : volume d'hypertrophie, RIR un cran plus
+  // prudent, et un volume équilibré entre groupes (voir equilibrerVolume).
+  harmonie: { reps: [8, 12], repos: 90, rir: 2, sets: { principal: 3, secondaire: 3, isolation: 3 } },
   recomposition: { reps: [8, 15], repos: 90, rir: 2, sets: { principal: 3, secondaire: 3, isolation: 2 } },
   perte_graisse: { reps: [10, 15], repos: 60, rir: 2, sets: { principal: 3, secondaire: 3, isolation: 2 } },
   endurance: { reps: [15, 25], repos: 45, rir: 2, sets: { principal: 3, secondaire: 2, isolation: 2 } },
@@ -252,6 +284,33 @@ const PRESCRIPTIONS = {
   mobilite: { reps: [1, 1], repos: 45, rir: null, sets: { principal: 2, secondaire: 2, isolation: 2, gainage: 2, cardio: 1 } },
   prepa_physique: { reps: [6, 12], repos: 90, rir: 2, sets: { principal: 4, secondaire: 3, isolation: 2 } },
 };
+
+/**
+ * Plage de répétitions d'un exercice pour un objectif.
+ * Intersection de la plage pertinente de l'exercice et de celle de l'objectif ;
+ * quand elles ne se recouvrent pas assez, on garde la largeur de l'objectif en
+ * se recalant au bord le plus proche de la plage de l'exercice. Jamais de plage
+ * inversée (8-6) ni réduite à un seul nombre (6-6).
+ * @param {[number,number]} pertinent
+ * @param {[number,number]} objectif
+ * @returns {[number,number]}
+ */
+export function plageReps(pertinent, objectif) {
+  const [emin, emax] = pertinent, [gmin, gmax] = objectif;
+  let lo = Math.max(emin, gmin), hi = Math.min(emax, gmax);
+  if (hi - lo >= 2) return [lo, hi];
+  const largeur = Math.min(5, Math.max(2, gmax - gmin));
+  if (gmin < emin) {
+    // Objectif plus lourd que ne le permet l'exercice (force sur un exercice
+    // d'isolation ou aux haltères) : bas de la plage de l'exercice.
+    lo = emin; hi = Math.min(emax, emin + largeur);
+  } else {
+    // Objectif plus léger : on monte vers lui sans le dépasser.
+    lo = Math.max(emin, Math.min(gmin, emax)); hi = Math.min(gmax, lo + largeur);
+  }
+  if (hi - lo < 2) hi = lo + 2;
+  return [lo, hi];
+}
 
 /** Nombre de séries selon rôle, objectif et niveau. */
 function nbSeries(role, profil) {
@@ -273,14 +332,16 @@ function construireSeries(exo, role, profil) {
 
   // 1 série d'échauffement pour les gros mouvements chargés
   if (role === "principal" && !enTemps && exo.chargeRelative !== "leger") {
-    series.push({ type: "echauffement", repsCible: [Math.max(6, p.reps[1]), Math.max(8, p.reps[1] + 3)], dureeSec: null, distanceM: null, rirCible: 5, rpeCible: null, tempo: exo.tempoDefaut, reposSec: 60, chargeKg: null });
+    // Approche légère : 8 à 10 répétitions faciles, quel que soit l'objectif
+    // (auparavant 25-28 répétitions en endurance).
+    series.push({ type: "echauffement", repsCible: [8, 10], dureeSec: null, distanceM: null, rirCible: 5, rpeCible: null, tempo: exo.tempoDefaut, reposSec: 60, chargeKg: null });
   }
   const n = nbSeries(role, profil);
   for (let i = 0; i < n; i++) {
     if (enTemps) {
       series.push({ type: "travail", repsCible: null, dureeSec: exo.dureeSec || 40, distanceM: null, rirCible: p.rir, rpeCible: null, tempo: exo.tempoDefaut, reposSec: role === "gainage" ? 45 : p.repos, chargeKg: null });
     } else {
-      series.push({ type: "travail", repsCible: [exo.repsPertinent[0], Math.min(exo.repsPertinent[1], p.reps[1])], dureeSec: null, distanceM: null, rirCible: p.rir, rpeCible: null, tempo: exo.tempoDefaut, reposSec: p.repos, chargeKg: null });
+      series.push({ type: "travail", repsCible: plageReps(exo.repsPertinent, p.reps), dureeSec: null, distanceM: null, rirCible: p.rir, rpeCible: null, tempo: exo.tempoDefaut, reposSec: p.repos, chargeKg: null });
     }
   }
   return series;
@@ -297,12 +358,18 @@ function dureeExoMin(series) {
 /* ------------------------------------------------------------------ */
 /**
  * @param {import("../models.js").Profil} profil
- * @param {{now?: string}} [options]
+ * @param {{now?: string, exclure?: string[]}} [options]
+ *   `exclure` : exercices à éviter (ex. ceux qui ont stagné pendant le cycle
+ *   précédent) — une variante équivalente prend leur place quand elle existe.
  * @returns {import("../models.js").Programme}
  */
 export function genererProgramme(profil, options = {}) {
   const split = choisirSplit(profil);
-  const { autorises: pool } = filtrerExercices(profil);
+  const exclus = new Set(options.exclure || []);
+  const tous = filtrerExercices(profil).autorises;
+  // On n'exclut que s'il reste une alternative pour le muscle : mieux vaut
+  // garder un exercice qui stagne qu'un trou dans la séance.
+  const pool = exclus.size ? tous.filter((e) => !exclus.has(e.id)) : tous;
   const seq = sequenceSeances(split, profil.joursParSemaine);
   const budgetMin = profil.dureeSeanceMin - 8; // 8 min réservées à l'échauffement général
   const usedGlobal = new Set(); // pour la variété d'une séance à l'autre
@@ -346,15 +413,25 @@ export function genererProgramme(profil, options = {}) {
     };
   });
 
-  return {
+  const programme = {
     id: `prog-${options.now || new Date().toISOString()}`,
-    nom: `${GOAL_LABELS[profil.objectif]} · ${profil.joursParSemaine} j/sem`,
+    nom: `${GOAL_LABELS[profil.objectif] || "Programme"} · ${profil.joursParSemaine} j/sem`,
     split,
     createdAt: options.now || new Date().toISOString(),
     seances,
     justificationGlobale: justifierGlobal(split, profil),
     profilSnapshot: profil,
   };
+  // Volume : séries ajoutées aux muscles prioritaires (et à tous les muscles
+  // pour l'objectif harmonieux) dans la limite de la durée de séance.
+  const ajouts = equilibrerVolume(programme, getExercise, profil, dureeExoMin);
+  if (ajouts.length) {
+    const muscles = [...new Set(ajouts.map((a) => MUSCLE_LABELS[a.muscle] || a.muscle))];
+    programme.justificationGlobale += ` Volume ajusté : +${ajouts.length} série${ajouts.length > 1 ? "s" : ""} pour ${muscles.join(", ")}${profil.objectif === "harmonie" ? " (aucun groupe sous son minimum hebdomadaire)" : " (muscles prioritaires)"}.`;
+  }
+  programme.ajustementsVolume = ajouts;
+  if (exclus.size) programme.exclus = [...exclus];
+  return programme;
 }
 
 /* ------------------------------------------------------------------ */
@@ -370,13 +447,14 @@ function justifierExo(exo, slot, profil) {
 }
 
 const SPLIT_LABELS = {
-  full_body: "corps entier", haut_bas: "haut / bas du corps",
+  full_body: "corps entier", half_body: "antérieur / postérieur (half body)", haut_bas: "haut / bas du corps",
   push_pull_legs: "poussée / tirage / jambes", bro_split: "par groupe musculaire", mobilite: "mobilité & récupération",
 };
 function justifierGlobal(split, profil) {
   const raisons = {
     full_body: `Avec ${profil.joursParSemaine} séance(s)/semaine, un format corps entier stimule chaque groupe musculaire plusieurs fois par semaine — le meilleur rapport résultat/temps pour ton profil.`,
-    haut_bas: `À 4 séances, un découpage haut/bas permet plus de volume par groupe tout en laissant 48 h de récupération entre deux séances similaires.`,
+    half_body: `Chaque séance couvre une moitié des chaînes musculaires (avant : quadriceps, pectoraux, épaules, triceps ; arrière : ischios, fessiers, dos, biceps), haut et bas du corps réunis : chaque muscle revient deux fois par semaine dès 4 séances.`,
+    haut_bas: `Un découpage haut/bas permet plus de volume par groupe tout en laissant 48 h de récupération entre deux séances similaires.`,
     push_pull_legs: `À 5+ séances, le format poussée/tirage/jambes répartit finement le volume et respecte la récupération.`,
     bro_split: `Un groupe musculaire par séance, comme tu l'as choisi : beaucoup de volume sur le groupe du jour, une semaine complète pour récupérer. Chaque groupe n'est travaillé qu'une fois par semaine — à 3 séances ou moins, le corps entier est plus efficace.`,
     mobilite: `Objectif mobilité : séances douces centrées sur l'amplitude et la récupération, sans charge lourde.`,

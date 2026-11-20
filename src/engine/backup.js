@@ -25,6 +25,8 @@ const CLES_EXPORT = [
   // Ajoutées ensuite : l'historique du test vélo n'était pas sauvegardé (perdu
   // à la restauration), et les favoris du dictionnaire sont un choix explicite.
   "testsVelo", "dicoFavoris",
+  // Cycles d'entraînement : le cycle en cours et les bilans des précédents.
+  "cycle", "bilansCycles",
 ];
 
 /**

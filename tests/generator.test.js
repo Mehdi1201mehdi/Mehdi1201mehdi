@@ -133,3 +133,44 @@ test("répartition imposée intenable : retour à l'automatique, dit clairement 
     assert.equal(new Set(noms).size, noms.length, `${split} ${jours} j : ${noms.join(", ")}`);
   }
 });
+
+test("plages de répétitions : jamais inversées ni réduites à un nombre, échauffement 8-10", () => {
+  for (const objectif of /** @type {const} */ (["force", "endurance", "prise_muscle", "perte_graisse", "recomposition", "harmonie", "prepa_physique"])) {
+    const prog = genererProgramme(makeProfil({ objectif, joursParSemaine: 4 }));
+    for (const s of prog.seances) for (const e of s.exercices) for (const se of e.series) {
+      if (!se.repsCible) continue;
+      assert.ok(se.repsCible[1] - se.repsCible[0] >= 2, `${objectif} ${e.exerciceId} ${se.repsCible}`);
+      if (se.type === "echauffement") assert.deepEqual(se.repsCible, [8, 10]);
+    }
+  }
+});
+
+test("plageReps : intersection, ou recalage au bord le plus proche", async () => {
+  const { plageReps } = await import("../src/engine/generator.js");
+  assert.deepEqual(plageReps([6, 12], [8, 12]), [8, 12]);
+  assert.deepEqual(plageReps([8, 12], [4, 6]), [8, 10], "force sur un exercice léger");
+  assert.deepEqual(plageReps([5, 10], [15, 25]), [10, 15], "endurance sur un exercice lourd");
+});
+
+test("half body : chaîne antérieure / postérieure, choisissable dès 2 séances", () => {
+  const prog = genererProgramme(makeProfil({ joursParSemaine: 4, split: "half_body" }));
+  assert.equal(prog.split, "half_body");
+  assert.match(prog.seances[0].nom, /antérieure/);
+  assert.match(prog.seances[1].nom, /postérieure/);
+  assert.notEqual(genererProgramme(makeProfil({ joursParSemaine: 1, split: "half_body" })).split, "half_body");
+});
+
+test("choix automatique : niveau et objectif pris en compte à 5 séances", () => {
+  assert.equal(genererProgramme(makeProfil({ joursParSemaine: 5, niveau: "debutant" })).split, "haut_bas");
+  assert.equal(genererProgramme(makeProfil({ joursParSemaine: 5, objectif: "force" })).split, "haut_bas");
+  assert.equal(genererProgramme(makeProfil({ joursParSemaine: 5, niveau: "avance" })).split, "push_pull_legs");
+  assert.equal(genererProgramme(makeProfil({ joursParSemaine: 4, niveau: "grand_debutant" })).split, "full_body");
+});
+
+test("exclure : un exercice exclu est remplacé quand une alternative existe", () => {
+  const p = makeProfil({ joursParSemaine: 3 });
+  const avant = genererProgramme(p);
+  const cible = avant.seances[0].exercices[0].exerciceId;
+  const apres = genererProgramme(p, { exclure: [cible] });
+  assert.ok(!apres.seances.flatMap((s) => s.exercices.map((e) => e.exerciceId)).includes(cible));
+});

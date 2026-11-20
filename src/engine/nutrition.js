@@ -29,7 +29,7 @@ export function facteurActivite(profil) {
 export function ajustementObjectif(objectif) {
   return ({
     perte_graisse: -0.18, recomposition: -0.05, prise_muscle: 0.10,
-    force: 0.05, endurance: 0, remise_forme: -0.05, mobilite: 0, prepa_physique: 0.03,
+    force: 0.05, endurance: 0, remise_forme: -0.05, mobilite: 0, prepa_physique: 0.03, harmonie: 0.05,
   })[objectif] ?? 0;
 }
 

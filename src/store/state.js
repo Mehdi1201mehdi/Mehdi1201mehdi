@@ -15,6 +15,7 @@ import { idbGet, idbSet, idbDisponible } from "./db.js";
 import { IDENTITE } from "../config/identite.js";
 import { etatVide, normaliserEtat, choisirEtat } from "./migrate.js";
 import { estSerieTravail } from "../engine/records.js";
+import { prochaineSeance } from "../engine/adaptation.js";
 
 // La clé vient de src/config/identite.js — un identifiant TECHNIQUE, séparé du
 // nom affiché : renommer l'application ne doit jamais couper l'accès à
@@ -142,9 +143,22 @@ export const Etat = {
       const ex = (this.data.logs[i].exercices || []).find((e) => e.exerciceId === exerciceId);
       // Séries de travail seulement : les approches fausseraient la charge
       // conseillée et décaleraient la colonne « Précédent ».
-      if (ex) out.push({ series: (ex.series || []).filter(estSerieTravail), douleur: !!ex.douleur, note: ex.note || null });
+      if (ex) out.push({ series: (ex.series || []).filter(estSerieTravail), douleur: !!ex.douleur, techniqueDegradee: !!ex.techniqueDegradee, note: ex.note || null });
     }
     return out; // [derniere, avantDerniere]
+  },
+  /**
+   * Les `n` dernières séances d'un exercice (la plus récente d'abord), séries
+   * de travail seulement — sert à détecter une stagnation.
+   */
+  historique(exerciceId, n = 8) {
+    const out = [];
+    for (let i = this.data.logs.length - 1; i >= 0 && out.length < n; i--) {
+      const l = this.data.logs[i];
+      const ex = (l.exercices || []).find((e) => e.exerciceId === exerciceId);
+      if (ex) out.push({ date: l.date, series: (ex.series || []).filter(estSerieTravail), douleur: !!ex.douleur, techniqueDegradee: !!ex.techniqueDegradee });
+    }
+    return out;
   },
 };
 
@@ -153,11 +167,23 @@ export function planningJours(jours) {
   return ({ 1: [3], 2: [2, 5], 3: [1, 3, 5], 4: [1, 2, 4, 6], 5: [1, 2, 3, 5, 6], 6: [1, 2, 3, 4, 5, 6] })[jours] || [1, 3, 5];
 }
 
-/** Séance prévue aujourd'hui (ou null les jours de repos). */
-export function seanceDuJour(programme) {
-  if (!programme) return null;
-  const isoAujourdhui = ((new Date().getDay() + 6) % 7) + 1;
-  const planning = planningJours(programme.seances.length);
-  const idx = planning.indexOf(isoAujourdhui);
-  return idx >= 0 ? programme.seances[idx] : null;
+/**
+ * État de la semaine du programme : prochaine séance de la rotation, séances
+ * manquées, jours restants (voir engine/adaptation.js).
+ */
+export function etatSemaine(programme, maintenant = Date.now()) {
+  if (!programme || !Array.isArray(programme.seances) || !programme.seances.length) return null;
+  return prochaineSeance(programme, Etat.data.logs || [], { maintenant, joursPlanifies: planningJours(programme.seances.length) });
+}
+
+/**
+ * Séance à faire aujourd'hui (ou null les jours de repos).
+ * La rotation reprend là où on s'est arrêté : une séance manquée lundi est
+ * proposée mercredi au lieu d'être sautée. Rien n'est proposé un jour de repos
+ * prévu si l'on est à jour, ni après la séance du jour.
+ */
+export function seanceDuJour(programme, maintenant = Date.now()) {
+  const e = etatSemaine(programme, maintenant);
+  if (!e || e.dejaAujourdhui || e.semaineFaite) return null;
+  return e.prevuAujourdhui || e.manquees > 0 ? e.seance : null;
 }

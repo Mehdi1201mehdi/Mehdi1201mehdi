@@ -70,3 +70,16 @@ test("exerciceDeLaQuestion : les mots de liaison ne désignent pas un exercice",
   assert.equal(exerciceDeLaQuestion("explique-moi le soulevé de terre", cat).id, "c");
   assert.equal(exerciceDeLaQuestion("comment faire un hip thrust", cat).id, "d");
 });
+
+test("questions « pourquoi » : aucun exercice inventé, intentions dédiées", async () => {
+  const { detecterIntention, exerciceDeLaQuestion } = await import("../src/engine/assistant.js");
+  const { CATALOGUE } = await import("../src/data/exercises.js");
+  for (const q of ["Pourquoi est-ce que je stagne ?", "Pourquoi dois-je faire autant de séries ?", "Comment améliorer ma technique ?", "Pourquoi augmenter cette charge ?"]) {
+    assert.equal(exerciceDeLaQuestion(q, CATALOGUE), null, q);
+  }
+  assert.equal(/** @type {any} */ (exerciceDeLaQuestion("Pourquoi je stagne au squat ?", CATALOGUE))?.patron, "squat");
+  assert.equal(detecterIntention("Dois-je augmenter ou diminuer mon volume d'entraînement ?").intent, "volume");
+  assert.equal(detecterIntention("Quel muscle dois-je travailler davantage ?").intent, "muscle_retard");
+  assert.equal(detecterIntention("Pourquoi cet exercice a-t-il été choisi ?").intent, "pourquoi_exercice");
+  assert.equal(detecterIntention("Combien de repos entre les séries ?").intent, "repos");
+});
